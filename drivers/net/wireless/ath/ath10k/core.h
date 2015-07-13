@@ -1206,6 +1206,7 @@ struct ath10k {
 
 	bool nlo_enabled;
 	bool p2p;
+	bool ct_all_pkts_htt; /* CT firmware only: native-wifi for all pkts */
 
 	struct {
 		enum ath10k_bus bus;
