@@ -3589,8 +3589,11 @@ static int ieee80211_start_radar_detection(struct wiphy *wiphy,
 
 	lockdep_assert_wiphy(local->hw.wiphy);
 
-	if (!list_empty(&local->roc_list) || local->scanning)
+	if (!list_empty(&local->roc_list) || local->scanning) {
+		sdata_info(sdata, "start-radar failed, roc-list-empty: %d  scanning: %ld\n",
+			   list_empty(&local->roc_list), local->scanning);
 		return -EBUSY;
+	}
 
 	link_data = sdata_dereference(sdata->link[link_id], sdata);
 	if (!link_data)
@@ -3602,8 +3605,11 @@ static int ieee80211_start_radar_detection(struct wiphy *wiphy,
 
 	err = ieee80211_link_use_channel(link_data, &chanreq,
 					 IEEE80211_CHANCTX_SHARED);
-	if (err)
+	if (err) {
+		sdata_info(sdata, "start-radar failed, vif-use-channel check failed: %d\n",
+			   err);
 		return err;
+	}
 
 	wiphy_delayed_work_queue(wiphy, &link_data->dfs_cac_timer_work,
 				 msecs_to_jiffies(cac_time_ms));
