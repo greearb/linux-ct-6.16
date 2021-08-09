@@ -392,6 +392,7 @@ enum ieee80211_conn_bw_limit {
 struct ieee80211_conn_settings {
 	enum ieee80211_conn_mode mode;
 	enum ieee80211_conn_bw_limit bw_limit;
+	enum ieee80211_conn_flags conn_flags;
 };
 
 extern const struct ieee80211_conn_settings ieee80211_conn_settings_unlimited;
