@@ -3608,6 +3608,9 @@ ieee80211_process_rx_twt_action(struct ieee80211_rx_data *rx)
 	if (sdata->vif.type != NL80211_IFTYPE_AP)
 		return false;
 
+	if (!sdata->vif.bss_conf.twt_responder)
+		return false;
+
 	if (!rx->local->ops->add_twt_setup)
 		return false;
 
