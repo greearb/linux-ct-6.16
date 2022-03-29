@@ -1097,6 +1097,12 @@ cfg80211_chandef_dfs_cac_time(struct wiphy *wiphy,
 
 		if (cf == 2 && c->dfs_cac_ms > t2)
 			t2 = c->dfs_cac_ms;
+
+		/* weather radar in ETSI */
+		if (reg_get_dfs_region(wiphy) == NL80211_DFS_ETSI &&
+		    freq >= MHZ_TO_KHZ(5600) && freq <= MHZ_TO_KHZ(5640) &&
+		    c->dfs_state == NL80211_DFS_USABLE)
+			return IEEE80211_DFS_WEATHER_MIN_CAC_TIME_MS;
 	}
 
 	if (t1 == INT_MAX && t2 == INT_MAX)
