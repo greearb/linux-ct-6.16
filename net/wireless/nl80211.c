@@ -3845,6 +3845,9 @@ static int nl80211_set_wiphy(struct sk_buff *skb, struct genl_info *info)
 		if (frag_threshold < 256)
 			return -EINVAL;
 
+		if (frag_threshold >= 2346)
+			frag_threshold = (u32) -1;
+
 		if (frag_threshold != (u32) -1) {
 			/*
 			 * Fragments (apart from the last one) are required to
