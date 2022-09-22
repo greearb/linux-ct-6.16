@@ -4260,7 +4260,7 @@ EXPORT_SYMBOL(regulatory_pre_cac_allowed);
 static void cfg80211_check_and_end_cac(struct cfg80211_registered_device *rdev)
 {
 	struct wireless_dev *wdev;
-	unsigned int link_id;
+	int link_id;
 
 	/* If we finished CAC or received radar, we should end any
 	 * CAC running on the same channels.

@@ -1613,4 +1613,17 @@ rdev_set_epcs(struct cfg80211_registered_device *rdev,
 	return ret;
 }
 
+static inline int
+rdev_skip_cac(struct cfg80211_registered_device *rdev,
+	      struct wireless_dev *wdev, unsigned int link_id)
+{
+	if (!rdev->ops->skip_cac)
+		return -EOPNOTSUPP;
+
+	trace_rdev_skip_cac(wdev, link_id);
+	rdev->ops->skip_cac(wdev, link_id);
+	trace_rdev_return_void(&rdev->wiphy);
+
+	return 0;
+}
 #endif /* __CFG80211_RDEV_OPS */

@@ -86,6 +86,9 @@ struct cfg80211_registered_device {
 
 	struct wireless_dev *background_radar_wdev;
 	struct cfg80211_chan_def background_radar_chandef;
+	bool background_cac_started;
+	unsigned long background_cac_start_time;
+	unsigned int background_cac_time_ms;
 	struct delayed_work background_cac_done_wk;
 	struct work_struct background_cac_abort_wk;
 
