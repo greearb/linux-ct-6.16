@@ -4278,6 +4278,19 @@ TRACE_EVENT(cfg80211_epcs_changed,
 		  WDEV_PR_ARG, __entry->enabled)
 );
 
+TRACE_EVENT(rdev_skip_cac,
+	TP_PROTO(struct wireless_dev *wdev, unsigned int link_id),
+	TP_ARGS(wdev, link_id),
+	TP_STRUCT__entry(
+		WDEV_ENTRY
+		__field(unsigned int, link_id)
+	),
+	TP_fast_assign(
+		WDEV_ASSIGN;
+		__entry->link_id = link_id;
+	),
+	TP_printk(WDEV_PR_FMT ", link_id: %d", WDEV_PR_ARG, __entry->link_id)
+);
 #endif /* !__RDEV_OPS_TRACE || TRACE_HEADER_MULTI_READ */
 
 #undef TRACE_INCLUDE_PATH

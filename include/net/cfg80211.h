@@ -5028,6 +5028,7 @@ struct cfg80211_ops {
 				   struct cfg80211_ml_reconf_req *req);
 	int	(*set_epcs)(struct wiphy *wiphy, struct net_device *dev,
 			    bool val);
+	void	(*skip_cac)(struct wireless_dev *wdev, unsigned int link_id);
 };
 
 /*
@@ -8905,6 +8906,7 @@ void cfg80211_sta_opmode_change_notify(struct net_device *dev, const u8 *mac,
 /**
  * cfg80211_cac_event - Channel availability check (CAC) event
  * @netdev: network device
+ * @link_id: the link ID for MLO, must be 0 for non-MLO
  * @chandef: chandef for the current channel
  * @event: type of event
  * @gfp: context flags
