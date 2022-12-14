@@ -66,7 +66,8 @@ static void ieee80211_send_addba_request(struct sta_info *sta, u16 tid,
 	struct ieee80211_local *local = sdata->local;
 	struct sk_buff *skb;
 	struct ieee80211_mgmt *mgmt;
-	u16 capab;
+	u16 capab = 0;
+	bool amsdu = ieee80211_hw_check(&local->hw, SUPPORTS_AMSDU_IN_AMPDU);
 
 	skb = dev_alloc_skb(sizeof(*mgmt) +
 			    2 + sizeof(struct ieee80211_addba_ext_ie) +
@@ -83,7 +84,8 @@ static void ieee80211_send_addba_request(struct sta_info *sta, u16 tid,
 	mgmt->u.action.u.addba_req.action_code = WLAN_ACTION_ADDBA_REQ;
 
 	mgmt->u.action.u.addba_req.dialog_token = dialog_token;
-	capab = IEEE80211_ADDBA_PARAM_AMSDU_MASK;
+	if (amsdu)
+		capab = IEEE80211_ADDBA_PARAM_AMSDU_MASK;
 	capab |= IEEE80211_ADDBA_PARAM_POLICY_MASK;
 	capab |= u16_encode_bits(tid, IEEE80211_ADDBA_PARAM_TID_MASK);
 	capab |= u16_encode_bits(agg_size, IEEE80211_ADDBA_PARAM_BUF_SIZE_MASK);
