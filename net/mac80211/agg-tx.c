@@ -1046,7 +1046,8 @@ void ieee80211_process_addba_resp(struct ieee80211_local *local,
 
 		tid_tx->buf_size = buf_size;
 		tid_tx->amsdu = amsdu;
-
+		ieee80211_send_bar(&sta->sdata->vif, sta->sta.addr,
+					   tid, 0);
 		if (test_bit(HT_AGG_STATE_DRV_READY, &tid_tx->state))
 			ieee80211_agg_tx_operational(local, sta, tid);
 
