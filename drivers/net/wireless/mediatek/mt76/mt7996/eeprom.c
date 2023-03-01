@@ -6,6 +6,11 @@
 #include <linux/firmware.h>
 #include "mt7996.h"
 #include "eeprom.h"
+#include <linux/moduleparam.h>
+
+static bool testmode_enable;
+module_param(testmode_enable, bool, 0644);
+MODULE_PARM_DESC(testmode_enable, "Enable testmode");
 
 static int mt7996_check_eeprom(struct mt7996_dev *dev)
 {
@@ -26,6 +31,9 @@ static int mt7996_check_eeprom(struct mt7996_dev *dev)
 
 static char *mt7996_eeprom_name(struct mt7996_dev *dev)
 {
+	if (dev->testmode_enable)
+		return MT7996_EEPROM_DEFAULT_TM;
+
 	switch (mt76_chip(&dev->mt76)) {
 	case MT7992_DEVICE_ID:
 		switch (dev->var.type) {
@@ -168,6 +176,7 @@ static int mt7996_eeprom_load(struct mt7996_dev *dev)
 
 	mtk_dbg(&dev->mt76, CFG, "attemping eeprom-init.\n");
 
+	/* load eeprom in flash or bin file mode to determine fw mode */
 	ret = mt76_eeprom_init(&dev->mt76, MT7996_EEPROM_SIZE);
 	if (ret < 0) {
 		mtk_dbg(&dev->mt76, CFG, "eeprom-init had error: %d\n", ret);

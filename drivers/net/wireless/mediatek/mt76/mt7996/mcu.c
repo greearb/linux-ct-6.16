@@ -3319,8 +3319,12 @@ static int mt7996_load_ram(struct mt7996_dev *dev)
 {
 	int ret;
 
-	ret = __mt7996_load_ram(dev, "WM", fw_name(dev, FIRMWARE_WM),
-				MT7996_RAM_TYPE_WM);
+	if (dev->testmode_enable)
+		ret = __mt7996_load_ram(dev, "WM_TM", fw_name(dev, FIRMWARE_WM_TM),
+					MT7996_RAM_TYPE_WM_TM);
+	else
+		ret = __mt7996_load_ram(dev, "WM", fw_name(dev, FIRMWARE_WM),
+					MT7996_RAM_TYPE_WM);
 	if (ret)
 		return ret;
 
@@ -4002,15 +4006,7 @@ int mt7996_mcu_set_eeprom(struct mt7996_dev *dev)
 
 int mt7996_mcu_get_eeprom(struct mt7996_dev *dev, u32 offset, u8 *buf, u32 buf_len)
 {
-	struct {
-		u8 _rsv[4];
-
-		__le16 tag;
-		__le16 len;
-		__le32 addr;
-		__le32 valid;
-		u8 data[16];
-	} __packed req = {
+	struct mt7996_mcu_eeprom_info req = {
 		.tag = cpu_to_le16(UNI_EFUSE_ACCESS),
 		.len = cpu_to_le16(sizeof(req) - 4),
 		.addr = cpu_to_le32(round_down(offset,

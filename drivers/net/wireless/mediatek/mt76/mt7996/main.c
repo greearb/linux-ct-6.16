@@ -20,10 +20,26 @@ MODULE_PARM_DESC(debug_lvl,
 		 "0xffffffff	any/all\n"
 	);
 
+#if 0
+static void mt7996_testmode_disable_all(struct mt7996_dev *dev)
+{
+	struct mt7996_phy *phy;
+	int i;
+
+	for (i = 0; i < __MT_MAX_BAND; i++) {
+		phy = __mt7996_phy(dev, i);
+		if (phy)
+			mt76_testmode_set_state(phy->mt76, MT76_TM_STATE_OFF);
+	}
+}
+#endif
+
 int mt7996_run(struct mt7996_phy *phy)
 {
 	struct mt7996_dev *dev = phy->dev;
 	int ret;
+
+	//mt7996_testmode_disable_all(dev);
 
 	mt7996_mac_enable_nf(dev, phy->mt76->band_idx);
 
@@ -2271,6 +2287,8 @@ const struct ieee80211_ops mt7996_ops = {
 	.sta_set_decap_offload = mt7996_sta_set_decap_offload,
 	.add_twt_setup = mt7996_mac_add_twt_setup,
 	.twt_teardown_request = mt7996_twt_teardown_request,
+	CFG80211_TESTMODE_CMD(mt76_testmode_cmd)
+	CFG80211_TESTMODE_DUMP(mt76_testmode_dump)
 #ifdef CONFIG_MAC80211_DEBUGFS
 	.sta_add_debugfs = mt7996_sta_add_debugfs,
 #endif
