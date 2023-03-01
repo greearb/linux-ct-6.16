@@ -1038,6 +1038,10 @@ static int mt7996_init_hardware(struct mt7996_dev *dev)
 
 	set_bit(MT76_STATE_INITIALIZED, &dev->mphy.state);
 
+	//ret = mt7996_eeprom_check_fw_mode(dev);
+	//if (ret < 0)
+	//	return ret;
+
 	ret = mt7996_mcu_init(dev);
 	if (ret)
 		return ret;

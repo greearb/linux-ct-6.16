@@ -43,6 +43,7 @@
 #define MT7996_FIRMWARE_WA		"mediatek/mt7996/mt7996_wa.bin"
 #define MT7996_FIRMWARE_WM		"mediatek/mt7996/mt7996_wm.bin"
 #define MT7996_FIRMWARE_DSP		"mediatek/mt7996/mt7996_dsp.bin"
+#define MT7996_FIRMWARE_WM_TM		"mediatek/mt7996/mt7996_wm_tm.bin"
 #define MT7996_ROM_PATCH		"mediatek/mt7996/mt7996_rom_patch.bin"
 
 #define MT7996_FIRMWARE_WA_233		"mediatek/mt7996/mt7996_wa_233.bin"
@@ -53,22 +54,26 @@
 #define MT7992_FIRMWARE_WA		"mediatek/mt7996/mt7992_wa.bin"
 #define MT7992_FIRMWARE_WM		"mediatek/mt7996/mt7992_wm.bin"
 #define MT7992_FIRMWARE_DSP		"mediatek/mt7996/mt7992_dsp.bin"
+#define MT7992_FIRMWARE_WM_TM_24	"mediatek/mt7996/mt7992_wm_tm_24.bin"
+#define MT7992_FIRMWARE_WM_TM		"mediatek/mt7996/mt7992_wm_tm.bin"
 #define MT7992_ROM_PATCH		"mediatek/mt7996/mt7992_rom_patch.bin"
 
-#define MT7992_FIRMWARE_WA_23		"mediatek/mt7996/mt7992_wa_23.bin"
-#define MT7992_FIRMWARE_WM_23		"mediatek/mt7996/mt7992_wm_23.bin"
-#define MT7992_FIRMWARE_DSP_23		"mediatek/mt7996/mt7992_dsp_23.bin"
-#define MT7992_ROM_PATCH_23		"mediatek/mt7996/mt7992_rom_patch_23.bin"
-
-#define MT7990_FIRMWARE_WA		""
-#define MT7990_FIRMWARE_WM		"mediatek/mt7996/mt7990_wm.bin"
-#define MT7990_FIRMWARE_DSP		""
-#define MT7990_ROM_PATCH		"mediatek/mt7996/mt7990_rom_patch.bin"
-
 #define MT7996_EEPROM_DEFAULT		"mediatek/mt7996/mt7996_eeprom.bin"
+#define MT7996_EEPROM_DEFAULT_TM	"mediatek/mt7996/mt7996_eeprom_tm.bin"
+#define MT7996_EEPROM_SIZE		7680
+#define MT7996_EEPROM_BLOCK_SIZE	16
+#define MT7996_TOKEN_SIZE		16384
+
 #define MT7996_EEPROM_DEFAULT_INT	"mediatek/mt7996/mt7996_eeprom_2i5i6i.bin"
 #define MT7996_EEPROM_DEFAULT_233	"mediatek/mt7996/mt7996_eeprom_233.bin"
 #define MT7996_EEPROM_DEFAULT_233_INT	"mediatek/mt7996/mt7996_eeprom_233_2i5i6i.bin"
+#define MT7996_FIRMWARE_WM_TM_233	"mediatek/mt7996/mt7996_wm_tm_233.bin"
+
+#define MT7992_FIRMWARE_WA_23		"mediatek/mt7996/mt7992_wa_23.bin"
+#define MT7992_FIRMWARE_WM_23		"mediatek/mt7996/mt7992_wm_23.bin"
+#define MT7992_FIRMWARE_WM_TM_23	"mediatek/mt7996/mt7992_wm_tm_23.bin"
+#define MT7992_FIRMWARE_DSP_23		"mediatek/mt7996/mt7992_dsp_23.bin"
+#define MT7992_ROM_PATCH_23		"mediatek/mt7996/mt7992_rom_patch_23.bin"
 
 #define MT7992_EEPROM_DEFAULT		"mediatek/mt7996/mt7992_eeprom.bin"
 #define MT7992_EEPROM_DEFAULT_INT	"mediatek/mt7996/mt7992_eeprom_2i5i.bin"
@@ -78,10 +83,12 @@
 
 #define MT7990_EEPROM_DEFAULT		"mediatek/mt7996/mt7990_eeprom.bin"
 #define MT7990_EEPROM_DEFAULT_INT	"mediatek/mt7996/mt7990_eeprom_2i5i.bin"
+#define MT7990_FIRMWARE_WA		""
+#define MT7990_FIRMWARE_WM		"mediatek/mt7996/mt7990_wm.bin"
+#define MT7990_FIRMWARE_WM_TM		"mediatek/mt7996/mt7990_wm_tm.bin"
+#define MT7990_FIRMWARE_DSP		""
+#define MT7990_ROM_PATCH		"mediatek/mt7996/mt7990_rom_patch.bin"
 
-#define MT7996_EEPROM_SIZE		7680
-#define MT7996_EEPROM_BLOCK_SIZE	16
-#define MT7996_TOKEN_SIZE		16384
 #define MT7996_HW_TOKEN_SIZE		8192
 
 #define MT7996_CFEND_RATE_DEFAULT	0x49	/* OFDM 24M */
@@ -135,6 +142,7 @@ struct mt7996_dfs_pattern;
 
 enum mt7996_ram_type {
 	MT7996_RAM_TYPE_WM,
+	MT7996_RAM_TYPE_WM_TM = MT7996_RAM_TYPE_WM,
 	MT7996_RAM_TYPE_WA,
 	MT7996_RAM_TYPE_DSP,
 };
@@ -321,6 +329,21 @@ struct mt7996_phy {
 
 	bool has_aux_rx;
 	bool counter_reset;
+
+#ifdef CONFIG_NL80211_TESTMODE
+	struct {
+		u32 *reg_backup;
+
+		s32 last_freq_offset;
+		u8 last_rcpi[4];
+		s8 last_rssi[4];
+		s8 last_ib_rssi[4];
+		s8 last_wb_rssi[4];
+		u8 last_snr;
+
+		u8 spe_idx;
+	} test;
+#endif
 };
 
 struct mt7996_dev {
@@ -405,6 +428,8 @@ struct mt7996_dev {
 		struct list_head poll_list;
 		spinlock_t lock;
 	} wed_rro;
+
+	bool testmode_enable;
 
 	bool ibf;
 	u8 fw_debug_wm;
@@ -557,6 +582,7 @@ mt7996_vif_conf_link(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 extern const struct ieee80211_ops mt7996_ops;
 extern struct pci_driver mt7996_pci_driver;
 extern struct pci_driver mt7996_hif_driver;
+extern const struct mt76_testmode_ops mt7996_testmode_ops;
 
 struct mt7996_dev *mt7996_mmio_probe(struct device *pdev,
 				     void __iomem *mem_base, u32 device_id);
@@ -572,6 +598,7 @@ void mt7996_vif_link_remove(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 			    struct ieee80211_bss_conf *link_conf,
 			    struct mt76_vif_link *mlink);
 int mt7996_eeprom_init(struct mt7996_dev *dev);
+int mt7996_eeprom_check_fw_mode(struct mt7996_dev *dev);
 int mt7996_eeprom_parse_hw_cap(struct mt7996_dev *dev, struct mt7996_phy *phy);
 int mt7996_eeprom_get_target_power(struct mt7996_dev *dev,
 				   struct ieee80211_channel *chan);
