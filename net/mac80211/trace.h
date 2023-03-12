@@ -3300,6 +3300,26 @@ TRACE_EVENT(drv_prep_add_interface,
 	)
 );
 
+TRACE_EVENT(bss_color_bitmap,
+	TP_PROTO(u8 color,
+		u64 color_bitmap),
+
+	TP_ARGS(color, color_bitmap),
+
+	TP_STRUCT__entry(
+		__field(u8, color)
+		__field(u64, color_bitmap)
+	),
+
+	TP_fast_assign(
+		__entry->color = color;
+		__entry->color_bitmap = color_bitmap;
+	),
+
+	TP_printk(
+		"color=%u color_bitmap=0x%llx", __entry->color, __entry->color_bitmap
+	)
+);
 #endif /* !__MAC80211_DRIVER_TRACE || TRACE_HEADER_MULTI_READ */
 
 #undef TRACE_INCLUDE_PATH
