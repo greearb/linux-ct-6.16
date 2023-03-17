@@ -10773,6 +10773,11 @@ skip_beacons:
 	if (err)
 		goto free;
 
+	/* Use RADAR_BACKGROUND attribute here for skipping CAC */
+	if (info->attrs[NL80211_ATTR_RADAR_BACKGROUND]) {
+		cfg80211_set_dfs_state(&rdev->wiphy, &params.chandef, NL80211_DFS_AVAILABLE);
+	}
+
 	if (!cfg80211_reg_can_beacon_relax(&rdev->wiphy, &params.chandef,
 					   wdev->iftype)) {
 		err = -EINVAL;
