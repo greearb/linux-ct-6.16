@@ -16,9 +16,15 @@
 #include <linux/slab.h>
 #include <linux/export.h>
 #include <net/mac80211.h>
+#include <linux/moduleparam.h>
 #include "ieee80211_i.h"
 #include "driver-ops.h"
 #include "wme.h"
+
+static int addba_resp_wait_count = 2;
+module_param(addba_resp_wait_count, int, 0644);
+MODULE_PARM_DESC(addba_resp_wait_count,
+		 "Number of ADDBA_RESP_INTERVAL to wait for addba response");
 
 /**
  * DOC: TX A-MPDU aggregation
@@ -458,7 +464,7 @@ static void ieee80211_send_addba_with_timeout(struct sta_info *sta,
 	lockdep_assert_wiphy(sta->local->hw.wiphy);
 
 	/* activate the timer for the recipient's addBA response */
-	mod_timer(&tid_tx->addba_resp_timer, jiffies + ADDBA_RESP_INTERVAL);
+	mod_timer(&tid_tx->addba_resp_timer, jiffies + addba_resp_wait_count * ADDBA_RESP_INTERVAL);
 	ht_dbg(sdata, "activated addBA response timer on %pM tid %d\n",
 	       sta->sta.addr, tid);
 
