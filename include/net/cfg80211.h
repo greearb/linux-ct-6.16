@@ -8922,6 +8922,20 @@ void cfg80211_cac_event(struct net_device *netdev,
 			unsigned int link_id);
 
 /**
+ * cfg80211_background_radar_update_channel - notify background chandef has been updated
+ * @wiphy: the wiphy
+ * @chandef: the updated chandef
+ * @expand: whether or not the operating channel should expand its width
+ * after offchan CAC
+ *
+ * Update the background chandef based on driver's decision, and notify the userspace
+ * that the current channel of background chain should be updated.
+ */
+void cfg80211_background_radar_update_channel(struct wiphy *wiphy,
+					      const struct cfg80211_chan_def *chandef,
+					      bool expand);
+
+/**
  * cfg80211_background_cac_abort - Channel Availability Check offchan abort event
  * @wiphy: the wiphy
  *
