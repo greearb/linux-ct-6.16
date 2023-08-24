@@ -310,10 +310,12 @@ int iwl_mvm_op_set_antenna(struct ieee80211_hw *hw, u32 tx_ant, u32 rx_ant)
 {
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 
+#if 0
 	/* This has been tested on those devices only */
 	if (mvm->trans->mac_cfg->device_family != IWL_DEVICE_FAMILY_9000 &&
 	    mvm->trans->mac_cfg->device_family != IWL_DEVICE_FAMILY_22000)
 		return -EOPNOTSUPP;
+#endif
 
 	if (!mvm->nvm_data)
 		return -EBUSY;
