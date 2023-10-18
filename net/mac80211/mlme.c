@@ -8398,7 +8398,7 @@ void ieee80211_sta_work(struct ieee80211_sub_if_data *sdata)
 			 */
 			if (status_acked) {
 				ifmgd->assoc_data->timeout =
-					jiffies + IEEE80211_ASSOC_TIMEOUT_SHORT;
+					jiffies + IEEE80211_ASSOC_TIMEOUT_SHORT * 4;
 				run_again(sdata, ifmgd->assoc_data->timeout);
 			} else {
 				ifmgd->assoc_data->timeout = jiffies - 1;
