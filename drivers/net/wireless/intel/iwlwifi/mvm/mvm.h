@@ -1464,6 +1464,10 @@ struct iwl_mvm {
 
 	bool statistics_clear;
 	u32 bios_enable_puncturing;
+
+#define IWL_MVM_BLOCK_TX 0x1
+#define IWL_MVM_BLOCK_RX 0x2
+	u8 block_traffic;
 };
 
 /* Extract MVM priv from op_mode and _hw */
