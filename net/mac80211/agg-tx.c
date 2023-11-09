@@ -1056,7 +1056,10 @@ void ieee80211_process_addba_resp(struct ieee80211_local *local,
 		tid_tx->timeout =
 			le16_to_cpu(mgmt->u.action.u.addba_resp.timeout);
 
-		if (tid_tx->timeout) {
+		/* In the case of certification env, testbed STA cannot accept frequent DelBA.
+		 * Therefore, we remove the session timer check here to avoid crashing testbed STA.
+		 */
+		if (tid_tx->timeout && !ieee80211_is_cert_mode(&local->hw)) {
 			mod_timer(&tid_tx->session_timer,
 				  TU_TO_EXP_TIME(tid_tx->timeout));
 			tid_tx->last_tx = jiffies;

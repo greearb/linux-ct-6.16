@@ -3157,7 +3157,13 @@ struct ieee80211_hw {
 	u32 max_mtu;
 	const s8 *tx_power_levels;
 	u8 max_txpwr_levels_idx;
+	bool cert_mode;
 };
+
+static inline bool ieee80211_is_cert_mode(struct ieee80211_hw *hw)
+{
+	return hw->cert_mode;
+}
 
 static inline bool _ieee80211_hw_check(struct ieee80211_hw *hw,
 				       enum ieee80211_hw_flags flg)
