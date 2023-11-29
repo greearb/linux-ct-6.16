@@ -4603,3 +4603,11 @@ void ieee80211_clear_tpe(struct ieee80211_parsed_tpe *tpe)
 		       sizeof(tpe->psd_reg_client[i].power));
 	}
 }
+
+unsigned long ieee80211_get_scanning(struct ieee80211_hw *hw)
+{
+	struct ieee80211_local *local = hw_to_local(hw);
+
+	return local->scanning;
+}
+EXPORT_SYMBOL(ieee80211_get_scanning);

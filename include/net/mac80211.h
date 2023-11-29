@@ -7895,4 +7895,11 @@ int ieee80211_emulate_switch_vif_chanctx(struct ieee80211_hw *hw,
 					 int n_vifs,
 					 enum ieee80211_chanctx_switch_mode mode);
 
+/**
+ * ieee80211_get_scanning - get scanning bitmask
+ *
+ * @hw: pointer as obtained from ieee80211_alloc_hw()
+ */
+unsigned long ieee80211_get_scanning(struct ieee80211_hw *hw);
+
 #endif /* MAC80211_H */
