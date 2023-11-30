@@ -3628,9 +3628,6 @@ ieee80211_rx_h_action(struct ieee80211_rx_data *rx)
 
 	switch (mgmt->u.action.category) {
 	case WLAN_CATEGORY_HT:
-		/* reject HT action frames from stations not supporting HT */
-		if (!rx->link_sta->pub->ht_cap.ht_supported)
-			goto invalid;
 
 		if (sdata->vif.type != NL80211_IFTYPE_STATION &&
 		    sdata->vif.type != NL80211_IFTYPE_MESH_POINT &&
@@ -3648,6 +3645,11 @@ ieee80211_rx_h_action(struct ieee80211_rx_data *rx)
 			struct ieee80211_supported_band *sband;
 			enum ieee80211_smps_mode smps_mode;
 			struct sta_opmode_info sta_opmode = {};
+
+			if (rx->link_sta->pub->he_cap.has_he &&
+			    !(rx->link_sta->pub->he_cap.he_cap_elem.mac_cap_info[5] &
+			    IEEE80211_HE_MAC_CAP5_HE_DYNAMIC_SM_PS))
+				goto invalid;
 
 			if (sdata->vif.type != NL80211_IFTYPE_AP &&
 			    sdata->vif.type != NL80211_IFTYPE_AP_VLAN)
