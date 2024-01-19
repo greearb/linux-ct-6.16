@@ -461,6 +461,36 @@ deinit:
 	return ret;
 }
 
+void __ieee80211_copy_links_to_vlan(struct ieee80211_sub_if_data *vlan,
+				    struct ieee80211_sub_if_data *ap)
+{
+	int i;
+
+	vlan->vif.valid_links = ap->vif.valid_links;
+	vlan->vif.active_links = ap->vif.active_links;
+	vlan->vif.dormant_links = ap->vif.dormant_links;
+	memcpy(vlan->wdev.links, ap->wdev.links, sizeof(vlan->wdev.links));
+
+	for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
+		rcu_assign_pointer(vlan->link[i], ap->link[i]);
+		rcu_assign_pointer(vlan->vif.link_conf[i], ap->vif.link_conf[i]);
+	}
+}
+
+static void ieee80211_copy_links_to_vlan(struct ieee80211_sub_if_data *sdata)
+{
+	struct ieee80211_sub_if_data *vlan;
+
+	if (sdata->vif.type != NL80211_IFTYPE_AP || !ieee80211_vif_is_mld(&sdata->vif))
+		return;
+
+	list_for_each_entry(vlan, &sdata->u.ap.vlans, u.vlan.list) {
+		__ieee80211_copy_links_to_vlan(vlan, sdata);
+		/* Todo: modify it when reconfiguration */
+		vlan->wdev.valid_links &= sdata->wdev.valid_links;
+	}
+}
+
 int ieee80211_vif_set_links(struct ieee80211_sub_if_data *sdata,
 			    u16 new_links, u16 dormant_links)
 {
@@ -469,6 +499,7 @@ int ieee80211_vif_set_links(struct ieee80211_sub_if_data *sdata,
 
 	ret = ieee80211_vif_update_links(sdata, links, new_links,
 					 dormant_links);
+	ieee80211_copy_links_to_vlan(sdata);
 	ieee80211_free_links(sdata, links);
 
 	return ret;

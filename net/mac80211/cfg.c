@@ -256,16 +256,13 @@ static int ieee80211_change_iface(struct wiphy *wiphy,
 
 	if (type == NL80211_IFTYPE_AP_VLAN && params->use_4addr == 0) {
 		RCU_INIT_POINTER(sdata->u.vlan.sta, NULL);
+		sdata->wdev.valid_links = 0;
 		ieee80211_check_fast_rx_iface(sdata);
 	} else if (type == NL80211_IFTYPE_STATION && params->use_4addr >= 0) {
 		struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
 
 		if (params->use_4addr == ifmgd->use_4addr)
 			return 0;
-
-		/* FIXME: no support for 4-addr MLO yet */
-		if (ieee80211_vif_is_mld(&sdata->vif))
-			return -EOPNOTSUPP;
 
 		sdata->u.mgd.use_4addr = params->use_4addr;
 		if (!ifmgd->associated)
@@ -2355,11 +2352,14 @@ static int ieee80211_change_station(struct wiphy *wiphy,
 			rcu_assign_pointer(vlansdata->u.vlan.sta, sta);
 			__ieee80211_check_fast_rx_iface(vlansdata);
 			drv_sta_set_4addr(local, sta->sdata, &sta->sta, true);
+			vlansdata->wdev.valid_links = sta->sta.valid_links;
 		}
 
 		if (sta->sdata->vif.type == NL80211_IFTYPE_AP_VLAN &&
-		    sta->sdata->u.vlan.sta)
+		    sta->sdata->u.vlan.sta) {
 			RCU_INIT_POINTER(sta->sdata->u.vlan.sta, NULL);
+			sta->sdata->wdev.valid_links = 0;
+		}
 
 		if (test_sta_flag(sta, WLAN_STA_AUTHORIZED))
 			ieee80211_vif_dec_num_mcast(sta->sdata);
@@ -5241,9 +5241,6 @@ static int ieee80211_add_intf_link(struct wiphy *wiphy,
 	struct ieee80211_sub_if_data *sdata = IEEE80211_WDEV_TO_SUB_IF(wdev);
 
 	lockdep_assert_wiphy(sdata->local->hw.wiphy);
-
-	if (wdev->use_4addr)
-		return -EOPNOTSUPP;
 
 	return ieee80211_vif_set_links(sdata, wdev->valid_links, 0);
 }
