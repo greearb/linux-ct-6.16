@@ -22,6 +22,7 @@ int __ieee80211_suspend(struct ieee80211_hw *hw, struct cfg80211_wowlan *wowlan)
 {
 	struct ieee80211_local *local = hw_to_local(hw);
 	struct ieee80211_sub_if_data *sdata;
+	struct ieee80211_chanctx *ctx;
 	struct sta_info *sta;
 
 	if (!local->open_count)
