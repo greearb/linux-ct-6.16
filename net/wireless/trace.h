@@ -2686,6 +2686,7 @@ TRACE_EVENT(rdev_start_radar_detection,
 	TP_fast_assign(
 		WIPHY_ASSIGN;
 		NETDEV_ASSIGN;
+		__entry->link_id = link_id;
 		CHAN_DEF_ASSIGN(chandef);
 		__entry->cac_time_ms = cac_time_ms;
 		__entry->link_id = link_id;

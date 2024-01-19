@@ -3636,6 +3636,10 @@ void ieee80211_dfs_cac_cancel(struct ieee80211_local *local,
 			if (ctx && &ctx->conf != chanctx_conf)
 				continue;
 
+			if (link->conf->chanreq.oper.chan &&
+			    link->conf->chanreq.oper.chan->band != NL80211_BAND_5GHZ)
+				continue;
+
 			wiphy_delayed_work_cancel(local->hw.wiphy,
 						  &link->dfs_cac_timer_work);
 
@@ -3662,7 +3666,8 @@ void ieee80211_dfs_radar_detected_work(struct wiphy *wiphy,
 	lockdep_assert_wiphy(local->hw.wiphy);
 
 	list_for_each_entry(ctx, &local->chanctx_list, list) {
-		if (ctx->replace_state == IEEE80211_CHANCTX_REPLACES_OTHER)
+		if (ctx->replace_state == IEEE80211_CHANCTX_REPLACES_OTHER ||
+		    !ctx->conf.def.chan || ctx->conf.def.chan->band != NL80211_BAND_5GHZ)
 			continue;
 
 		if (!ctx->radar_detected)

@@ -4260,7 +4260,6 @@ EXPORT_SYMBOL(regulatory_pre_cac_allowed);
 static void cfg80211_check_and_end_cac(struct cfg80211_registered_device *rdev)
 {
 	struct wireless_dev *wdev;
-	int link_id;
 
 	/* If we finished CAC or received radar, we should end any
 	 * CAC running on the same channels.
@@ -4273,13 +4272,15 @@ static void cfg80211_check_and_end_cac(struct cfg80211_registered_device *rdev)
 	 */
 	list_for_each_entry(wdev, &rdev->wiphy.wdev_list, list) {
 		struct cfg80211_chan_def *chandef;
+		unsigned int link_id;
 
 		for_each_valid_link(wdev, link_id) {
 			if (!wdev->links[link_id].cac_started)
 				continue;
 
 			chandef = wdev_chandef(wdev, link_id);
-			if (!chandef)
+			if (!chandef || !chandef->chan ||
+			    chandef->chan->band != NL80211_BAND_5GHZ)
 				continue;
 
 			if (!cfg80211_chandef_dfs_usable(&rdev->wiphy, chandef))

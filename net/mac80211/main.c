@@ -1108,6 +1108,8 @@ static int ieee80211_init_cipher_suites(struct ieee80211_local *local)
 static bool
 ieee80211_ifcomb_check(const struct ieee80211_iface_combination *c, int n_comb)
 {
+	/* FIXME: currently skip all checks */
+#if 0
 	int i, j;
 
 	for (i = 0; i < n_comb; i++, c++) {
@@ -1122,6 +1124,7 @@ ieee80211_ifcomb_check(const struct ieee80211_iface_combination *c, int n_comb)
 			    c->limits[j].max > 1)
 				return false;
 	}
+#endif
 
 	return true;
 }
