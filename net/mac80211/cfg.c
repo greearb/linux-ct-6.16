@@ -5252,6 +5252,20 @@ static void ieee80211_del_intf_link(struct wiphy *wiphy,
 	struct ieee80211_sub_if_data *sdata = IEEE80211_WDEV_TO_SUB_IF(wdev);
 	u16 new_links = wdev->valid_links & ~BIT(link_id);
 
+	if (wdev->iftype == NL80211_IFTYPE_AP_VLAN) {
+		int i;
+
+		sdata->vif.valid_links = 0;
+		sdata->vif.active_links = 0;
+		sdata->vif.dormant_links = 0;
+		for (i = 0; i < IEEE80211_MLD_MAX_NUM_LINKS; i++) {
+			rcu_assign_pointer(sdata->link[i], NULL);
+			rcu_assign_pointer(sdata->vif.link_conf[i], NULL);
+		}
+
+		return;
+	}
+
 	lockdep_assert_wiphy(sdata->local->hw.wiphy);
 
 	/* During the link teardown process, certain functions require the
