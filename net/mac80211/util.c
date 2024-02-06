@@ -3647,7 +3647,13 @@ void ieee80211_dfs_cac_cancel(struct ieee80211_local *local,
 				continue;
 
 			chandef = link->conf->chanreq.oper;
-			ieee80211_link_release_channel(link);
+			if (link->conf->csa_active) {
+				link->conf->csa_active = false;
+				link->conf->enable_beacon = true;
+				ieee80211_free_next_beacon(link);
+			} else {
+				ieee80211_link_release_channel(link);
+			}
 			cfg80211_cac_event(sdata->dev, &chandef,
 					   NL80211_RADAR_CAC_ABORTED,
 					   GFP_KERNEL, link_id);

@@ -3450,8 +3450,15 @@ void ieee80211_dfs_cac_timer_work(struct wiphy *wiphy, struct wiphy_work *work)
 	lockdep_assert_wiphy(sdata->local->hw.wiphy);
 
 	if (sdata->wdev.links[link->link_id].cac_started) {
-		sdata_info(sdata, "dfs-cac-timer-work called, releasing channel.\n");
-		ieee80211_link_release_channel(link);
+		if (link->conf->csa_active) {
+			/* beacon is disabled during CAC period */
+			link->conf->enable_beacon = true;
+			wiphy_work_queue(sdata->local->hw.wiphy,
+					 &link->csa.finalize_work);
+		} else {
+			sdata_info(sdata, "dfs-cac-timer-work called, releasing channel.\n");
+			ieee80211_link_release_channel(link);
+		}
 		cfg80211_cac_event(sdata->dev, &chandef,
 				   NL80211_RADAR_CAC_FINISHED,
 				   GFP_KERNEL, link->link_id);

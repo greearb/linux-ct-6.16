@@ -4525,6 +4525,8 @@ struct mgmt_frame_regs {
  *
  * @start_radar_detection: Start radar detection in the driver.
  *
+ * @start_radar_detection_post_csa: Start radar detection during post CSA.
+ *
  * @end_cac: End running CAC, probably because a related CAC
  *	was finished on another phy.
  *
@@ -4913,6 +4915,11 @@ struct cfg80211_ops {
 					 struct net_device *dev,
 					 struct cfg80211_chan_def *chandef,
 					 u32 cac_time_ms, int link_id);
+	int	(*start_radar_detection_post_csa)(struct wiphy *wiphy,
+						  struct net_device *dev,
+						  unsigned int link_id,
+						  struct cfg80211_chan_def *chandef,
+						  u32 cac_time_ms);
 	void	(*end_cac)(struct wiphy *wiphy,
 			   struct net_device *dev, unsigned int link_id);
 	int	(*update_ft_ies)(struct wiphy *wiphy, struct net_device *dev,
@@ -9054,11 +9061,15 @@ static inline void cfg80211_report_obss_beacon(struct wiphy *wiphy,
  *	NOTE: If this is set, wiphy mutex must be held.
  * @reg_power: &enum ieee80211_ap_reg_power value indicating the
  *	advertised/used 6 GHz regulatory power setting
+ * @dfs_relax: allow DFS Usable channel being permitted (especially
+ *	during channel switch).
+ *	NOTE: If this is set, wiphy mutex must be held.
  */
 struct cfg80211_beaconing_check_config {
 	enum nl80211_iftype iftype;
 	enum ieee80211_ap_reg_power reg_power;
 	bool relax;
+	bool dfs_relax;
 };
 
 /**
@@ -9122,6 +9133,46 @@ cfg80211_reg_can_beacon_relax(struct wiphy *wiphy,
 }
 
 /**
+ * cfg80211_reg_can_beacon_dfs_relax - check if beaconing is allowed with DFS & IR-relaxation
+ * @wiphy: the wiphy
+ * @chandef: the channel definition
+ * @iftype: interface type
+ *
+ * Return: %true if there is no secondary channel or the secondary channel(s)
+ * can be used for beaconing. This version bypasses radar channel check, allowing
+ * channel switch to a USABLE DFS channel and performing CAC after the channel switch.
+ * It also checks if IR-relaxation conditions apply, to allow beaconing under more
+ * permissive conditions.
+ *
+ * Context: Requires the wiphy mutex to be held.
+ */
+static inline bool
+cfg80211_reg_can_beacon_dfs_relax(struct wiphy *wiphy,
+				  struct cfg80211_chan_def *chandef,
+				  enum nl80211_iftype iftype)
+{
+	struct cfg80211_beaconing_check_config config = {
+		.iftype = iftype,
+		.relax = true,
+		.dfs_relax = true,
+	};
+
+	return cfg80211_reg_check_beaconing(wiphy, chandef, &config);
+}
+
+/**
+ * cfg80211_start_radar_detection_post_csa - start radar detection after CSA
+ * @wiphy: the wiphy
+ * @wdev: the wireless device
+ * @link_id: the link ID for MLO, must be 0 for non-MLO
+ * @chandef: the channel definition to start radar detection on
+ */
+int cfg80211_start_radar_detection_post_csa(struct wiphy *wiphy,
+					    struct wireless_dev *wdev,
+					    unsigned int link_id,
+					    struct cfg80211_chan_def *chandef);
+
+/*
  * cfg80211_ch_switch_notify - update wdev channel and notify userspace
  * @dev: the device which switched channels
  * @chandef: the new channel definition

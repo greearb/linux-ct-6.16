@@ -1217,6 +1217,24 @@ rdev_start_radar_detection(struct cfg80211_registered_device *rdev,
 	return ret;
 }
 
+static inline int
+rdev_start_radar_detection_post_csa(struct cfg80211_registered_device *rdev,
+				    struct net_device *dev,
+				    unsigned int link_id,
+				    struct cfg80211_chan_def *chandef,
+				    u32 cac_time_ms)
+{
+	int ret = -EOPNOTSUPP;
+
+	trace_rdev_start_radar_detection(&rdev->wiphy, dev, chandef,
+					 cac_time_ms, link_id);
+	if (rdev->ops->start_radar_detection_post_csa)
+		ret = rdev->ops->start_radar_detection_post_csa(&rdev->wiphy, dev, link_id,
+								chandef, cac_time_ms);
+	trace_rdev_return_int(&rdev->wiphy, ret);
+	return ret;
+}
+
 static inline void
 rdev_end_cac(struct cfg80211_registered_device *rdev,
 	     struct net_device *dev, unsigned int link_id)

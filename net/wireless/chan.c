@@ -1525,8 +1525,13 @@ static bool _cfg80211_reg_can_beacon(struct wiphy *wiphy,
 	check_radar = dfs_required != 0;
 
 	if (dfs_required > 0 &&
-	    cfg80211_chandef_dfs_available(wiphy, chandef)) {
-		/* We can skip IEEE80211_CHAN_NO_IR if chandef dfs available */
+	    (cfg80211_chandef_dfs_available(wiphy, chandef) ||
+	     ((permitting_flags & IEEE80211_CHAN_RADAR) &&
+	      cfg80211_chandef_dfs_usable(wiphy, chandef)))) {
+		/* We can skip IEEE80211_CHAN_NO_IR if the chandef is dfs available
+		 * or when dfs_relax is permitted (during a channel switch) and the
+		 * chandef is dfs usable.
+		 */
 		prohibited_flags &= ~IEEE80211_CHAN_NO_IR;
 		check_radar = false;
 	}
@@ -1564,6 +1569,9 @@ bool cfg80211_reg_check_beaconing(struct wiphy *wiphy,
 							   chandef->chan);
 	}
 
+	if (cfg->dfs_relax)
+		permitting_flags |= IEEE80211_CHAN_RADAR;
+
 	if (cfg->reg_power == IEEE80211_REG_VLP_AP)
 		permitting_flags |= IEEE80211_CHAN_ALLOW_6GHZ_VLP_AP;
 
@@ -1578,6 +1586,51 @@ bool cfg80211_reg_check_beaconing(struct wiphy *wiphy,
 					permitting_flags);
 }
 EXPORT_SYMBOL(cfg80211_reg_check_beaconing);
+
+int cfg80211_start_radar_detection_post_csa(struct wiphy *wiphy,
+					    struct wireless_dev *wdev,
+					    unsigned int link_id,
+					    struct cfg80211_chan_def *chandef)
+{
+	struct cfg80211_registered_device *rdev = wiphy_to_rdev(wiphy);
+	u32 cac_time_ms;
+	enum nl80211_dfs_regions dfs_region;
+	int ret = 0;
+
+	if (cfg80211_chandef_dfs_available(wiphy, chandef))
+		goto out;
+
+	/* Update DFS channel state especially when original channel include DFS channel */
+	cfg80211_sched_dfs_chan_update(rdev);
+
+	dfs_region = reg_get_dfs_region(wiphy);
+	if (dfs_region == NL80211_DFS_UNSET)
+		goto out;
+
+	cac_time_ms = cfg80211_chandef_dfs_cac_time(wiphy, chandef);
+	if (WARN_ON(!cac_time_ms))
+		cac_time_ms = IEEE80211_DFS_MIN_CAC_TIME_MS;
+
+	pr_info("%s: region = %u, center freq1 = %u, center freq2 = %u, cac time ms = %u\n",
+		__func__, dfs_region, chandef->center_freq1, chandef->center_freq2, cac_time_ms);
+
+	ret = rdev_start_radar_detection_post_csa(rdev, wdev->netdev, link_id,
+						  chandef, cac_time_ms);
+	if (ret > 0) {
+		wdev->links[link_id].ap.chandef = *chandef;
+		wdev->links[link_id].cac_start_time = jiffies;
+		wdev->links[link_id].cac_time_ms = cac_time_ms;
+		if (rdev->background_cac_started &&
+		    cfg80211_is_sub_chan(chandef, rdev->background_radar_chandef.chan, false))
+			cfg80211_stop_background_radar_detection(rdev->background_radar_wdev);
+		cfg80211_cac_event(wdev->netdev, chandef,
+				   NL80211_RADAR_CAC_STARTED, GFP_KERNEL, link_id);
+	}
+
+out:
+	return ret;
+}
+EXPORT_SYMBOL(cfg80211_start_radar_detection_post_csa);
 
 int cfg80211_set_monitor_channel(struct cfg80211_registered_device *rdev,
 				 struct net_device *dev,

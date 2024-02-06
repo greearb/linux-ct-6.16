@@ -10810,8 +10810,9 @@ skip_beacons:
 		cfg80211_set_dfs_state(&rdev->wiphy, &params.chandef, NL80211_DFS_AVAILABLE);
 	}
 
-	if (!cfg80211_reg_can_beacon_relax(&rdev->wiphy, &params.chandef,
-					   wdev->iftype)) {
+	/* handle DFS CAC after CSA is sent */
+	if (!cfg80211_reg_can_beacon_dfs_relax(&rdev->wiphy, &params.chandef,
+					       wdev->iftype)) {
 		err = -EINVAL;
 		goto free;
 	}
