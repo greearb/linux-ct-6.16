@@ -5359,7 +5359,8 @@ static bool ieee80211_assoc_config_link(struct ieee80211_link_data *link,
 	sband = local->hw.wiphy->bands[link->conf->chanreq.oper.chan->band];
 
 	/* Set up internal HT/VHT capabilities */
-	if (elems->ht_cap_elem && link->u.mgd.conn.mode >= IEEE80211_CONN_MODE_HT)
+	if (elems->ht_cap_elem && link->u.mgd.conn.mode >= IEEE80211_CONN_MODE_HT &&
+	    !is_6ghz)
 		ieee80211_ht_cap_ie_to_sta_ht_cap(sdata, sband,
 						  elems->ht_cap_elem,
 						  link_sta);
