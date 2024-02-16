@@ -1033,7 +1033,10 @@ static int ieee80211_netdev_fill_forward_path(struct net_device_path_ctx *ctx,
 			}
 		}
 
-		sta = sta_info_get(sdata, sdata->deflink.u.mgd.bssid);
+		if (ieee80211_vif_is_mld(&sdata->vif))
+			sta = sta_info_get(sdata, sdata->vif.cfg.ap_addr);
+		else
+			sta = sta_info_get(sdata, sdata->deflink.u.mgd.bssid);
 		break;
 	default:
 		goto out;
