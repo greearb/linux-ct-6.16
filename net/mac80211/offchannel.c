@@ -1036,7 +1036,25 @@ int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 	}
 
 	if (!need_offchan) {
-		ieee80211_tx_skb_tid(sdata, skb, 7, link_id);
+		unsigned long links = sdata->vif.active_links;
+		if (is_multicast_ether_addr(mgmt->da) && hweight16(links) > 1) {
+			unsigned int link;
+			struct sk_buff *dskb;
+
+			for_each_set_bit(link, &links, IEEE80211_MLD_MAX_NUM_LINKS) {
+				dskb = skb_clone(skb, GFP_ATOMIC);
+				if (dskb) {
+					ieee80211_tx_skb_tid(sdata, dskb, 7, link);
+				} else {
+					ret = -ENOMEM;
+					kfree_skb(skb);
+					goto out_unlock;
+				}
+			}
+			kfree_skb(skb);
+		} else {
+			ieee80211_tx_skb_tid(sdata, skb, 7, link_id);
+		}
 		ret = 0;
 		goto out_unlock;
 	}
