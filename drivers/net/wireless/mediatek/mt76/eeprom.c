@@ -510,8 +510,8 @@ int
 mt76_eeprom_init(struct mt76_dev *dev, int len)
 {
 #if defined(CONFIG_OF)
-        u32 offset;
-        struct device_node *np = dev->dev->of_node;
+	u32 offset;
+	struct device_node *np = dev->dev->of_node;
 #endif
 
 	dev->eeprom.size = len;
