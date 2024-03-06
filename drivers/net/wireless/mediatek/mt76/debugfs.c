@@ -169,6 +169,8 @@ mt76_version(struct seq_file *s, void *data)
 		seq_printf(s, "7922\n");
 	else if (is_mt7921(dev))
 		seq_printf(s, "7921\n");
+	else if (is_mt7925(dev))
+		seq_printf(s, "7925\n");
 	else if (is_mt7663(dev))
 		seq_printf(s, "7663\n");
 	else if (is_mt7915(dev))
@@ -181,6 +183,8 @@ mt76_version(struct seq_file *s, void *data)
 		seq_printf(s, "7622\n");
 	else if (is_mt7615(dev))
 		seq_printf(s, "7615\n");
+	else if (is_mt7996(dev))
+		seq_printf(s, "7996\n");
 	else if (is_mt7611(dev))
 		seq_printf(s, "7611\n");
 	else
