@@ -3596,7 +3596,6 @@ void ieee80211_dfs_cac_cancel(struct ieee80211_local *local,
 	lockdep_assert_wiphy(local->hw.wiphy);
 
 	list_for_each_entry(sdata, &local->interfaces, list) {
-		sdata_info(sdata, "dfs_cac_cancel, canceling dfs-cac-timer-work.\n");
 		for (link_id = 0; link_id < IEEE80211_MLD_MAX_NUM_LINKS;
 		     link_id++) {
 			link = sdata_dereference(sdata->link[link_id],
