@@ -1730,7 +1730,6 @@ static int ieee80211_stop_ap(struct wiphy *wiphy, struct net_device *dev,
 	if (sdata->wdev.links[link_id].cac_started) {
 		chandef = link_conf->chanreq.oper;
 		wiphy_delayed_work_cancel(wiphy, &link->dfs_cac_timer_work);
-		sdata_info(sdata, "stop-ap, canceling dfs-cac-timer-work.\n");
 		cfg80211_cac_event(sdata->dev, &chandef,
 				   NL80211_RADAR_CAC_ABORTED,
 				   GFP_KERNEL, link_id);
