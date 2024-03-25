@@ -1041,16 +1041,26 @@ int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 		if (is_multicast_ether_addr(mgmt->da) && hweight16(links) > 1) {
 			unsigned int link;
 			struct sk_buff *dskb;
+			struct ieee80211_hdr *hdr;
+			struct ieee80211_bss_conf *conf;
 
 			for_each_set_bit(link, &links, IEEE80211_MLD_MAX_NUM_LINKS) {
+				conf = rcu_dereference(sdata->vif.link_conf[link]);
+				if (!conf)
+					continue;
+
 				dskb = skb_clone(skb, GFP_ATOMIC);
-				if (dskb) {
-					ieee80211_tx_skb_tid(sdata, dskb, 7, link);
-				} else {
+				if (!dskb) {
 					ret = -ENOMEM;
 					kfree_skb(skb);
 					goto out_unlock;
 				}
+
+				/* Assign link address */
+				hdr = (void *)dskb->data;
+				memcpy(hdr->addr2, conf->addr, ETH_ALEN);
+				memcpy(hdr->addr3, conf->addr, ETH_ALEN);
+				ieee80211_tx_skb_tid(sdata, dskb, 7, link);
 			}
 			kfree_skb(skb);
 		} else {
