@@ -907,7 +907,8 @@ int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 	/* Check if the operating channel is the requested channel */
 	if (!params->chan && mlo_sta) {
 		need_offchan = false;
-	} else if (!need_offchan) {
+	} else if (!need_offchan && !(ieee80211_vif_is_mld(&sdata->vif) &&
+		   is_multicast_ether_addr(mgmt->da))) {
 		struct ieee80211_chanctx_conf *chanctx_conf = NULL;
 		struct ieee80211_bss_conf *conf;
 		unsigned int link;
