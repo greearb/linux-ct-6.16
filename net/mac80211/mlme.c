@@ -8111,6 +8111,15 @@ void ieee80211_sta_rx_queued_mgmt(struct ieee80211_sub_if_data *sdata,
 			return;
 	}
 
+	/* Do MLD address translation for Multicast/Broadcast frame. */
+	if (is_multicast_ether_addr(mgmt->da) && !ieee80211_is_probe_resp(fc) &&
+	    !ieee80211_is_beacon(fc)) {
+		if (ether_addr_equal(mgmt->sa, link->conf->bssid))
+			ether_addr_copy(mgmt->sa, sdata->vif.cfg.ap_addr);
+		if (ether_addr_equal(mgmt->bssid, link->conf->bssid))
+			ether_addr_copy(mgmt->bssid, sdata->vif.cfg.ap_addr);
+	}
+
 	switch (fc & IEEE80211_FCTL_STYPE) {
 	case IEEE80211_STYPE_BEACON:
 		ieee80211_rx_mgmt_beacon(link, (void *)mgmt,
