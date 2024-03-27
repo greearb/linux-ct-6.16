@@ -1042,7 +1042,7 @@ struct ieee80211_ops *
 mt792x_get_mac80211_ops(struct device *dev,
 			const struct ieee80211_ops *mac80211_ops,
 			void *drv_data, u8 *fw_features,
-			bool can_disable_fw_cap_cnm)
+			bool can_disable_fw_cap_cnm, bool reassign_ops)
 {
 	struct ieee80211_ops *ops;
 
@@ -1053,7 +1053,7 @@ mt792x_get_mac80211_ops(struct device *dev,
 
 	*fw_features = mt792x_get_offload_capability(dev, drv_data,
 						     can_disable_fw_cap_cnm);
-	if (!(*fw_features & MT792x_FW_CAP_CNM)) {
+	if (reassign_ops && !(*fw_features & MT792x_FW_CAP_CNM)) {
 		ops->remain_on_channel = NULL;
 		ops->cancel_remain_on_channel = NULL;
 		ops->add_chanctx = ieee80211_emulate_add_chanctx;
