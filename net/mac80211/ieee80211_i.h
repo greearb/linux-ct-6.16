@@ -254,9 +254,11 @@ struct ieee80211_rx_data {
 struct ieee80211_csa_settings {
 	const u16 *counter_offsets_beacon;
 	const u16 *counter_offsets_presp;
+	const u16 *counter_offsets_sta_prof;
 
 	int n_counter_offsets_beacon;
 	int n_counter_offsets_presp;
+	int n_counter_offsets_sta_prof;
 
 	u8 count;
 };
@@ -273,6 +275,7 @@ struct beacon_data {
 	struct ieee80211_meshconf_ie *meshconf;
 	u16 cntdwn_counter_offsets[IEEE80211_MAX_CNTDWN_COUNTERS_NUM];
 	u8 cntdwn_current_counter;
+	u16 sta_prof_cntdwn_offs[IEEE80211_MAX_CNTDWN_COUNTERS_NUM];
 	struct cfg80211_mbssid_elems *mbssid_ies;
 	struct cfg80211_rnr_elems *rnr_ies;
 	struct rcu_head rcu_head;

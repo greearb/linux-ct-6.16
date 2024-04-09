@@ -1524,8 +1524,12 @@ struct cfg80211_ap_update {
  * @beacon_csa: beacon data while performing the switch
  * @counter_offsets_beacon: offsets of the counters within the beacon (tail)
  * @counter_offsets_presp: offsets of the counters within the probe response
+ * @counter_offsets_sta_prof: offsets of the counters within the per-STA profile
+ *	corresponding to the channel switch link
  * @n_counter_offsets_beacon: number of csa counters the beacon (tail)
  * @n_counter_offsets_presp: number of csa counters in the probe response
+ * @n_counter_offsets_sta_prof: number of csa counters in the per-STA profile
+ *	corresponding to the channel switch link
  * @beacon_after: beacon data to be used on the new channel
  * @radar_required: whether radar detection is required on the new channel
  * @block_tx: whether transmissions should be blocked while changing
@@ -1538,8 +1542,10 @@ struct cfg80211_csa_settings {
 	struct cfg80211_beacon_data beacon_csa;
 	const u16 *counter_offsets_beacon;
 	const u16 *counter_offsets_presp;
+	const u16 *counter_offsets_sta_prof;
 	unsigned int n_counter_offsets_beacon;
 	unsigned int n_counter_offsets_presp;
+	unsigned int n_counter_offsets_sta_prof;
 	struct cfg80211_beacon_data beacon_after;
 	bool radar_required;
 	bool block_tx;

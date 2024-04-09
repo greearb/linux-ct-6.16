@@ -5313,11 +5313,13 @@ ieee80211_beacon_get_finish(struct ieee80211_hw *hw,
 
 		for (i = 0; i < IEEE80211_MAX_CNTDWN_COUNTERS_NUM; i++) {
 			u16 csa_off = beacon->cntdwn_counter_offsets[i];
+			u16 sta_prof_csa_off = beacon->sta_prof_cntdwn_offs[i];
 
-			if (!csa_off)
-				continue;
+			if (csa_off)
+				offs->cntdwn_counter_offs[i] = csa_off_base + csa_off;
 
-			offs->cntdwn_counter_offs[i] = csa_off_base + csa_off;
+			if (sta_prof_csa_off)
+				offs->sta_prof_cntdwn_offs[i] = csa_off_base + sta_prof_csa_off;
 		}
 	}
 
