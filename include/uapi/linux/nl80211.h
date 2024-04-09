@@ -2905,6 +2905,9 @@ enum nl80211_commands {
  *
  * @NL80211_ATTR_VIF_RADIO_MASK: Bitmask of allowed radios (u32).
  *	A value of 0 means all radios.
+ * @NL80211_ATTR_CNTDWN_OFFS_STA_PROF: An array of offsets (u16) to the channel
+ *	switch or color change counters in the per-STA profile corresponding to
+ *	the affected AP.
  *
  * @NL80211_ATTR_SUPPORTED_SELECTORS: supported BSS Membership Selectors, array
  *	of supported selectors as defined by IEEE Std 802.11-2020 9.4.2.3 but
@@ -3493,6 +3496,9 @@ enum nl80211_attrs {
 
 	/* add attributes here, update the policy in nl80211.c */
 
+	/* MTK internal */
+	NL80211_ATTR_CNTDWN_OFFS_STA_PROF,
+
 	__NL80211_ATTR_AFTER_LAST,
 	NUM_NL80211_ATTR = __NL80211_ATTR_AFTER_LAST,
 	NL80211_ATTR_MAX = __NL80211_ATTR_AFTER_LAST - 1
@@ -3505,6 +3511,7 @@ enum nl80211_attrs {
 #define NL80211_ATTR_SAE_DATA NL80211_ATTR_AUTH_DATA
 #define NL80211_ATTR_CSA_C_OFF_BEACON NL80211_ATTR_CNTDWN_OFFS_BEACON
 #define NL80211_ATTR_CSA_C_OFF_PRESP NL80211_ATTR_CNTDWN_OFFS_PRESP
+#define NL80211_ATTR_CSA_C_OFF_STA_PROF NL80211_ATTR_CNTDWN_OFFS_STA_PROF
 
 /*
  * Allow user space programs to use #ifdef on new attributes by defining them

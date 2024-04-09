@@ -858,6 +858,7 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
 	[NL80211_ATTR_EPCS] = { .type = NLA_FLAG },
 	[NL80211_ATTR_ASSOC_MLD_EXT_CAPA_OPS] = { .type = NLA_U16 },
 	[NL80211_ATTR_WIPHY_RADIO_INDEX] = { .type = NLA_S8 },
+	[NL80211_ATTR_CNTDWN_OFFS_STA_PROF] = { .type = NLA_BINARY },
 };
 
 /* policy for the key attributes */
@@ -10721,7 +10722,8 @@ static int nl80211_channel_switch(struct sk_buff *skb, struct genl_info *info)
 	if (err)
 		goto free;
 
-	if (!csa_attrs[NL80211_ATTR_CNTDWN_OFFS_BEACON]) {
+	if (!csa_attrs[NL80211_ATTR_CNTDWN_OFFS_BEACON] &&
+	    !csa_attrs[NL80211_ATTR_CNTDWN_OFFS_STA_PROF]) {
 		err = -EINVAL;
 		goto free;
 	}
@@ -10741,6 +10743,15 @@ static int nl80211_channel_switch(struct sk_buff *skb, struct genl_info *info)
 					    csa_attrs[NL80211_ATTR_CNTDWN_OFFS_PRESP],
 					    &params.counter_offsets_presp,
 					    &params.n_counter_offsets_presp);
+	if (err)
+		goto free;
+
+	err = nl80211_parse_counter_offsets(rdev, params.beacon_csa.tail,
+					    params.beacon_csa.tail_len,
+					    params.count,
+					    csa_attrs[NL80211_ATTR_CNTDWN_OFFS_STA_PROF],
+					    &params.counter_offsets_sta_prof,
+					    &params.n_counter_offsets_sta_prof);
 	if (err)
 		goto free;
 

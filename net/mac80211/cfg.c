@@ -1244,6 +1244,9 @@ ieee80211_assign_beacon(struct ieee80211_sub_if_data *sdata,
 		memcpy(new->cntdwn_counter_offsets, csa->counter_offsets_beacon,
 		       csa->n_counter_offsets_beacon *
 		       sizeof(new->cntdwn_counter_offsets[0]));
+		memcpy(new->sta_prof_cntdwn_offs, csa->counter_offsets_sta_prof,
+		       csa->n_counter_offsets_sta_prof *
+		       sizeof(new->sta_prof_cntdwn_offs[0]));
 	} else if (cca) {
 		new->cntdwn_current_counter = cca->count;
 		new->cntdwn_counter_offsets[0] = cca->counter_offset_beacon;
@@ -4071,8 +4074,10 @@ static int ieee80211_set_csa_beacon(struct ieee80211_link_data *link_data,
 
 		csa.counter_offsets_beacon = params->counter_offsets_beacon;
 		csa.counter_offsets_presp = params->counter_offsets_presp;
+		csa.counter_offsets_sta_prof = params->counter_offsets_sta_prof;
 		csa.n_counter_offsets_beacon = params->n_counter_offsets_beacon;
 		csa.n_counter_offsets_presp = params->n_counter_offsets_presp;
+		csa.n_counter_offsets_sta_prof = params->n_counter_offsets_sta_prof;
 		csa.count = params->count;
 
 		err = ieee80211_assign_beacon(sdata, link_data,
@@ -4235,18 +4240,20 @@ __ieee80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 	if (err)
 		goto out;
 
-	err = ieee80211_link_reserve_chanctx(link_data, &chanreq,
-					     chanctx->mode,
-					     params->radar_required);
-	if (err)
-		goto out;
+	if (!cfg80211_chandef_identical(&conf->def, &chanreq.oper)) {
+		err = ieee80211_link_reserve_chanctx(link_data, &chanreq,
+						     chanctx->mode,
+						     params->radar_required);
+		if (err)
+			goto out;
 
-	/* if reservation is invalid then this will fail */
-	err = ieee80211_check_combinations(sdata, NULL, chanctx->mode, 0, -1);
-	if (err) {
-		sdata_info(sdata, "chan-switch:  check-combinations failed: %d\n", err);
-		ieee80211_link_unreserve_chanctx(link_data);
-		goto out;
+		/* if reservation is invalid then this will fail */
+		err = ieee80211_check_combinations(sdata, NULL, chanctx->mode, 0, -1);
+		if (err) {
+			sdata_info(sdata, "chan-switch:  check-combinations failed: %d\n", err);
+			ieee80211_link_unreserve_chanctx(link_data);
+			goto out;
+		}
 	}
 
 	/* if there is a color change in progress, abort it */
