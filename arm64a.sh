@@ -1,0 +1,4 @@
+##aptitude install gcc-arm-linux-gnueabihf
+
+export ARCH=arm64
+export CROSS_COMPILE=aarch64-linux-gnu-
