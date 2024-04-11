@@ -1,0 +1,22 @@
+This page describes some steps to build the Linux Kernel and load it onto the SD card for the BPI-R4.
+This Linux kernel will run on the bpi-r4.
+https://openwrt.org/inbox/toh/sinovoip/bananapi_bpi-r4
+
+git clone https://github.com/jcdutton/linux-bpi.git
+git checkout v6.9-rc1-bpi    <- This is the branch that works on the BPI-R4.
+
+Set it up to be cross compiled. See arm64a.sh for an example on how to do it.
+In the Linux kernel source directory, copy the example .config file.
+cp -a config-bpi-r4 .config
+make menuconfig    <- Change any settings you wish.
+make -j12          <- Compile the kernel.
+./make-itb-r4.sh   <- This takes the kernel and dtb files and builds the "bpi-r4.itb".
+
+copy the "bpi-r4.ibt" into the FAT filesystem that is on partition 5 (e.g. /dev/sdc5) boot partition on the SD card.
+copy the linux kernel modules onto the ext4 filesystem that is on partition 6 (e.g. /dev/sdc6) root partition on the SD card.
+
+Place the SD card in the BPI-R4 and turn on.
+It will boot to a Login prompt:
+
+Username: root
+Password: bananapi
