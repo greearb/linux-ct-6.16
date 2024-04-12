@@ -1491,7 +1491,7 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	}
 
 	link_conf->dtim_period = params->dtim_period;
-	link_conf->enable_beacon = true;
+	link_conf->enable_beacon = !ieee80211_vif_is_mld(&sdata->vif);
 	link_conf->allow_p2p_go_ps = sdata->vif.p2p;
 	link_conf->twt_responder = params->twt_responder;
 	link_conf->he_obss_pd = params->he_obss_pd;
@@ -1561,6 +1561,11 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	ieee80211_recalc_dtim(local, sdata);
 	ieee80211_vif_cfg_change_notify(sdata, BSS_CHANGED_SSID);
 	ieee80211_link_info_change_notify(sdata, link, changed);
+	/* for MLD AP, enable_beacon is false during the first beacon set,
+	 * enable it after that. This allows userspace to control the
+	 * beacon enable timing.
+	 */
+	link_conf->enable_beacon = true;
 
 	if (ieee80211_num_beaconing_links(sdata) <= 1)
 		netif_carrier_on(dev);
