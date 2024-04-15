@@ -3748,7 +3748,7 @@ int mt7996_mcu_set_chan_info(struct mt7996_phy *phy, u16 tag)
 				 &req, sizeof(req), true);
 }
 
-static int mt7996_mcu_set_eeprom_flash(struct mt7996_dev *dev)
+int mt7996_mcu_set_eeprom(struct mt7996_dev *dev)
 {
 #define MAX_PAGE_IDX_MASK	GENMASK(7, 5)
 #define PAGE_IDX_MASK		GENMASK(4, 2)
@@ -3791,22 +3791,6 @@ static int mt7996_mcu_set_eeprom_flash(struct mt7996_dev *dev)
 	}
 
 	return 0;
-}
-
-int mt7996_mcu_set_eeprom(struct mt7996_dev *dev)
-{
-	struct mt7996_mcu_eeprom req = {
-		.tag = cpu_to_le16(UNI_EFUSE_BUFFER_MODE),
-		.len = cpu_to_le16(sizeof(req) - 4),
-		.buffer_mode = EE_MODE_EFUSE,
-		.format = EE_FORMAT_WHOLE
-	};
-
-	if (dev->flash_mode)
-		return mt7996_mcu_set_eeprom_flash(dev);
-
-	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(EFUSE_CTRL),
-				 &req, sizeof(req), true);
 }
 
 int mt7996_mcu_get_eeprom(struct mt7996_dev *dev, u32 offset, u8 *buf, u32 buf_len)
