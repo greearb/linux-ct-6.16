@@ -1788,6 +1788,8 @@ mt76_testmode_param_present(struct mt76_testmode_data *td, u16 idx)
 {
 #ifdef CONFIG_NL80211_TESTMODE
 	return td->param_set[idx / 32] & BIT(idx % 32);
+#else
+	return false;
 #endif
 }
 
