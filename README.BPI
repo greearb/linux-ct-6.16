@@ -20,3 +20,10 @@ It will boot to a Login prompt:
 
 Username: root
 Password: bananapi
+
+
+###
+Some packages you may need to install on Fedora:
+
+dnf install uboot-tools
+dnf install gcc-aarch64-linux-gnu
