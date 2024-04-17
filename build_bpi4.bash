@@ -21,6 +21,15 @@ INSTALL_MOD_PATH=$dst make -j4 modules_install
 
 cp -a bpi-r4.itb $dst/boot/
 
+# Copy firmware
+mkdir -p $dst/lib/firmware/mediatek
+cp -ar /lib/firmware/mediatek/* $dst/lib/firmware/mediatek/
+# be200, ax210
+cp -ar /lib/firmware/iwlwifi-gl* $dst/lib/firmware/
+cp -ar /lib/firmware/iwlwifi-ma* $dst/lib/firmware/
+cp -ar /lib/firmware/iwlwifi-so* $dst/lib/firmware/
+cp -ar /lib/firmware/iwlwifi-ty* $dst/lib/firmware/
+
 cd $dst
 tar -cvzf ../ct${KVER_PKG}.bpi4.tar.gz .
 cd -
