@@ -408,6 +408,9 @@ struct mt7996_vif {
 	u8 group_mld_id;
 	u8 mld_remap_id;
 
+	u8 cs_link_id;
+	u16 cs_ready_links;
+
 	/* for beacon monitoring */
 	struct delayed_work beacon_mon_work;
 	unsigned long beacon_received_time[__MT_MAX_BAND];
