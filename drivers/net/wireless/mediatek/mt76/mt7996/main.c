@@ -1009,7 +1009,11 @@ mt7996_link_info_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		link->mt76.beacon_rates_idx =
 			mt7996_get_rates_table(phy, info, true, false);
 
-		mt7996_mcu_add_beacon(hw, vif, info, info->enable_beacon);
+		/* The CSA beacon will be set in channel_switch_beacon,
+		 * but beacon can be disabled during CSA for DFS channel.
+		 */
+		if (!info->enable_beacon || !info->csa_active)
+			mt7996_mcu_add_beacon(hw, vif, info, info->enable_beacon);
 	}
 
 	if (changed & (BSS_CHANGED_UNSOL_BCAST_PROBE_RESP |
@@ -1035,9 +1039,49 @@ mt7996_channel_switch_beacon(struct ieee80211_hw *hw,
 			     struct cfg80211_chan_def *chandef)
 {
 	struct mt7996_dev *dev = mt7996_hw_dev(hw);
+	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
+	struct mt7996_phy *phy = mt7996_band_phy(dev, chandef->chan->band);
+	struct ieee80211_bss_conf *conf;
+	struct mt7996_vif_link *mconf;
+	u16 valid_links = vif->valid_links ?: BIT(0);
+	unsigned int link_id;
 
 	mutex_lock(&dev->mt76.mutex);
-	mt7996_mcu_add_beacon(hw, vif, &vif->bss_conf, true);
+	link_id = mvif->mt76.band_to_link[phy->mt76->band_idx];
+	if (link_id == IEEE80211_LINK_UNSPECIFIED)
+		goto out;
+
+	if (!mvif->cs_ready_links)
+		mvif->cs_link_id = link_id;
+
+	mvif->cs_ready_links |= BIT(link_id);
+	if (mvif->cs_ready_links != valid_links)
+		goto out;
+
+	link_id = mvif->cs_link_id;
+	do {
+		valid_links &= ~BIT(link_id);
+		mconf = mt7996_vif_link(dev, vif, link_id);
+		conf = link_conf_dereference_protected(vif, link_id);
+		if (!conf || !mconf)
+			goto fail;
+
+		/* Reset the beacon when switching channels during CAC */
+		if (link_id == mvif->cs_link_id &&
+		    !cfg80211_reg_can_beacon(hw->wiphy, &phy->mt76->chandef, vif->type))
+			mt7996_mcu_add_beacon(hw, vif, conf, false);
+
+		mt7996_mcu_add_beacon(hw, vif, conf, true);
+		link_id = ffs(valid_links) - 1;
+	} while (valid_links);
+
+out:
+	mutex_unlock(&dev->mt76.mutex);
+	return;
+fail:
+	mvif->cs_ready_links = 0;
+	mvif->cs_link_id = IEEE80211_LINK_UNSPECIFIED;
+	dev_err(dev->mt76.dev, "link %d: failed to switch beacon\n", link_id);
 	mutex_unlock(&dev->mt76.mutex);
 }
 
