@@ -2589,6 +2589,7 @@ struct ieee80211_sta {
 	bool spp_amsdu;
 	u8 max_amsdu_subframes;
 	u16 eml_cap;
+	u16 eml_capa; /* from MTK patch, maybe should be merged with above? */
 
 	struct ieee80211_sta_aggregates *cur;
 

@@ -855,6 +855,7 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
 	[NL80211_ATTR_BSS_DUMP_INCLUDE_USE_DATA] = { .type = NLA_FLAG },
 	[NL80211_ATTR_MLO_TTLM_DLINK] = NLA_POLICY_EXACT_LEN(sizeof(u16) * 8),
 	[NL80211_ATTR_MLO_TTLM_ULINK] = NLA_POLICY_EXACT_LEN(sizeof(u16) * 8),
+	[NL80211_ATTR_EML_CAPABILITY] = { .type = NLA_U16 },
 	[NL80211_ATTR_ASSOC_SPP_AMSDU] = { .type = NLA_FLAG },
 	[NL80211_ATTR_VIF_RADIO_MASK] = { .type = NLA_U32 },
 	[NL80211_ATTR_SUPPORTED_SELECTORS] =
@@ -7666,6 +7667,9 @@ static int nl80211_set_station(struct sk_buff *skb, struct genl_info *info)
 		mac_addr = nla_data(info->attrs[NL80211_ATTR_MAC]);
 	}
 
+	if (info->attrs[NL80211_ATTR_EML_CAPABILITY])
+		params.eml_capa =
+			nla_get_u16(info->attrs[NL80211_ATTR_EML_CAPABILITY]);
 
 	if (info->attrs[NL80211_ATTR_STA_SUPPORTED_RATES]) {
 		params.link_sta_params.supported_rates =

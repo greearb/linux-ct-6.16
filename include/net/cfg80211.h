@@ -1775,6 +1775,7 @@ struct station_parameters {
 	u16 airtime_weight;
 	bool eml_cap_present;
 	u16 eml_cap;
+	u16 eml_capa; /* from MTK patch, maybe should be merged with above? */
 	struct link_station_parameters link_sta_params;
 };
 
