@@ -19057,7 +19057,8 @@ void cfg80211_links_removed(struct net_device *dev, u16 link_mask)
 	trace_cfg80211_links_removed(dev, link_mask);
 
 	if (WARN_ON(wdev->iftype != NL80211_IFTYPE_STATION &&
-		    wdev->iftype != NL80211_IFTYPE_P2P_CLIENT))
+		    wdev->iftype != NL80211_IFTYPE_P2P_CLIENT &&
+		    wdev->iftype != NL80211_IFTYPE_AP))
 		return;
 
 	if (WARN_ON(!wdev->valid_links || !link_mask ||
@@ -19065,8 +19066,10 @@ void cfg80211_links_removed(struct net_device *dev, u16 link_mask)
 		    wdev->valid_links == link_mask))
 		return;
 
-	cfg80211_wdev_release_link_bsses(wdev, link_mask);
-	wdev->valid_links &= ~link_mask;
+	if (wdev->iftype != NL80211_IFTYPE_AP) {
+		cfg80211_wdev_release_link_bsses(wdev, link_mask);
+		wdev->valid_links &= ~link_mask;
+	}
 
 	msg = nlmsg_new(NLMSG_DEFAULT_SIZE, GFP_KERNEL);
 	if (!msg)

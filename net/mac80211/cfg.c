@@ -1724,9 +1724,11 @@ static int ieee80211_stop_ap(struct wiphy *wiphy, struct net_device *dev,
 	RCU_INIT_POINTER(link_conf->tx_bss_conf, NULL);
 
 	link_conf->enable_beacon = false;
-	sdata->beacon_rate_set = false;
-	sdata->vif.cfg.ssid_len = 0;
-	clear_bit(SDATA_STATE_OFFCHANNEL_BEACON_STOPPED, &sdata->state);
+	if (ieee80211_num_beaconing_links(sdata) <= 1) {
+		sdata->beacon_rate_set = false;
+		sdata->vif.cfg.ssid_len = 0;
+		clear_bit(SDATA_STATE_OFFCHANNEL_BEACON_STOPPED, &sdata->state);
+	}
 	ieee80211_link_info_change_notify(sdata, link,
 					  BSS_CHANGED_BEACON_ENABLED);
 
@@ -1741,8 +1743,10 @@ static int ieee80211_stop_ap(struct wiphy *wiphy, struct net_device *dev,
 	drv_stop_ap(sdata->local, sdata, link_conf);
 
 	/* free all potentially still buffered bcast frames */
-	local->total_ps_buffered -= skb_queue_len(&sdata->u.ap.ps.bc_buf);
-	ieee80211_purge_tx_queue(&local->hw, &sdata->u.ap.ps.bc_buf);
+	if (ieee80211_num_beaconing_links(sdata) <= 1) {
+		local->total_ps_buffered -= skb_queue_len(&sdata->u.ap.ps.bc_buf);
+		ieee80211_purge_tx_queue(&local->hw, &sdata->u.ap.ps.bc_buf);
+	}
 
 	ieee80211_link_copy_chanctx_to_vlans(link, true);
 	ieee80211_link_release_channel(link);
@@ -5387,6 +5391,15 @@ ieee80211_set_epcs(struct wiphy *wiphy, struct net_device *dev, bool enable)
 
 	return ieee80211_mgd_set_epcs(sdata, enable);
 }
+
+void ieee80211_links_removed(struct ieee80211_vif *vif, u16 removed_links)
+{
+	struct ieee80211_sub_if_data *sdata = vif_to_sdata(vif);
+
+	sdata->removed_links = removed_links;
+	wiphy_work_queue(sdata->local->hw.wiphy, &sdata->links_removed_work);
+}
+EXPORT_SYMBOL_GPL(ieee80211_links_removed);
 
 const struct cfg80211_ops mac80211_config_ops = {
 	.add_virtual_intf = ieee80211_add_iface,

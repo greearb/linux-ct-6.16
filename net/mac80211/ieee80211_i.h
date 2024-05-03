@@ -1183,6 +1183,10 @@ struct ieee80211_sub_if_data {
 
 	u16 restart_active_links;
 
+	/* for MLD reconf of affliated AP removal */
+	struct wiphy_work links_removed_work;
+	u16 removed_links;
+
 #ifdef CONFIG_MAC80211_DEBUGFS
 	struct {
 		struct dentry *subdir_stations;
