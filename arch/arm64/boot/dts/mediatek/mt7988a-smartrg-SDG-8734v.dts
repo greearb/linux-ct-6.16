@@ -10,7 +10,7 @@
 #include "mt7988a.dtsi"
 
 / {
-	compatible = "smartrg,sdg-8734", "mediatek,mt7988a";
+	compatible = "smartrg,sdg-8734v", "mediatek,mt7988a";
 	model = "SmartRG SDG-8734v";
 	chassis-type = "embedded";
 
@@ -24,7 +24,7 @@
 
 	chosen {
 		stdout-path = &uart0;
-		bootargs = "console=ttyS0,115200n1 loglevel=8 pci=pcie_bus_perf ubi.block=0,fit root=/dev/fit0";
+		bootargs = "console=ttyS0,115200n1 loglevel=8 pci=pcie_bus_perf";
 	};
 
 	memory {
@@ -54,6 +54,39 @@
 		tx-fault-gpios = <&pio 37 GPIO_ACTIVE_HIGH>;
 		maximum-power-milliwatt = <4000>;
 	};
+
+	sound_wm8960 {
+		compatible = "mediatek,mt7986-wm8960-sound";
+		audio-routing = "Headphone", "HP_L", "Headphone", "HP_R", "LINPUT1", "AMIC", "RINPUT1", "AMIC";
+		status = "disabled";
+
+		platform {
+			sound-dai = <&afe>;
+		};
+
+		codec {
+			sound-dai = <&wm8960>;
+		};
+	};
+
+	dummy_codec: dummy_codec {
+		compatible = "d2,slic-dummy-codec";
+		#sound-dai-cells = <0>;
+	};
+
+	sound_si3218x {
+		compatible = "mediatek,mt7986-si3218x-sound";
+		status = "okay";
+
+		platform {
+			sound-dai = <&afe>;
+		};
+
+		codec {
+			sound-dai = <&dummy_codec>;
+		};
+	};
+
 
 	gpio-keys {
 		compatible = "gpio-keys";
@@ -399,35 +432,89 @@
 	};
 };
 
-/* mPCIe SIM2 */
-&pcie0 {
+&i2c1 {
 	pinctrl-names = "default";
-	pinctrl-0 = <&pcie0_pins>;
+	pinctrl-0 = <&i2c1_pins>;
 	status = "okay";
+	#address-cells = <0x01>;
+	#size-cells = <0x00>;
+
+	system-leds@30 {
+		compatible = "srg,sysled";
+		reg = <0x30>;
+		#address-cells = <0x00>;
+		#size-cells = <0x1>;
+
+		led_sys_red: system_red {
+			label = "red";
+			reg = <0x01>;
+		};
+
+		led_sys_green: system_green {
+			label = "green";
+			reg = <0x02>;
+			linux,default-trigger = "timer";
+		};
+
+		led_sys_blue: system_blue {
+			label = "blue";
+			reg = <0x03>;
+		};
+
+		led_sys_white: system_white {
+			label = "white";
+			reg = <0x04>;
+		};
+	};
+
+	wm8960: wm8960@1a {
+		compatible = "wlf,wm8960";
+		reg = <0x1a>;
+		#sound-dai-cells = <0>;
+	};
 };
 
-/* mPCIe SIM3 */
+&pcie0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie0_1_pins>;
+	reset-gpios = <&pio 7 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	pcie@0,0 {
+		#address-cells = <0x01>;
+		#size-cells = <0x0>;
+		reg = <0x0000 0 0 0 0>;
+
+		mt7996@0,0 {
+			reg = <0x0000 0 0 0 0>;
+			nvmem-cells = <&eeprom_factory_0>;
+			nvmem-cell-names = "eeprom";
+			ieee80211-freq-limit = <2400000 2500000>, <5170000 5835000>, <5945000 7125000>;
+		};
+	};
+};
+
 &pcie1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie1_pins>;
 	status = "okay";
 };
 
-/* M.2 key-B SIM1 */
 &pcie2 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pcie2_pins>;
-	status = "okay";
+	status = "disabled";
 };
 
-/* M.2 key-M SSD */
 &pcie3 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pcie3_pins>;
-	status = "okay";
+	status = "disabled";
 };
 
 &pio {
+	pcie0_1_pins: pcie0-pins-g1 {
+		mux {
+			function = "pcie";
+			groups = "pcie_2l_0_pereset", "pcie_clk_req_n0_0";
+		};
+	};
 	pwm_pins: pwm-pins {
 		mux {
 			function = "pwm";
@@ -465,7 +552,7 @@
 &spi0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&spi0_flash_pins>;
-	status = "okay";
+	status = "disabled";
 
 	spi_nand: spi_nand@0 {
 		compatible = "spi-nand";
@@ -473,46 +560,6 @@
 		spi-max-frequency = <52000000>;
 		spi-tx-buswidth = <4>;
 		spi-rx-buswidth = <4>;
-	};
-};
-
-&spi_nand {
-	partitions {
-		compatible = "fixed-partitions";
-		#address-cells = <1>;
-		#size-cells = <1>;
-
-		partition@0 {
-			label = "bl2";
-			reg = <0x0 0x200000>;
-			read-only;
-		};
-
-		partition@200000 {
-			label = "ubi";
-			reg = <0x200000 0x7e00000>;
-			compatible = "linux,ubi";
-
-			volumes {
-				ubi-volume-ubootenv {
-					volname = "ubootenv";
-					nvmem-layout {
-						compatible = "u-boot,env-redundant-bool-layout";
-					};
-				};
-
-				ubi-volume-ubootenv2 {
-					volname = "ubootenv2";
-					nvmem-layout {
-						compatible = "u-boot,env-redundant-bool-layout";
-					};
-				};
-
-				ubi_rootfs: ubi-volume-fit {
-					volname = "fit";
-				};
-			};
-		};
 	};
 };
 
@@ -526,4 +573,10 @@
 
 &xphy {
 	status = "okay";
+};
+
+/* afe: audio-controller@11210000 */
+&afe {
+	status = "okay";
+	#sound-dai-cells = <0>;
 };
