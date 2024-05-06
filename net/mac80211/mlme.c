@@ -8729,8 +8729,10 @@ void ieee80211_mgd_setup_link(struct ieee80211_link_data *link)
 	else if (sdata->u.mgd.reconf.add_links_data)
 		ether_addr_copy(link->conf->addr,
 				sdata->u.mgd.reconf.add_links_data->link[link_id].addr);
-	else if (!is_valid_ether_addr(link->conf->addr))
-		eth_random_addr(link->conf->addr);
+	else if (!is_valid_ether_addr(link->conf->addr)) {
+		ether_addr_copy(link->conf->addr, sdata->vif.addr);
+		link->conf->addr[4] += link_id + 1;
+	}
 }
 
 /* scan finished notification */
@@ -9575,11 +9577,13 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 			}
 
 			link = sdata_dereference(sdata->link[i], sdata);
-			if (link)
+			if (link) {
 				ether_addr_copy(assoc_data->link[i].addr,
 						link->conf->addr);
-			else
-				eth_random_addr(assoc_data->link[i].addr);
+			} else {
+				ether_addr_copy(assoc_data->link[i].addr, sdata->vif.addr);
+				assoc_data->link[i].addr[4] += i + 1;
+			}
 			sband = local->hw.wiphy->bands[link_cbss->channel->band];
 
 			if (match_auth && i == assoc_link_id && link)
