@@ -98,6 +98,46 @@
 		};
 	};
 
+	gpio-export {
+		compatible = "gpio-export";
+
+		bluetooth_reset {
+			gpio-export,name = "bt_reset";
+			gpio-export,direction_may_change;
+			gpios = <&pio 20 GPIO_ACTIVE_HIGH>;
+		};
+
+		bluetooth_txrx_ctl {
+			gpio-export,name = "bt_txrx_ctl";
+			gpio-export,direction_may_change;
+			gpios = <&pio 74 GPIO_ACTIVE_HIGH>;
+		};
+
+		gps_enable {
+			gpio-export,name = "gps_enable";
+			gpio-export,output = <1>;
+			gpios = <&pio 9 GPIO_ACTIVE_LOW>;
+		};
+
+		slic_interrupt {
+			gpio-export,name = "slic_interrupt";
+			gpio-export,direction_may_change;
+			gpios = <&pio 54 GPIO_ACTIVE_HIGH>;
+		};
+
+		slic_reset {
+			gpio-export,name = "slic_reset";
+			gpio-export,output = <0>;
+			gpios = <&pio 72 GPIO_ACTIVE_HIGH>;
+		};
+
+		usb_enable {
+			gpio-export,name = "usb_enable";
+			gpio-export,output = <1>;
+			gpios = <&pio 63 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
 	gpio-leds {
 		compatible = "gpio-leds";
 
@@ -533,6 +573,19 @@
 			mediatek,pull-up-adv = <0>;
 		};
 	};
+	i2s-pins {
+		mux {
+			function = "audio";
+			groups = "i2s";
+		};
+	};
+
+	pcm-pins {
+		mux {
+			function = "audio";
+			groups = "pcm";
+		};
+	};
 };
 
 &pwm {
@@ -560,6 +613,15 @@
 		spi-max-frequency = <52000000>;
 		spi-tx-buswidth = <4>;
 		spi-rx-buswidth = <4>;
+	};
+};
+
+&spi1 {
+	status = "okay";
+	slic: slic@0 {
+		compatible = "silabs,si3210";
+		spi-max-frequency = <10000000>;
+		reg = <0x00>;
 	};
 };
 
