@@ -72,6 +72,20 @@ enum mtk_vendor_attr_3wire_ctrl {
 		NUM_MTK_VENDOR_ATTRS_3WIRE_CTRL - 1
 };
 
+enum mtk_vendor_attr_eml_ctrl {
+
+	MTK_VENDOR_ATTR_EML_CTRL_UNSPEC,
+
+	MTK_VENDOR_ATTR_EML_LINK_ID,
+	MTK_VENDOR_ATTR_EML_STA_ADDR,
+	MTK_VENDOR_ATTR_EML_CTRL_STRUCT,
+
+	/* keep last */
+	NUM_MTK_VENDOR_ATTRS_EML_CTRL,
+	MTK_VENDOR_ATTR_EML_CTRL_MAX =
+		NUM_MTK_VENDOR_ATTRS_EML_CTRL - 1
+};
+
 enum mtk_vendor_attr_csi_ctrl {
 	MTK_VENDOR_ATTR_CSI_CTRL_UNSPEC,
 

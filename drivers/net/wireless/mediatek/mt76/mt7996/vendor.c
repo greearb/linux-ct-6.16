@@ -129,6 +129,13 @@ beacon_ctrl_policy[NUM_MTK_VENDOR_ATTRS_BEACON_CTRL] = {
 };
 
 static const struct nla_policy
+eml_ctrl_policy[NUM_MTK_VENDOR_ATTRS_EML_CTRL] = {
+	[MTK_VENDOR_ATTR_EML_LINK_ID] = { .type = NLA_U8 },
+	[MTK_VENDOR_ATTR_EML_STA_ADDR] = { .type = NLA_BINARY },
+	[MTK_VENDOR_ATTR_EML_CTRL_STRUCT] = { .type = NLA_BINARY },
+};
+
+static const struct nla_policy
 csi_ctrl_policy[NUM_MTK_VENDOR_ATTRS_CSI_CTRL] = {
 	[MTK_VENDOR_ATTR_CSI_CTRL_RADIO_IDX] = { .type = NLA_U8 },
 	[MTK_VENDOR_ATTR_CSI_CTRL_CFG] = {.type = NLA_NESTED },
@@ -1184,6 +1191,63 @@ static int mt7996_vendor_beacon_ctrl(struct wiphy *wiphy,
 
 	return 0;
 }
+
+static int mt7996_vendor_eml_ctrl(struct wiphy *wiphy, struct wireless_dev *wdev,
+				  const void *data, int data_len)
+{
+	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
+	struct ieee80211_vif *vif = wdev_to_ieee80211_vif(wdev);
+	struct ieee80211_sta *sta;
+	struct nlattr *tb[NUM_MTK_VENDOR_ATTRS_EML_CTRL];
+	struct mt7996_dev *dev = mt7996_hw_dev(hw);
+	struct mt7996_eml_omn *eml_omn;
+	u8 sta_addr[ETH_ALEN], link_id;
+	int err;
+
+	if (!ieee80211_vif_is_mld(vif))
+		return -EINVAL;
+
+	err = nla_parse(tb, MTK_VENDOR_ATTR_EML_CTRL_MAX, data, data_len,
+			eml_ctrl_policy, NULL);
+	if (err)
+		return err;
+
+	if (!tb[MTK_VENDOR_ATTR_EML_LINK_ID] || !tb[MTK_VENDOR_ATTR_EML_STA_ADDR])
+		return -EINVAL;
+
+	link_id = nla_get_u8(tb[MTK_VENDOR_ATTR_EML_LINK_ID]);
+
+	if (link_id >= IEEE80211_LINK_UNSPECIFIED)
+		return -EINVAL;
+
+	mutex_lock(&dev->mt76.mutex);
+	nla_memcpy(sta_addr, tb[MTK_VENDOR_ATTR_EML_STA_ADDR], ETH_ALEN);
+	sta = ieee80211_find_sta_by_ifaddr(hw, sta_addr, NULL);
+
+	if (!sta) {
+		err = -EINVAL;
+		goto out;
+	}
+
+	if (tb[MTK_VENDOR_ATTR_EML_CTRL_STRUCT]) {
+		eml_omn = kzalloc(sizeof(struct mt7996_eml_omn), GFP_KERNEL);
+		if (!eml_omn) {
+			err = -ENOMEM;
+			goto out;
+		}
+
+		nla_memcpy(eml_omn, tb[MTK_VENDOR_ATTR_EML_CTRL_STRUCT],
+			   sizeof(struct mt7996_eml_omn));
+
+		err = mt7996_mcu_set_eml_omn(vif, link_id, sta, dev, eml_omn);
+		kfree(eml_omn);
+	}
+
+out:
+	mutex_unlock(&dev->mt76.mutex);
+	return err;
+}
+
 static int mt7996_vendor_csi_ctrl(struct wiphy *wiphy,
 				  struct wireless_dev *wdev,
 				  const void *data,
@@ -1577,6 +1641,17 @@ static const struct wiphy_vendor_command mt7996_vendor_commands[] = {
 		.doit = mt7996_vendor_dfs_tx_mode_ctrl,
 		.policy = dfs_tx_ctrl_policy,
 		.maxattr = MTK_VENDOR_ATTR_DFS_TX_CTRL_MAX,
+	},
+	{
+		.info = {
+			.vendor_id = MTK_NL80211_VENDOR_ID,
+			.subcmd = MTK_NL80211_VENDOR_SUBCMD_EML_CTRL,
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_NETDEV |
+			 WIPHY_VENDOR_CMD_NEED_RUNNING,
+		.doit = mt7996_vendor_eml_ctrl,
+		.policy = eml_ctrl_policy,
+		.maxattr = MTK_VENDOR_ATTR_EML_CTRL_MAX,
 	},
 };
 
