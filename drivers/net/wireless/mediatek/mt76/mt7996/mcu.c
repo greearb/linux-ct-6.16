@@ -3278,6 +3278,7 @@ int mt7996_mcu_set_fixed_field(struct mt7996_dev *dev, struct mt7996_sta *msta,
 	case RATE_PARAM_FIXED_MCS:
 	case RATE_PARAM_FIXED_GI:
 	case RATE_PARAM_FIXED_HE_LTF:
+	case RATE_PARAM_FIXED_ENCODING:
 		if (phy)
 			ra->phy = *phy;
 		break;
@@ -3613,6 +3614,11 @@ int mt7996_mcu_add_rate_ctrl(struct mt7996_dev *dev, struct mt7996_sta *msta,
 		ret = PTR_ERR(skb);
 		goto error_unlock;
 	}
+
+#ifdef CONFIG_MTK_VENDOR
+	if (changed && dev->cert_mode == 2)
+		return mt7996_mcu_add_rate_ctrl_fixed(dev, msta, vif, link_id);
+#endif
 
 	/* firmware rc algorithm refers to sta_rec_he for HE control.
 	 * once dev->rc_work changes the settings driver should also
@@ -8477,6 +8483,7 @@ error:
  * SET_TRIG_TYPE (0xC9)
  * SET_20M_DYN_ALGO (0xCA)
  * SET_CERT_MU_EDCA_OVERRIDE (0xCD)
+ * SET_TRIG_VARIANT (0xD5)
  */
 int mt7996_mcu_set_muru_cmd(struct mt7996_dev *dev, u16 action, int val)
 {
@@ -9673,5 +9680,45 @@ int mt7996_mcu_set_csi(struct mt7996_phy *phy, u8 mode,
 	default:
 		return -EINVAL;
 	}
+}
+#endif
+
+#ifdef CONFIG_MTK_VENDOR
+
+static void mt7996_sta_coding_type_work(void *data, struct ieee80211_sta *sta)
+{
+	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
+	struct mt7996_sta_link *msta_link;
+	struct mt7996_dev *dev = msta->vif->dev;
+	u8 *link_id = data;
+
+	rcu_read_lock();
+	msta_link = rcu_dereference(msta->link[*link_id]);
+
+	if (!msta_link)
+		goto unlock;
+
+	spin_lock_bh(&dev->mt76.sta_poll_lock);
+	msta_link->changed |= IEEE80211_RC_CODING_TYPE_CHANGED;
+	if (list_empty(&msta_link->rc_list))
+		list_add_tail(&msta_link->rc_list, &dev->sta_rc_list);
+
+	spin_unlock_bh(&dev->mt76.sta_poll_lock);
+
+unlock:
+	rcu_read_unlock();
+}
+
+int mt7996_set_coding_type(struct ieee80211_hw *hw, u8 coding_type, u8 link_id)
+{
+	struct mt7996_dev *dev = mt7996_hw_dev(hw);
+
+	dev->coding_type = coding_type;
+
+	/* Not support set all stations under different MLD interface */
+	ieee80211_iterate_stations_atomic(hw, mt7996_sta_coding_type_work, &link_id);
+	ieee80211_queue_work(hw, &dev->rc_work);
+
+	return 0;
 }
 #endif

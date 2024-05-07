@@ -582,6 +582,8 @@ struct csi_data {
 
 	struct list_head node;
 };
+
+int mt7996_set_coding_type(struct ieee80211_hw *hw, u8 coding_type, u8 link_id);
 #endif
 
 struct mt7996_rro_ba_session {
@@ -868,7 +870,8 @@ struct mt7996_dev {
 	bool uba_enable;
 
 #ifdef CONFIG_MTK_VENDOR
-	bool cert_mode;
+	u8 cert_mode;
+	u8 coding_type;
 #endif
 	struct {
 		void *txbf_phase_cal;
@@ -1389,12 +1392,13 @@ int mt7996_mcu_set_sr_enable(struct mt7996_phy *phy, u8 action, u64 val, bool se
 void mt7996_mcu_rx_sr_event(struct mt7996_dev *dev, struct sk_buff *skb);
 int mt7996_mcu_set_dup_wtbl(struct mt7996_dev *dev);
 int mt7996_mcu_set_txbf_internal(struct mt7996_phy *phy, u8 action, int idx, bool bfer);
-int mt7996_mcu_set_txbf_snd_info(struct mt7996_phy *phy, void *para);
-int mt7996_mcu_set_bypass_smthint(struct mt7996_phy *phy, u8 val);
-int mt7996_mcu_set_rfeature_trig_type(struct mt7996_phy *phy, u8 enable, u8 trig_type);
+int mt7996_mcu_set_txbf_snd_info(struct mt7996_dev *dev, void *para);
+int mt7996_mcu_set_bypass_smthint(struct mt7996_dev *dev, u8 band_idx, u8 val);
+int mt7996_mcu_set_rfeature_trig_type(struct mt7996_dev *dev, u8 band_idx,
+				      u8 enable, u8 trig_type);
 void mt7996_mcu_set_ppdu_tx_type(struct mt7996_dev *dev, u8 ppdu_type);
-void mt7996_mcu_set_nusers_ofdma(struct mt7996_phy *phy, u8 type, u8 ofdma_user_cnt);
-void mt7996_mcu_set_cert(struct mt7996_phy *phy, u8 type);
+void mt7996_mcu_set_nusers_ofdma(struct mt7996_dev *dev, u8 band_idx, u8 ofdma_user_cnt);
+void mt7996_mcu_set_cert(struct mt7996_dev *dev);
 void mt7996_tm_update_channel(struct mt7996_phy *phy);
 
 int mt7996_mcu_thermal_debug(struct mt7996_dev *dev, u8 mode, u8 action);

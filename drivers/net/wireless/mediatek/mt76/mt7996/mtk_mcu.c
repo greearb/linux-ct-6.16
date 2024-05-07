@@ -106,7 +106,7 @@ int mt7996_mcu_set_txbf_internal(struct mt7996_phy *phy, u8 action, int idx, boo
 	return mt76_mcu_skb_send_msg(&phy->dev->mt76, skb, MCU_WM_UNI_CMD(BF), false);
 }
 
-int mt7996_mcu_set_txbf_snd_info(struct mt7996_phy *phy, void *para)
+int mt7996_mcu_set_txbf_snd_info(struct mt7996_dev *dev, void *para)
 {
 	char *buf = (char *)para;
 	__le16 input[5] = {0};
@@ -119,7 +119,7 @@ int mt7996_mcu_set_txbf_snd_info(struct mt7996_phy *phy, void *para)
 
 	memset(&hdr, 0, sizeof(hdr));
 
-	skb = mt76_mcu_msg_alloc(&phy->dev->mt76, NULL, len);
+	skb = mt76_mcu_msg_alloc(&dev->mt76, NULL, len);
 	if (!skb)
 		return -ENOMEM;
 
@@ -182,14 +182,13 @@ int mt7996_mcu_set_txbf_snd_info(struct mt7996_phy *phy, void *para)
 		return -EINVAL;
 	}
 
-	return mt76_mcu_skb_send_msg(&phy->dev->mt76, skb, MCU_WM_UNI_CMD(BF), false);
+	return mt76_mcu_skb_send_msg(&dev->mt76, skb, MCU_WM_UNI_CMD(BF), false);
 }
 
-int mt7996_mcu_set_bypass_smthint(struct mt7996_phy *phy, u8 val)
+int mt7996_mcu_set_bypass_smthint(struct mt7996_dev *dev, u8 band_idx, u8 val)
 {
 #define BF_PHY_SMTH_INT_BYPASS 0
 #define BYPASS_VAL 1
-	struct mt7996_dev *dev = phy->dev;
 	struct {
 		u8 _rsv[4];
 
@@ -204,11 +203,11 @@ int mt7996_mcu_set_bypass_smthint(struct mt7996_phy *phy, u8 val)
 		.tag = cpu_to_le16(BF_CFG_PHY),
 		.len = cpu_to_le16(sizeof(data) - 4),
 		.action = BF_PHY_SMTH_INT_BYPASS,
-		.band_idx = phy->mt76->band_idx,
+		.band_idx = band_idx,
 		.smthintbypass = val,
 	};
 
-	if (val != BYPASS_VAL)
+	if (val != BYPASS_VAL || !mt7996_band_valid(dev, band_idx))
 		return -EINVAL;
 
 	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(BF), &data, sizeof(data),
@@ -216,10 +215,9 @@ int mt7996_mcu_set_bypass_smthint(struct mt7996_phy *phy, u8 val)
 }
 
 static int
-mt7996_mcu_set_bsrp_ctrl(struct mt7996_phy *phy, u16 interval,
+mt7996_mcu_set_bsrp_ctrl(struct mt7996_dev *dev, u8 band_idx, u16 interval,
 			 u16 ru_alloc, u32 trig_type, u8 trig_flow, u8 ext_cmd)
 {
-	struct mt7996_dev *dev = phy->dev;
 	struct {
 		u8 _rsv[4];
 
@@ -245,13 +243,16 @@ mt7996_mcu_set_bsrp_ctrl(struct mt7996_phy *phy, u16 interval,
 			       GENMASK(2, 0) : GENMASK(1, 0),
 	};
 
+	if (!mt7996_band_valid(dev, band_idx))
+		return -EINVAL;
+
 	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(MURU), &req,
 				 sizeof(req), false);
 }
 
-int mt7996_mcu_set_rfeature_trig_type(struct mt7996_phy *phy, u8 enable, u8 trig_type)
+int mt7996_mcu_set_rfeature_trig_type(struct mt7996_dev *dev, u8 band_idx,
+				      u8 enable, u8 trig_type)
 {
-	struct mt7996_dev *dev = phy->dev;
 	int ret = 0;
 	char buf[] = "01:00:00:1B";
 
@@ -263,14 +264,14 @@ int mt7996_mcu_set_rfeature_trig_type(struct mt7996_phy *phy, u8 enable, u8 trig
 
 	switch (trig_type) {
 	case CAPI_BASIC:
-		return mt7996_mcu_set_bsrp_ctrl(phy, 5, 67, 0, 0, enable);
+		return mt7996_mcu_set_bsrp_ctrl(dev, band_idx, 5, 67, 0, 0, enable);
 	case CAPI_BRP:
-		return mt7996_mcu_set_txbf_snd_info(phy, buf);
+		return mt7996_mcu_set_txbf_snd_info(dev, buf);
 	case CAPI_MU_BAR:
 		return mt7996_mcu_set_muru_cmd(dev, UNI_CMD_MURU_SET_MUDL_ACK_POLICY,
 					       MU_DL_ACK_POLICY_MU_BAR);
 	case CAPI_BSRP:
-		return mt7996_mcu_set_bsrp_ctrl(phy, 5, 67, 4, 0, enable);
+		return mt7996_mcu_set_bsrp_ctrl(dev, band_idx, 5, 67, 4, 0, enable);
 	default:
 		return 0;
 	}
@@ -295,14 +296,33 @@ void mt7996_mcu_set_ppdu_tx_type(struct mt7996_dev *dev, u8 ppdu_type)
 	}
 }
 
-void mt7996_mcu_set_nusers_ofdma(struct mt7996_phy *phy, u8 type, u8 user_cnt)
+void mt7996_mcu_set_nusers_ofdma(struct mt7996_dev *dev, u8 band_idx, u8 user_cnt)
 {
-	struct mt7996_dev *dev = phy->dev;
+	struct mt76_phy *mphy;
+	struct mt7996_phy *phy;
 	int enable_su = 0;
+	u8 type;
+
+	if (!mt7996_band_valid(dev, band_idx)) {
+		dev_err(dev->mt76.dev, "Invalid band_idx\n");
+		return;
+	}
+
+	mphy = dev->mt76.phys[band_idx];
+	if (!mphy)
+		return;
+
+	phy = (struct mt7996_phy *)mphy->priv;
 
 	mt7996_mcu_set_muru_cmd(dev, UNI_CMD_MURU_SUTX_CTRL, enable_su);
-	mt7996_mcu_set_muru_cmd(dev, UNI_CMD_MURU_SET_MUDL_ACK_POLICY, MU_DL_ACK_POLICY_SU_BAR);
+	mt7996_mcu_set_muru_cmd(dev, UNI_CMD_MURU_SET_MUDL_ACK_POLICY,
+				MU_DL_ACK_POLICY_SU_BAR);
 	mt7996_mcu_muru_set_prot_frame_thr(dev, 9999);
+
+	if (phy->muru_onoff & OFDMA_UL)
+		type = MU_CTRL_UL_USER_CNT;
+	else
+		type = MU_CTRL_DL_USER_CNT;
 
 	mt7996_set_muru_cfg(dev, type, user_cnt);
 }
@@ -335,9 +355,8 @@ void mt7996_mcu_set_mimo(struct mt7996_phy *phy)
 	mt7996_mcu_set_muru_cmd(dev, UNI_CMD_MURU_SET_FORCE_MU, force_mu);
 }
 
-void mt7996_mcu_set_cert(struct mt7996_phy *phy, u8 type)
+void mt7996_mcu_set_cert(struct mt7996_dev *dev)
 {
-	struct mt7996_dev *dev = phy->dev;
 	struct {
 		u8 _rsv[4];
 
@@ -348,7 +367,7 @@ void mt7996_mcu_set_cert(struct mt7996_phy *phy, u8 type)
 	} __packed req = {
 		.tag = cpu_to_le16(UNI_CMD_CERT_CFG),
 		.len = cpu_to_le16(sizeof(req) - 4),
-		.action = type, /* 1: CAPI Enable */
+		.action = !!dev->cert_mode, /* 1: CAPI Enable */
 	};
 
 	mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(WSYS_CONFIG), &req,
