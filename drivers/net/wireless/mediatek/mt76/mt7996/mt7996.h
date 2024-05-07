@@ -448,6 +448,23 @@ enum {
 	SCS_ENABLE,
 };
 
+struct mt7996_eml_omn {
+	u8 dialog_token;
+	u8 control;
+	__le16 bitmap;
+	union {
+		struct {
+			u8 emlsr_para_update;
+		} emlsr_info;
+		struct {
+			u8 mcs_map_count_control;
+			u8 mcs_map_bw80[3];
+			u8 mcs_map_bw160[3];
+			u8 mcs_map_bw320[3];
+		} emlmr_info;
+	} u;
+} __packed;
+
 struct mt7996_wed_rro_addr {
 	u32 head_low;
 	u32 head_high : 4;
@@ -1085,6 +1102,9 @@ int mt7996_mcu_wtbl_update_hdr_trans(struct mt7996_dev *dev,
 				     struct mt7996_sta_link *msta_link);
 int mt7996_mcu_cp_support(struct mt7996_dev *dev, u8 mode);
 int mt7996_mcu_set_pp_en(struct mt7996_phy *phy, u8 mode, u16 bitmap);
+int mt7996_mcu_set_eml_omn(struct ieee80211_vif *vif, u8 link_id,
+			   struct ieee80211_sta *sta, struct mt7996_dev *dev,
+			   struct mt7996_eml_omn *eml_omn);
 #ifdef CONFIG_MAC80211_DEBUGFS
 void mt7996_sta_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			    struct ieee80211_sta *sta, struct dentry *dir);
