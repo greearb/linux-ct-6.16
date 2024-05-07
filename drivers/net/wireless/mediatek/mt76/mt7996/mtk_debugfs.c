@@ -2861,7 +2861,7 @@ mt7996_bf_txsnd_info_set(struct file *file,
 	else
 		buf[count] = '\0';
 
-	ret = mt7996_mcu_set_txbf_snd_info(phy, buf);
+	ret = mt7996_mcu_set_txbf_snd_info(phy->dev, buf);
 
 	if (ret) return -EFAULT;
 
