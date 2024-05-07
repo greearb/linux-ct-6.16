@@ -107,6 +107,7 @@ static const struct wiphy_iftype_ext_capab mt7996_iftypes_ext_capa[] = {
 		.extended_capabilities = mt7996_if_types_ext_capa_ap,
 		.extended_capabilities_mask = mt7996_if_types_ext_capa_ap,
 		.extended_capabilities_len = sizeof(mt7996_if_types_ext_capa_ap),
+		.eml_capabilities = IEEE80211_EML_CAP_EMLSR_SUPP,
 		.mld_capa_and_ops = 2,
 		/* the max number of simultaneous links is defined as the
 		 * maximum number of affiliated APs minus 1.
