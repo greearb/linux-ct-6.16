@@ -4481,7 +4481,10 @@ static int ieee80211_probe_client(struct wiphy *wiphy, struct net_device *dev,
 	info = IEEE80211_SKB_CB(skb);
 
 	info->flags |= IEEE80211_TX_CTL_REQ_TX_STATUS |
-		       IEEE80211_TX_INTFL_NL80211_FRAME_TX;
+		       IEEE80211_TX_INTFL_NL80211_FRAME_TX |
+		       IEEE80211_TX_CTL_USE_MINRATE;
+	if (ieee80211_vif_is_mld(&sdata->vif))
+		info->control.flags |= IEEE80211_TX_CTRL_MLO_LINK_UNSPEC;
 	info->band = band;
 
 	skb_set_queue_mapping(skb, IEEE80211_AC_VO);
