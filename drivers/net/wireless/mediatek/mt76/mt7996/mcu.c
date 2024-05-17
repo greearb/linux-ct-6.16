@@ -4505,7 +4505,7 @@ int mt7996_mcu_rdd_background_enable(struct mt7996_phy *phy,
 	return mt7996_mcu_rdd_cmd(dev, RDD_START, rdd_idx, region);
 }
 
-int mt7996_mcu_set_chan_info(struct mt7996_phy *phy, u16 tag)
+int mt7996_mcu_set_chan_info(struct mt7996_phy *phy, u16 tag, bool sta)
 {
 	static const u8 ch_band[] = {
 		[NL80211_BAND_2GHZ] = 0,
@@ -4516,6 +4516,8 @@ int mt7996_mcu_set_chan_info(struct mt7996_phy *phy, u16 tag)
 	struct cfg80211_chan_def *chandef = &phy->mt76->chandef;
 	int freq1 = chandef->center_freq1;
 	u8 band_idx = phy->mt76->band_idx;
+	enum nl80211_iftype iftype = sta ? NL80211_IFTYPE_STATION :
+					   NL80211_IFTYPE_AP;
 	struct {
 		/* fixed field */
 		u8 __rsv[4];
@@ -4557,8 +4559,7 @@ int mt7996_mcu_set_chan_info(struct mt7996_phy *phy, u16 tag)
 		 phy->mt76->hw->conf.flags & IEEE80211_CONF_IDLE ||
 		 test_bit(MT76_SCANNING, &phy->mt76->state))
 		req.switch_reason = CH_SWITCH_SCAN_BYPASS_DPD;
-	else if (!cfg80211_reg_can_beacon(phy->mt76->hw->wiphy, chandef,
-					  NL80211_IFTYPE_AP))
+	else if (!cfg80211_reg_can_beacon(phy->mt76->hw->wiphy, chandef, iftype))
 		req.switch_reason = CH_SWITCH_DFS;
 	/* Set the switch reason to DFS if the ZWDFS is enabled and
 	 * AP operates on ch 36 BW80 or ch 44 BW40. This avoids TX emission on ch 50.
