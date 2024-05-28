@@ -1107,6 +1107,8 @@ int mt7996_mcu_wtbl_update_hdr_trans(struct mt7996_dev *dev,
 				     struct mt7996_sta_link *msta_link);
 int mt7996_mcu_cp_support(struct mt7996_dev *dev, u8 mode);
 int mt7996_mcu_set_pp_en(struct mt7996_phy *phy, u8 mode, u16 bitmap);
+int mt7996_mcu_set_pp_sta_dscb(struct mt7996_phy *phy, struct cfg80211_chan_def *chandef,
+			       u8 omac_idx);
 int mt7996_mcu_set_eml_omn(struct ieee80211_vif *vif, u8 link_id,
 			   struct ieee80211_sta *sta, struct mt7996_dev *dev,
 			   struct mt7996_eml_omn *eml_omn);
