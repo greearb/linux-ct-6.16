@@ -98,7 +98,9 @@ ibf_ctrl_policy[NUM_MTK_VENDOR_ATTRS_IBF_CTRL] = {
 static struct nla_policy
 pp_ctrl_policy[NUM_MTK_VENDOR_ATTRS_PP_CTRL] = {
 	[MTK_VENDOR_ATTR_PP_MODE] = { .type = NLA_U8 },
-	[MTK_VENDOR_ATTR_PP_BAND_IDX] = { .type = NLA_U8 },
+	[MTK_VENDOR_ATTR_PP_LINK_ID] = { .type = NLA_U8 },
+	[MTK_VENDOR_ATTR_PP_BITMAP] = { .type = NLA_U16 },
+	[MTK_VENDOR_ATTR_PP_CURR_FREQ] = { .type = NLA_U32 },
 };
 
 static const struct nla_policy
@@ -869,62 +871,100 @@ static int mt7996_vendor_pp_ctrl(struct wiphy *wiphy, struct wireless_dev *wdev,
 				 const void *data, int data_len)
 {
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
+	struct ieee80211_vif *vif = wdev_to_ieee80211_vif(wdev);
 	struct nlattr *tb[NUM_MTK_VENDOR_ATTRS_PP_CTRL];
 	struct mt7996_dev *dev = mt7996_hw_dev(hw);
 	struct mt7996_phy *phy;
-	struct mt76_phy *mphy;
 	struct cfg80211_chan_def *chandef;
+	struct mt7996_vif_link *mconf;
+	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
 	int err;
-	u8 val8, band_idx = 0;
+	u8 mode = 0, link_id = 0;
+	u16 punct_bitmap = 0;
 
 	err = nla_parse(tb, MTK_VENDOR_ATTR_PP_CTRL_MAX, data, data_len,
 			pp_ctrl_policy, NULL);
 
-	if (tb[MTK_VENDOR_ATTR_PP_BAND_IDX]) {
-		band_idx = nla_get_u8(tb[MTK_VENDOR_ATTR_PP_BAND_IDX]);
+	if (tb[MTK_VENDOR_ATTR_PP_MODE])
+		mode = nla_get_u8(tb[MTK_VENDOR_ATTR_PP_MODE]);
+	else
+		return -EINVAL;
+
+	if (ieee80211_vif_is_mld(vif) && tb[MTK_VENDOR_ATTR_PP_LINK_ID]) {
+		link_id = nla_get_u8(tb[MTK_VENDOR_ATTR_PP_LINK_ID]);
+		if (link_id >= IEEE80211_LINK_UNSPECIFIED)
+			return -EINVAL;
 	}
 
-	if (!mt7996_band_valid(dev, band_idx))
+	rcu_read_lock();
+	mconf = (struct mt7996_vif_link *)rcu_dereference(mvif->mt76.link[link_id]);
+	if (!mconf) {
+		rcu_read_unlock();
 		goto error;
+	}
 
-	mphy = dev->mt76.phys[band_idx];
-	if (!mphy)
+	phy = mconf->phy;
+	if (!phy) {
+		rcu_read_unlock();
 		goto error;
+	}
+	rcu_read_unlock();
 
-	phy = (struct mt7996_phy *)mphy->priv;
-	if (!phy)
+	if (!phy->mt76->chanctx)
 		goto error;
-
 	chandef = &phy->mt76->chanctx->chandef;
-	if (!chandef)
-		goto error;
 
 	if (chandef->chan->band == NL80211_BAND_2GHZ)
 		return 0;
 
-	if (tb[MTK_VENDOR_ATTR_PP_MODE]) {
-		val8 = nla_get_u8(tb[MTK_VENDOR_ATTR_PP_MODE]);
-		switch (val8) {
-		case PP_DISABLE:
-		case PP_FW_MODE:
-			err = mt7996_mcu_set_pp_en(phy, val8, 0);
-			break;
-		case PP_USR_MODE:
-			/* handled by add_chanctx */
-			err = 0;
-			break;
-		default:
-			if (err)
-				dev_err(dev->mt76.dev, "vendor-pp-ctrl failed, invalid pp-mode: %d\n",
-					val8);
-			err = -EINVAL;
-		}
+	switch (mode) {
+	case PP_USR_MODE:
+		if (tb[MTK_VENDOR_ATTR_PP_BITMAP])
+			punct_bitmap = nla_get_u16(tb[MTK_VENDOR_ATTR_PP_BITMAP]);
+		fallthrough;
+	case PP_FW_MODE:
+	case PP_DISABLE:
+		err = mt7996_mcu_set_pp_en(phy, mode, punct_bitmap);
+		break;
+	default:
+		dev_err(dev->mt76.dev, "vendor-pp-ctrl failed, invalid pp-mode: %d\n",
+			mode);
+		return -EINVAL;
 	}
 
 	return err;
 error:
-	dev_err(dev->mt76.dev, "Invalid band idx: %d\n", band_idx);
+	dev_err(dev->mt76.dev, "Invalid link id: %d\n", link_id);
 	return -EINVAL;
+}
+
+int mt7996_vendor_pp_bitmap_update(struct mt7996_phy *phy, u16 bitmap)
+{
+	struct sk_buff *skb;
+	struct mt76_phy *mphy = phy->mt76;
+	struct cfg80211_chan_def *chandef;
+
+	if (!mphy->chanctx)
+		return 0;
+	chandef = &mphy->chanctx->chandef;
+
+	skb = cfg80211_vendor_event_alloc(mphy->hw->wiphy, NULL, 20,
+					  MTK_NL80211_VENDOR_EVENT_PP_BMP_UPDATE,
+					  GFP_ATOMIC);
+
+	if (!skb)
+		return -ENOMEM;
+
+	if (nla_put_u16(skb, MTK_VENDOR_ATTR_PP_BITMAP, bitmap) ||
+	    nla_put_u32(skb, MTK_VENDOR_ATTR_PP_CURR_FREQ,
+			chandef->chan->center_freq)) {
+		dev_kfree_skb(skb);
+		return -ENOMEM;
+	}
+
+	cfg80211_vendor_event(skb, GFP_ATOMIC);
+
+	return 0;
 }
 
 static int mt7996_vendor_rfeature_ctrl(struct wiphy *wiphy,
@@ -1481,10 +1521,19 @@ static const struct wiphy_vendor_command mt7996_vendor_commands[] = {
 	},
 };
 
+static const struct nl80211_vendor_cmd_info mt7996_vendor_events[] = {
+	[MTK_NL80211_VENDOR_EVENT_PP_BMP_UPDATE] = {
+		.vendor_id = MTK_NL80211_VENDOR_ID,
+		.subcmd = MTK_NL80211_VENDOR_EVENT_PP_BMP_UPDATE,
+	},
+};
+
 void mt7996_vendor_register(struct mt7996_phy *phy)
 {
 	phy->mt76->hw->wiphy->vendor_commands = mt7996_vendor_commands;
 	phy->mt76->hw->wiphy->n_vendor_commands = ARRAY_SIZE(mt7996_vendor_commands);
+	phy->mt76->hw->wiphy->vendor_events = mt7996_vendor_events;
+	phy->mt76->hw->wiphy->n_vendor_events = ARRAY_SIZE(mt7996_vendor_events);
 
 	INIT_LIST_HEAD(&phy->csi.list);
 	spin_lock_init(&phy->csi.lock);

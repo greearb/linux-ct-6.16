@@ -1601,9 +1601,7 @@ mt7996_mcu_pp_event(struct mt7996_dev *dev, struct sk_buff *skb)
 
 		if (phy->pp_mode == PP_FW_MODE) {
 			phy->punct_bitmap = report_bitmap;
-			/* TODO:  Consider enabling this?
 			mt7996_vendor_pp_bitmap_update(phy, report_bitmap);
-			*/
 		}
 		break;
 	case UNI_EVENT_PP_TAG_ALG_CTRL:

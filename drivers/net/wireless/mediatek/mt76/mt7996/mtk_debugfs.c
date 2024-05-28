@@ -4121,6 +4121,18 @@ mt7996_drr_info(struct seq_file *s, void *data)
 	return 0;
 }
 
+static int mt7996_pp_alg_show(struct seq_file *s, void *data)
+{
+	struct mt7996_phy *phy = s->private;
+	struct mt7996_dev *dev = phy->dev;
+
+	dev_info(dev->mt76.dev, "pp_mode = %d\n", phy->pp_mode);
+	mt7996_mcu_set_pp_alg_ctrl(phy, PP_ALG_GET_STATISTICS);
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(mt7996_pp_alg);
+
 void mt7996_mtk_init_band_debugfs(struct mt7996_phy *phy, struct dentry *dir)
 {
 	/* agg */
@@ -4135,6 +4147,8 @@ void mt7996_mtk_init_band_debugfs(struct mt7996_phy *phy, struct dentry *dir)
 	debugfs_create_file("bf_starec_read", 0600, dir, phy, &fops_starec_bf_read);
 	debugfs_create_file("bf_fbk_rpt", 0600, dir, phy, &fops_bf_fbk_rpt);
 	debugfs_create_file("pfmu_tag_read", 0600, dir, phy, &fops_bf_pfmu_tag_read);
+
+	debugfs_create_file("pp_alg", 0200, dir, phy, &mt7996_pp_alg_fops);
 }
 
 void mt7996_mtk_init_dev_debugfs(struct mt7996_dev *dev, struct dentry *dir)
