@@ -13,11 +13,13 @@ export CROSS_COMPILE=aarch64-linux-gnu-
 make -j32
 
 dst="adtran-w7"
-rm -fr $dst
+sudo rm -fr $dst
 mkdir -p $dst/boot/
 mkdir -p $dst/lib/modules/
 
 INSTALL_MOD_PATH=$dst make -j4 modules_install
+
+./make-itb-adtran.sh
 
 cp -a fit-multi.itb $dst/boot/
 
