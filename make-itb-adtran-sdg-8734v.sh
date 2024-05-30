@@ -5,7 +5,7 @@ LADDR=40080000
 ENTRY=40080000
 kernver=$(make kernelversion | grep -v 'make')
 gitbranch=
-board=adtran
+board=adtran-sdg-8734v
 ARCH=arm64
 bootfile=fit-multi
 
