@@ -2643,10 +2643,9 @@ static void mt7996_link_sta_rc_update(struct ieee80211_hw *hw,
 
 static int
 mt7996_set_bitrate_mask(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
-			const struct cfg80211_bitrate_mask *mask)
+			const struct cfg80211_bitrate_mask *mask,
+			unsigned int link_id)
 {
-	// TODO:  mac80211 patch to pass in link-id.
-	unsigned int link_id = 0;
 	struct mt7996_dev *dev = mt7996_hw_dev(hw);
 	struct mt7996_vif_link *mconf;
 	struct mt7996_sta_rc_work_data data = {

@@ -11092,7 +11092,8 @@ static void ath12k_mac_disable_peer_fixed_rate(void *data,
 static int
 ath12k_mac_op_set_bitrate_mask(struct ieee80211_hw *hw,
 			       struct ieee80211_vif *vif,
-			       const struct cfg80211_bitrate_mask *mask)
+			       const struct cfg80211_bitrate_mask *mask,
+			       unsigned int link_id)
 {
 	struct ath12k_vif *ahvif = ath12k_vif_to_ahvif(vif);
 	struct ath12k_link_vif *arvif;
