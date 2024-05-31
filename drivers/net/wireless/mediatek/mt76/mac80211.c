@@ -1245,7 +1245,7 @@ mt76_rx_convert(struct mt76_dev *dev, struct sk_buff *skb,
 	memcpy(status->chain_signal, mstat.chain_signal,
 	       sizeof(mstat.chain_signal));
 
-	if (mstat.wcid) {
+	if (mstat.wcid && !mstat.wcid->sta_disabled) {
 		status->link_valid = mstat.wcid->link_valid;
 		status->link_id = mstat.wcid->link_id;
 	}
@@ -1584,7 +1584,7 @@ void __mt76_sta_remove(struct mt76_phy *phy, struct ieee80211_vif *vif,
 	if (dev->drv->sta_remove)
 		dev->drv->sta_remove(dev, vif, sta);
 
-	if (sta->valid_links)
+	if (phy->hw->wiphy->flags & WIPHY_FLAG_SUPPORTS_MLO)
 		return;
 
 	mt76_wcid_cleanup(dev, wcid);

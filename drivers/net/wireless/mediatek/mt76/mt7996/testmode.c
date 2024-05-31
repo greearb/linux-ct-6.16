@@ -209,8 +209,11 @@ mt7996_tm_init(struct mt7996_phy *phy, bool en)
 	mt7996_tm_rf_switch_mode(dev, rf_test_mode);
 
 	// TODO:  No more monitor vif, but we don't use this code anyway. --Ben
-	//mt7996_mcu_add_bss_info(phy, phy->monitor_vif, en);
-	//mt7996_mcu_add_sta(dev, phy->monitor_vif, NULL, en, true);
+	//mt7996_mcu_add_bss_info(phy, vif, &vif->bss_conf,
+	//			&deflink->mt76, &deflink->msta_link, en);
+	//state = en ? CONN_STATE_PORT_SECURE : CONN_STATE_DISCONNECT;
+	//mt7996_mcu_add_sta(dev, vif, &vif->bss_conf, NULL, deflink,
+	//		   &deflink->msta_link, state, false);
 
 	mt7996_tm_set(dev, SET_ID(BAND_IDX), phy->mt76->band_idx);
 
