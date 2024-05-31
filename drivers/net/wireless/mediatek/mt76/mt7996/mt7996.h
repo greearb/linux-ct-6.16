@@ -347,6 +347,8 @@ struct mt7996_sta_link {
 
 	s8 chain_signal[IEEE80211_MAX_CHAINS];
 	int signal;
+	struct ewma_avg_signal chain_signal_avg[IEEE80211_MAX_CHAINS];
+	struct ewma_avg_signal signal_avg;
 
 	int ack_signal;
 	s8 chain_ack_signal[IEEE80211_MAX_CHAINS];
@@ -374,6 +376,7 @@ struct mt7996_sta {
 	struct mt7996_sta_link __rcu *link[IEEE80211_MLD_MAX_NUM_LINKS];
 	u8 deflink_id;
 	u8 sec_link;
+	u16 valid_links;
 
 	struct mt7996_vif *vif;
 };
@@ -894,7 +897,8 @@ int mt7996_mcu_add_tx_ba(struct mt7996_dev *dev,
 			 struct mt7996_sta_link *msta_link, bool enable);
 int mt7996_mcu_add_rx_ba(struct mt7996_dev *dev,
 			 struct ieee80211_ampdu_params *params,
-			 struct mt7996_vif_link *link, bool enable);
+			 struct mt7996_vif_link *link,
+			 struct mt7996_sta_link *msta_link, bool enable);
 int mt7996_mcu_update_bss_color(struct mt7996_dev *dev,
 				struct mt76_vif_link *mlink,
 				struct cfg80211_he_bss_color *he_bss_color);
@@ -970,6 +974,11 @@ int mt7996_mcu_set_vow_drr_ctrl(struct mt7996_phy *phy,
 int mt7996_mcu_set_vow_feature_ctrl(struct mt7996_phy *phy);
 void mt7996_packet_log_to_host(struct mt7996_dev *dev, const void *data, int len, int type, int des_len);
 void mt7996_mcu_wmm_pbc_work(struct work_struct *work);
+int mt7996_mcu_mld_reconf_stop_link(struct mt7996_dev *dev,
+				    struct ieee80211_vif *vif, u16 removed_links);
+int mt7996_mcu_mld_link_oper(struct mt7996_phy *phy,
+			     struct ieee80211_bss_conf *conf,
+			     struct mt7996_vif_link *mconf, bool add);
 
 #define PKT_BIN_DEBUG_MAGIC	0xc8763123
 enum {
@@ -1151,6 +1160,17 @@ int mt7996_mcu_set_sniffer_mode(struct mt7996_phy *phy, bool enabled);
 #ifdef CONFIG_NET_MEDIATEK_SOC_WED
 int mt7996_dma_rro_init(struct mt7996_dev *dev);
 #endif /* CONFIG_NET_MEDIATEK_SOC_WED */
+
+static inline void mt7996_set_pse_drop(struct mt7996_dev *dev, bool enable)
+{
+#ifdef CONFIG_NET_MEDIATEK_SOC_WED
+        if (!is_mt7996(&dev->mt76) || !mtk_wed_device_active(&dev->mt76.mmio.wed))
+                return;
+
+        mtk_wed_device_ppe_drop(&dev->mt76.mmio.wed, enable);
+#endif /* CONFIG_NET_MEDIATEK_SOC_WED */
+}
+
 int mt7996_mcu_set_qos_map(struct mt7996_dev *dev, struct mt7996_vif_link *mconf,
 			   struct cfg80211_qos_map *usr_qos_map);
 #endif
