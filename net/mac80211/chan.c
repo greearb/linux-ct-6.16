@@ -951,6 +951,13 @@ static int ieee80211_assign_link_chanctx(struct ieee80211_link_data *link,
 
 	ieee80211_check_fast_xmit_iface(sdata);
 
+	/* FIXME: QoS MAP should be configured for each link (BSS).
+	 * We use assign_link_chanctx for the time being.
+	 * The problematic part is that everytime channel switch happens
+	 * the qos_map would get redundantly configured once.
+	 */
+	drv_set_qos_map(local, sdata);
+
 	return ret;
 }
 
