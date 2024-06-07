@@ -2849,6 +2849,9 @@ mt7996_net_fill_forward_path(struct ieee80211_hw *hw,
 	path->mtk_wdma.amsdu = mtk_wed_is_amsdu_supported(wed);
 	ctx->dev = NULL;
 
+	if (path->mtk_wdma.amsdu)
+		path->mtk_wdma.tid = mvif->qos_map[path->mtk_wdma.tid >> 2];
+
 	return 0;
 }
 
@@ -2980,6 +2983,32 @@ mt7996_event_callback(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	}
 }
 
+static int
+mt7996_set_qos_map(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+		   struct cfg80211_qos_map *qos_map)
+{
+	struct mt7996_dev *dev = mt7996_hw_dev(hw);
+	unsigned long valid_links = vif->valid_links ?: BIT(0);
+	unsigned int link_id;
+	int ret = 0;
+
+	mutex_lock(&dev->mt76.mutex);
+	for_each_set_bit(link_id, &valid_links, IEEE80211_MLD_MAX_NUM_LINKS) {
+		struct mt7996_vif_link *mconf =
+			mt7996_vif_link(dev, vif, link_id);
+
+		if (!mconf)
+			continue;
+
+		ret = mt7996_mcu_set_qos_map(dev, mconf, qos_map);
+		if(ret)
+			break;
+	}
+	mutex_unlock(&dev->mt76.mutex);
+
+	return ret;
+}
+
 const struct ieee80211_ops mt7996_ops = {
 	.add_chanctx = mt76_add_chanctx,
 	.remove_chanctx = mt76_remove_chanctx,
@@ -3046,4 +3075,5 @@ const struct ieee80211_ops mt7996_ops = {
 	.event_callback = mt7996_event_callback,
 	.change_vif_links = mt7996_change_vif_links,
 	.change_sta_links = mt7996_mac_sta_change_links,
+	.set_qos_map = mt7996_set_qos_map,
 };

@@ -152,6 +152,8 @@
 #define MT7996_MAX_PROBE_TIMEOUT	500
 #define MT7996_MAX_PROBE_TRIES		2
 
+#define IP_DSCP_NUM			64
+
 struct mt7996_vif;
 struct mt7996_sta;
 struct mt7996_dfs_pulse;
@@ -418,6 +420,9 @@ struct mt7996_vif {
 	void *probe[__MT_MAX_BAND];
 	unsigned long probe_send_time[__MT_MAX_BAND];
 	int probe_send_count[__MT_MAX_BAND];
+
+	/* QoS map support */
+	u8 qos_map[IP_DSCP_NUM];
 };
 
 /* crash-dump */
@@ -1143,5 +1148,6 @@ int mt7996_mcu_set_sniffer_mode(struct mt7996_phy *phy, bool enabled);
 #ifdef CONFIG_NET_MEDIATEK_SOC_WED
 int mt7996_dma_rro_init(struct mt7996_dev *dev);
 #endif /* CONFIG_NET_MEDIATEK_SOC_WED */
-
+int mt7996_mcu_set_qos_map(struct mt7996_dev *dev, struct mt7996_vif_link *mconf,
+			   struct cfg80211_qos_map *usr_qos_map);
 #endif

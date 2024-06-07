@@ -7465,3 +7465,58 @@ int mt7996_mcu_edcca_threshold_ctrl(struct mt7996_phy *phy, u8 *value, bool set)
 
 	return 0;
 }
+
+int mt7996_mcu_set_qos_map(struct mt7996_dev *dev, struct mt7996_vif_link *mconf,
+			   struct cfg80211_qos_map *usr_qos_map)
+{
+	struct {
+		u8 bss_idx;
+		u8 qos_map_enable;
+		u8 __rsv[2];
+		s8 qos_map[IP_DSCP_NUM];
+	} __packed req = {
+		.bss_idx = mconf->mt76.idx,
+		.qos_map_enable = true,
+	};
+	s8 i;
+
+	/* Default QoS map, defined in section 2.3 of RFC8325.
+	 * Three most significant bits of DSCP are used as UP.
+	 */
+	for (i = 0; i < IP_DSCP_NUM; ++i)
+		req.qos_map[i] = i >> 3;
+
+	/* Recommended QoS map, defined in section 4 of RFC8325.
+	 * Used in cfg80211_classify8021d since kernel v6.8.
+	 */
+	req.qos_map[10] = req.qos_map[12] = req.qos_map[14] = req.qos_map[16] = 0;
+	req.qos_map[18] = req.qos_map[20] = req.qos_map[22] = 3;
+	req.qos_map[24] = 4;
+	req.qos_map[40] = 5;
+	req.qos_map[44] = req.qos_map[46] = 6;
+	req.qos_map[48] = 7;
+
+	/* User-defined QoS map */
+	if (usr_qos_map) {
+		for (i = 0; i < IEEE80211_NUM_UPS; ++i) {
+			u8 low = usr_qos_map->up[i].low;
+			u8 high = usr_qos_map->up[i].high;
+
+			if (low < IP_DSCP_NUM && high < IP_DSCP_NUM && low <= high)
+				memset(req.qos_map + low, i, high - low + 1);
+		}
+
+		for (i = 0; i < usr_qos_map->num_des; ++i) {
+			u8 dscp = usr_qos_map->dscp_exception[i].dscp;
+			u8 up = usr_qos_map->dscp_exception[i].up;
+
+			if (dscp < IP_DSCP_NUM && up < IEEE80211_NUM_UPS)
+				req.qos_map[dscp] = up;
+		}
+	}
+
+	memcpy(mconf->msta_link.sta->vif->qos_map, req.qos_map, IP_DSCP_NUM);
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WA_EXT_CMD(SET_QOS_MAP), &req,
+				 sizeof(req), false);
+}
