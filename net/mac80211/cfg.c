@@ -4561,8 +4561,11 @@ static int ieee80211_set_qos_map(struct wiphy *wiphy,
 				 struct net_device *dev,
 				 struct cfg80211_qos_map *qos_map)
 {
-	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+	struct ieee80211_sub_if_data *vlan, *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 	struct mac80211_qos_map *new_qos_map, *old_qos_map;
+
+	if (!(sdata->flags & IEEE80211_SDATA_IN_DRIVER))
+		return -EIO;
 
 	if (qos_map) {
 		new_qos_map = kzalloc(sizeof(*new_qos_map), GFP_KERNEL);
@@ -4579,7 +4582,12 @@ static int ieee80211_set_qos_map(struct wiphy *wiphy,
 	if (old_qos_map)
 		kfree_rcu(old_qos_map, rcu_head);
 
-	return 0;
+	if (sdata->vif.type == NL80211_IFTYPE_AP) {
+		list_for_each_entry(vlan, &sdata->u.ap.vlans, u.vlan.list)
+			rcu_assign_pointer(vlan->qos_map, new_qos_map);
+	}
+
+	return drv_set_qos_map(sdata->local, sdata);
 }
 
 static int ieee80211_set_ap_chanwidth(struct wiphy *wiphy,

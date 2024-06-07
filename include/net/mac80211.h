@@ -4552,6 +4552,7 @@ struct ieee80211_prep_tx_info {
  *      interface with the specified type would be added, and thus drivers that
  *      implement this callback need to handle such cases. The type is the full
  *      &enum nl80211_iftype.
+ * @set_qos_map: Set QoS mapping information to driver.
  */
 struct ieee80211_ops {
 	void (*tx)(struct ieee80211_hw *hw,
@@ -4945,6 +4946,8 @@ struct ieee80211_ops {
 			struct ieee80211_neg_ttlm *ttlm);
 	void (*prep_add_interface)(struct ieee80211_hw *hw,
 				   enum nl80211_iftype type);
+	int (*set_qos_map)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+			   struct cfg80211_qos_map *qos_map);
 };
 
 /**
@@ -7905,5 +7908,4 @@ int ieee80211_emulate_switch_vif_chanctx(struct ieee80211_hw *hw,
  * @hw: pointer as obtained from ieee80211_alloc_hw()
  */
 unsigned long ieee80211_get_scanning(struct ieee80211_hw *hw);
-
 #endif /* MAC80211_H */

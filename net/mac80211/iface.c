@@ -440,8 +440,14 @@ static int ieee80211_check_concurrent_iface(struct ieee80211_sub_if_data *sdata,
 			 * can only add VLANs to enabled APs
 			 */
 			if (iftype == NL80211_IFTYPE_AP_VLAN &&
-			    nsdata->vif.type == NL80211_IFTYPE_AP)
+			    nsdata->vif.type == NL80211_IFTYPE_AP) {
 				sdata->bss = &nsdata->u.ap;
+
+				rcu_read_lock();
+				rcu_assign_pointer(sdata->qos_map,
+						   rcu_dereference(nsdata->qos_map));
+				rcu_read_unlock();
+			}
 		}
 	}
 

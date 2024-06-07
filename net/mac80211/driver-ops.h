@@ -1762,4 +1762,25 @@ drv_prep_add_interface(struct ieee80211_local *local,
 	trace_drv_return_void(local);
 }
 
+static inline int drv_set_qos_map(struct ieee80211_local *local,
+				  struct ieee80211_sub_if_data *sdata)
+{
+	int ret = -EOPNOTSUPP;
+	struct mac80211_qos_map *qos_map;
+
+	might_sleep();
+	if (!check_sdata_in_driver(sdata))
+		return -EIO;
+
+	qos_map = sdata_dereference(sdata->qos_map, sdata);
+
+	trace_drv_set_qos_map(local, sdata);
+	if (local->ops->set_qos_map)
+		ret = local->ops->set_qos_map(&local->hw, &sdata->vif,
+					      qos_map ? &qos_map->qos_map : NULL);
+	trace_drv_return_int(local, ret);
+
+	return ret;
+}
+
 #endif /* __MAC80211_DRIVER_OPS */
