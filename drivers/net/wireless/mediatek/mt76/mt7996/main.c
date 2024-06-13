@@ -1354,16 +1354,22 @@ mt7996_ampdu_action(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			mt76_rx_aggr_start(&dev->mt76, &msta_link->wcid, tid,
 					   ssn, params->buf_size);
 			ret = mt7996_mcu_add_rx_ba(dev, params, link, true);
+			mtk_dbg(&dev->mt76, BA, "ampdu-action, RX_START, tid: %d ssn: %d ret: %d\n",
+				tid, ssn, ret);
 			break;
 		case IEEE80211_AMPDU_RX_STOP:
 			mt76_rx_aggr_stop(&dev->mt76, &msta_link->wcid, tid);
 			ret = mt7996_mcu_add_rx_ba(dev, params, link, false);
+			mtk_dbg(&dev->mt76, BA, "ampdu-action, RX_STOP, tid: %d ssn: %d ret: %d\n",
+				tid, ssn, ret);
 			break;
 		case IEEE80211_AMPDU_TX_OPERATIONAL:
 			mtxq->aggr = true;
 			mtxq->send_bar = false;
 			ret = mt7996_mcu_add_tx_ba(dev, params, link,
 						   msta_link, true);
+			mtk_dbg(&dev->mt76, BA, "ampdu-action, TX_OPERATIONAL, tid: %d ssn: %d ret: %d\n",
+				tid, ssn, ret);
 			break;
 		case IEEE80211_AMPDU_TX_STOP_FLUSH:
 		case IEEE80211_AMPDU_TX_STOP_FLUSH_CONT:
@@ -1371,16 +1377,22 @@ mt7996_ampdu_action(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			clear_bit(tid, &msta_link->wcid.ampdu_state);
 			ret = mt7996_mcu_add_tx_ba(dev, params, link,
 						   msta_link, false);
+			mtk_dbg(&dev->mt76, BA, "ampdu-action, TX_AMPDU_STOP_FLUSH(%d), tid: %d ssn: %d ret: %d\n",
+				action, tid, ssn, ret);
 			break;
 		case IEEE80211_AMPDU_TX_START:
 			set_bit(tid, &msta_link->wcid.ampdu_state);
 			ret = IEEE80211_AMPDU_TX_START_IMMEDIATE;
+			mtk_dbg(&dev->mt76, BA, "ampdu-action, TX_START, tid: %d ssn: %d ret: %d\n",
+				tid, ssn, ret);
 			break;
 		case IEEE80211_AMPDU_TX_STOP_CONT:
 			mtxq->aggr = false;
 			clear_bit(tid, &msta_link->wcid.ampdu_state);
 			ret = mt7996_mcu_add_tx_ba(dev, params, link,
 						   msta_link, false);
+			mtk_dbg(&dev->mt76, BA, "ampdu-action, AMPDU_TX_STOP_CONT, tid: %d ssn: %d ret: %d\n",
+				tid, ssn, ret);
 			break;
 		}
 
