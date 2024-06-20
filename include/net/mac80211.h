@@ -3159,11 +3159,17 @@ struct ieee80211_hw {
 	const s8 *tx_power_levels;
 	u8 max_txpwr_levels_idx;
 	bool cert_mode;
+	bool ba_disable;
 };
 
 static inline bool ieee80211_is_cert_mode(struct ieee80211_hw *hw)
 {
 	return hw->cert_mode;
+}
+
+static inline bool ieee80211_is_ba_disable(struct ieee80211_hw *hw)
+{
+	return hw->ba_disable;
 }
 
 static inline bool _ieee80211_hw_check(struct ieee80211_hw *hw,

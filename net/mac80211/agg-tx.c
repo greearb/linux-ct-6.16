@@ -616,6 +616,12 @@ int ieee80211_start_tx_ba_session(struct ieee80211_sta *pubsta, u16 tid,
 
 	trace_api_start_tx_ba_session(pubsta, tid);
 
+	if (ieee80211_is_ba_disable(&local->hw)) {
+		ht_dbg(sdata,
+		       "BA session is forced to be shut down due to debugfs config\n");
+		return -EINVAL;
+	}
+
 	if (WARN(sta->reserved_tid == tid,
 		 "Requested to start BA session on reserved tid=%d", tid))
 		return -EINVAL;
