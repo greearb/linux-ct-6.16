@@ -483,6 +483,54 @@ static const struct file_operations cert_mode_ops = {
 	.llseek = noop_llseek,
 };
 
+static ssize_t ba_disable_read(struct file *file,
+			       char __user *user_buf,
+			       size_t count,
+			       loff_t *ppos)
+{
+	struct ieee80211_local *local = file->private_data;
+	char buf[32];
+	int len = 0;
+
+	len = scnprintf(buf, sizeof(buf), "ba_disable: %d\n",
+			local->hw.ba_disable);
+
+	return simple_read_from_buffer(user_buf, count, ppos,
+				       buf, len);
+}
+
+static ssize_t ba_disable_write(struct file *file,
+				const char __user *user_buf,
+				size_t count,
+				loff_t *ppos)
+{
+	struct ieee80211_local *local = file->private_data;
+	char buf[16];
+
+	if (count >= sizeof(buf))
+		return -EINVAL;
+
+	if (copy_from_user(buf, user_buf, count))
+		return -EFAULT;
+
+	if (count && buf[count - 1] == '\n')
+		buf[count - 1] = '\0';
+	else
+		buf[count] = '\0';
+
+	if (kstrtobool(buf, &local->hw.ba_disable))
+		return -EINVAL;
+
+	return count;
+}
+
+static const struct file_operations ba_disable_ops = {
+	.write = ba_disable_write,
+	.read = ba_disable_read,
+	.open = simple_open,
+	.llseek = noop_llseek,
+};
+
 static const char *hw_flag_names[] = {
 #define FLAG(F)	[IEEE80211_HW_##F] = #F
 	FLAG(HAS_RATE_CONTROL),
@@ -759,6 +807,7 @@ void debugfs_hw_add(struct ieee80211_local *local)
 			   phyd, &local->aql_threshold);
 
 	DEBUGFS_ADD_MODE(cert_mode, 0644);
+	DEBUGFS_ADD_MODE(ba_disable, 0644);
 	statsd = debugfs_create_dir("statistics", phyd);
 
 #ifdef CONFIG_MAC80211_DEBUG_COUNTERS
