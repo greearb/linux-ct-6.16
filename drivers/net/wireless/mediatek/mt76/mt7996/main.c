@@ -1152,6 +1152,11 @@ mt7996_mac_sta_event(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 			if (err)
 				return err;
 
+			err = mt7996_mcu_set_pp_en(&dev->phy, PP_USR_MODE,
+						   dev->phy.mt76->chandef.punctured);
+			if (err)
+				return err;
+
 			err = mt7996_mcu_add_rate_ctrl(dev, vif, link_conf,
 						       link_sta, link,
 						       msta_link, false);
