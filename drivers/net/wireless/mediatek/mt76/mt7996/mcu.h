@@ -696,6 +696,14 @@ struct bss_bcn_ml_reconf_offset {
 	u8 rsv;
 } __packed;
 
+struct bss_bcn_attlm_offset_tlv {
+	__le16 tag;
+	__le16 len;
+	u8 valid_id_bitmap;
+	u8 rsv;
+	__le16 offset;
+} __packed;
+
 struct bss_txcmd_tlv {
 	__le16 tag;
 	__le16 len;
@@ -1266,6 +1274,22 @@ struct mld_req_hdr {
 	u8 buf[];
 } __packed;
 
+struct mld_attlm_req {
+	__le16 tag;
+	__le16 len;
+	u8 attlm_idx;
+	u8 bss_idx;
+	u8 mst_timer;
+	u8 e_timer;
+	__le16 mst_timer_adv_time;
+	__le16 e_timer_adv_time;
+	__le32 mst_duration;
+	__le32 e_duration;
+	__le16 disabled_link_bitmap;
+	u8 disabled_bss_idx[16];
+	u8 rsv[2];
+} __packed;
+
 struct mld_reconf_timer {
 	__le16 tag;
 	__le16 len;
@@ -1284,6 +1308,7 @@ struct mld_reconf_stop_link {
 } __packed;
 
 enum {
+	UNI_CMD_MLD_ATTLM_RES_REQ = 0x02,
 	UNI_CMD_MLD_RECONF_AP_REM_TIMER = 0x03,
 	UNI_CMD_MLD_RECONF_STOP_LINK = 0x04,
 };
@@ -1305,6 +1330,25 @@ struct mt7996_mld_event_data {
 	u8 *data;
 };
 
+struct mt7996_mcu_mld_attlm_resp_event {
+	__le16 tag;
+	__le16 len;
+	u8 status;
+	u8 attlm_idx;
+	u8 bss_idx;
+	u8 rsv;
+	__le32 switch_time_tsf[2];
+	__le32 end_tsf[2];
+} __packed;
+
+struct mt7996_mcu_mld_attlm_timeout_event {
+	__le16 tag;
+	__le16 len;
+	u8 attlm_idx;
+	u8 event_type;
+	u8 rsv[2];
+} __packed;
+
 struct mt7996_mcu_mld_ap_reconf_event {
 	__le16 tag;
 	__le16 len;
@@ -1314,7 +1358,31 @@ struct mt7996_mcu_mld_ap_reconf_event {
 } __packed;
 
 enum {
+	UNI_EVENT_MLD_ATTLM_RES_RSP = 0x02,
+	UNI_EVENT_MLD_ATTLM_TIMEOUT = 0x03,
 	UNI_EVENT_MLD_RECONF_AP_REM_TIMER = 0x04,
+};
+
+struct peer_mld_req_hdr {
+        u8 ver;
+        u8 peer_mld_addr[ETH_ALEN];
+        u8 mld_idx;
+        u8 rsv[4];
+        u8 buf[];
+} __packed;
+
+struct peer_mld_ttlm_req {
+        __le16 tag;
+        __le16 len;
+        u8 mld_addr[ETH_ALEN];
+        __le16 enabled_link_bitmap;
+        __le16 link_to_wcid[IEEE80211_MLD_MAX_NUM_LINKS + 1];
+        u8 dl_tid_map[IEEE80211_MLD_MAX_NUM_LINKS + 1];
+        u8 ul_tid_map[IEEE80211_MLD_MAX_NUM_LINKS + 1];
+} __packed;
+
+enum {
+        UNI_CMD_PEER_MLD_TTLM_REQ = 0x0,
 };
 
 #define UNI_CMD_SDO_CFG_BSS_NUM 96

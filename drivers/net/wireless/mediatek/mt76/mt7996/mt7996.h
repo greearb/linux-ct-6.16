@@ -424,6 +424,9 @@ struct mt7996_vif {
 	unsigned long probe_send_time[__MT_MAX_BAND];
 	int probe_send_count[__MT_MAX_BAND];
 
+	/* sta channel switch */
+	u16 tx_paused_links;
+
 	/* QoS map support */
 	u8 qos_map[IP_DSCP_NUM];
 };
@@ -979,6 +982,8 @@ int mt7996_mcu_mld_reconf_stop_link(struct mt7996_dev *dev,
 int mt7996_mcu_mld_link_oper(struct mt7996_phy *phy,
 			     struct ieee80211_bss_conf *conf,
 			     struct mt7996_vif_link *mconf, bool add);
+int mt7996_mcu_mld_set_attlm(struct mt7996_dev *dev, struct ieee80211_vif *vif,
+			     u16 disabled_links, u16 switch_time, u32 duration);
 
 #define PKT_BIN_DEBUG_MAGIC	0xc8763123
 enum {
