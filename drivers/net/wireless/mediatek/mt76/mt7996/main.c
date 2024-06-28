@@ -3056,6 +3056,19 @@ out:
 	return ret;
 }
 
+static int
+mt7996_set_attlm(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+		 u16 disabled_links, u16 switch_time, u32 duration)
+{
+	struct mt7996_dev *dev = mt7996_hw_dev(hw);
+	int ret;
+
+	mutex_lock(&dev->mt76.mutex);
+	ret = mt7996_mcu_mld_set_attlm(dev, vif, disabled_links, switch_time, duration);
+	mutex_unlock(&dev->mt76.mutex);
+	return ret;
+}
+
 static void
 mt7996_event_callback(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		      const struct ieee80211_event *event)
@@ -3211,4 +3224,5 @@ const struct ieee80211_ops mt7996_ops = {
 	.change_vif_links = mt7996_change_vif_links,
 	.change_sta_links = mt7996_mac_sta_change_links,
 	.set_qos_map = mt7996_set_qos_map,
+	.set_attlm = mt7996_set_attlm,
 };
