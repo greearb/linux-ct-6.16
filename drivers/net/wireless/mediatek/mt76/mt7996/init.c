@@ -1470,6 +1470,10 @@ mt7996_init_eht_caps(struct mt7996_phy *phy, enum nl80211_band band,
 		u8_encode_bits(IEEE80211_EHT_MAC_CAP0_MAX_MPDU_LEN_11454,
 			       IEEE80211_EHT_MAC_CAP0_MAX_MPDU_LEN_MASK);
 
+	if (iftype == NL80211_IFTYPE_AP)
+		eht_cap_elem->mac_cap_info[0] |=
+			IEEE80211_EHT_MAC_CAP0_SCS_TRAFFIC_DESC;
+
 	eht_cap_elem->mac_cap_info[1] |=
 		IEEE80211_EHT_MAC_CAP1_MAX_AMPDU_LEN_MASK;
 
