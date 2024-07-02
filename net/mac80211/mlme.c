@@ -4210,6 +4210,7 @@ static void ieee80211_set_disassoc(struct ieee80211_sub_if_data *sdata,
 	sdata->u.mgd.removed_links = 0;
 	wiphy_delayed_work_cancel(sdata->local->hw.wiphy,
 				  &sdata->u.mgd.ml_reconf_work);
+	sdata->u.mgd.reporting_add_links = 0;
 
 	wiphy_work_cancel(sdata->local->hw.wiphy,
 			  &ifmgd->teardown_ttlm_work);
@@ -6743,6 +6744,34 @@ static bool ieee80211_rx_our_beacon(const u8 *tx_bssid,
 	return ether_addr_equal(tx_bssid, bss->transmitted_bss->bssid);
 }
 
+static void ieee80211_ml_link_add(struct ieee80211_link_data *link,
+				  struct ieee802_11_elems *elems)
+{
+	struct ieee80211_sub_if_data *sdata = link->sdata;
+	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
+	int max_simul_links, cur_simul_links;
+	u16 mld_capa_op;
+
+	if (!ieee80211_vif_is_mld(&sdata->vif) || !elems->ml_basic ||
+	    !ifmgd->associated)
+		return;
+
+	mld_capa_op = ieee80211_mle_get_mld_capa_op((const void *)elems->ml_basic);
+	if (!mld_capa_op)
+		return;
+
+	/* TODO: parse RNR to check the capability of STA before reconnecting */
+	max_simul_links = mld_capa_op & IEEE80211_MLD_CAP_OP_MAX_SIMUL_LINKS;
+	cur_simul_links = sdata->vif.cfg.mld_capa_op &
+			  IEEE80211_MLD_CAP_OP_MAX_SIMUL_LINKS;
+	if (max_simul_links > cur_simul_links) {
+		ifmgd->reporting_add_links |= BIT(link->link_id);
+		sdata_info(sdata,
+			   "MLO Reconfig: link %d: cur_simul_links=%d, max_simul_links=%d\n",
+			   link->link_id, cur_simul_links, max_simul_links);
+	}
+}
+
 static void ieee80211_ml_reconf_work(struct wiphy *wiphy,
 				     struct wiphy_work *work)
 {
@@ -7532,6 +7561,19 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_link_data *link,
 	link->u.mgd.beacon_crc_valid = true;
 
 	ieee80211_rx_bss_info(link, mgmt, len, rx_status);
+
+	ieee80211_ml_link_add(link, elems);
+	if (ieee80211_vif_is_mld(&sdata->vif) &&
+	    ifmgd->reporting_add_links == sdata->vif.valid_links) {
+		ieee80211_set_disassoc(sdata, IEEE80211_STYPE_DEAUTH,
+				       WLAN_REASON_DEAUTH_LEAVING,
+				       true, deauth_buf);
+		ieee80211_report_disconnect(sdata, deauth_buf,
+					    sizeof(deauth_buf), true,
+					    WLAN_REASON_DEAUTH_LEAVING,
+					    true);
+		goto free;
+	}
 
 	ieee80211_sta_process_chanswitch(link, rx_status->mactime,
 					 rx_status->device_timestamp,
