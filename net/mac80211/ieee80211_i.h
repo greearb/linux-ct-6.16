@@ -566,6 +566,7 @@ struct ieee80211_if_managed {
 
 	struct wiphy_delayed_work ml_reconf_work;
 	u16 removed_links;
+	u16 reporting_add_links;
 
 	/* TID-to-link mapping support */
 	struct wiphy_delayed_work ttlm_work;
