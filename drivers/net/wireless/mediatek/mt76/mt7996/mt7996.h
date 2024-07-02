@@ -1158,6 +1158,10 @@ enum edcca_bw_id {
 	EDCCA_MAX_BW_NUM,
 };
 
+int mt7996_set_coding_type(struct ieee80211_hw *hw, u8 coding_type, u8 link_id);
+int mt7996_mcu_set_muru_qos_cfg(struct mt7996_dev *dev, u16 wlan_idx, u8 dir,
+				u8 scs_id, u8 req_type, u8 *qos_ie, u8 qos_ie_len);
+
 int mt7996_mcu_set_sr_enable(struct mt7996_phy *phy, u8 action, u64 val, bool set);
 void mt7996_mcu_rx_sr_event(struct mt7996_dev *dev, struct sk_buff *skb);
 

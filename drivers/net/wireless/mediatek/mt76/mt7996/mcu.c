@@ -8296,3 +8296,52 @@ int mt7996_mcu_set_qos_map(struct mt7996_dev *dev, struct mt7996_vif_link *mconf
 	return mt76_mcu_send_msg(&dev->mt76, MCU_WA_EXT_CMD(SET_QOS_MAP), &req,
 				 sizeof(req), false);
 }
+
+int mt7996_mcu_set_muru_qos_cfg(struct mt7996_dev *dev, u16 wlan_idx, u8 dir,
+				u8 scs_id, u8 req_type, u8 *qos_ie, u8 qos_ie_len)
+{
+#define QOS_FLAG_UPDATE 20
+#define QOS_FLAG_DELETE 21
+
+	struct {
+		u8 _rsv[4];
+
+		__le16 tag;
+		__le16 len;
+
+		__le32 qos_flag;
+		__le16 wlan_idx;
+		u8 __rsv2[12];
+		u8 dir;
+		u8 _rsv3[4];
+		u8 scs_id;
+		u8 qos_ie[44];
+	} __packed req = {
+		.tag = cpu_to_le16(UNI_CMD_MURU_SET_QOS_CFG),
+		.len = cpu_to_le16(sizeof(req) - 4),
+		.wlan_idx = cpu_to_le16(wlan_idx),
+		.scs_id = scs_id,
+	};
+
+	switch (req_type) {
+	case SCS_REQ_TYPE_ADD:
+	case SCS_REQ_TYPE_CHANGE:
+		req.qos_flag = cpu_to_le32(QOS_FLAG_UPDATE);
+		req.dir = dir;
+
+		if (qos_ie_len > sizeof(req.qos_ie))
+			return -EINVAL;
+
+		memcpy(req.qos_ie, qos_ie, qos_ie_len);
+		break;
+	case SCS_REQ_TYPE_REMOVE:
+		req.qos_flag = cpu_to_le32(QOS_FLAG_DELETE);
+		break;
+	default:
+		dev_err(dev->mt76.dev, "Unsupported req_type %u\n", req_type);
+		return -EINVAL;
+	}
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(MURU), &req,
+				 sizeof(req), true);
+}
