@@ -5363,6 +5363,20 @@ static int ieee80211_set_hw_timestamp(struct wiphy *wiphy,
 }
 
 static int
+ieee80211_set_attlm(struct wiphy *wiphy, struct net_device *dev,
+		    u16 disabled_links, u16 switch_time, u32 duration)
+{
+	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+	struct ieee80211_local *local = sdata->local;
+
+	if (!local->ops->set_attlm)
+		return -EOPNOTSUPP;
+
+	return local->ops->set_attlm(&local->hw, &sdata->vif, disabled_links,
+				     switch_time, duration);
+}
+
+static int
 ieee80211_set_ttlm(struct wiphy *wiphy, struct net_device *dev,
 		   struct cfg80211_ttlm_params *params)
 {
@@ -5391,6 +5405,14 @@ ieee80211_set_epcs(struct wiphy *wiphy, struct net_device *dev, bool enable)
 
 	return ieee80211_mgd_set_epcs(sdata, enable);
 }
+
+void ieee80211_attlm_notify(struct ieee80211_vif *vif, u16 switch_time_tsf_tu,
+			   enum nl80211_attlm_event event, gfp_t gfp)
+{
+	cfg80211_attlm_notify(ieee80211_vif_to_wdev(vif), switch_time_tsf_tu,
+			      event, gfp);
+}
+EXPORT_SYMBOL_GPL(ieee80211_attlm_notify);
 
 void ieee80211_links_removed(struct ieee80211_vif *vif, u16 removed_links)
 {
@@ -5513,6 +5535,7 @@ const struct cfg80211_ops mac80211_config_ops = {
 	.mod_link_station = ieee80211_mod_link_station,
 	.del_link_station = ieee80211_del_link_station,
 	.set_hw_timestamp = ieee80211_set_hw_timestamp,
+	.set_attlm = ieee80211_set_attlm,
 	.set_ttlm = ieee80211_set_ttlm,
 	.get_radio_mask = ieee80211_get_radio_mask,
 	.assoc_ml_reconf = ieee80211_assoc_ml_reconf,

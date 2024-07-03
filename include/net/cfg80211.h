@@ -4637,6 +4637,7 @@ struct mgmt_frame_regs {
  * @del_link_station: Remove a link of a station.
  *
  * @set_hw_timestamp: Enable/disable HW timestamping of TM/FTM frames.
+ * @set_attlm: For AP MLD to to set advertised TID to link mapping
  * @set_ttlm: set the TID to link mapping.
  * @set_epcs: Enable/Disable EPCS for station mode.
  * @get_radio_mask: get bitmask of radios in use.
@@ -5011,6 +5012,8 @@ struct cfg80211_ops {
 				    struct link_station_del_parameters *params);
 	int	(*set_hw_timestamp)(struct wiphy *wiphy, struct net_device *dev,
 				    struct cfg80211_set_hw_timestamp *hwts);
+	int	(*set_attlm)(struct wiphy *wiphy, struct net_device *dev,
+			     u16 disabled_links, u16 switch_time, u32 duration);
 	int	(*set_ttlm)(struct wiphy *wiphy, struct net_device *dev,
 			    struct cfg80211_ttlm_params *params);
 	u32	(*get_radio_mask)(struct wiphy *wiphy, struct net_device *dev);
@@ -9715,6 +9718,15 @@ int cfg80211_bss_color_notify(struct net_device *dev,
 			      enum nl80211_commands cmd, u8 count,
 			      u64 color_bitmap, u8 link_id);
 
+/**
+ * cfg80211_attlm_notify - notify about Advertised Tid-to-Link Mapping
+ * @wdev: the wireless device to check.
+ * @switch_time_tsf_tu: switch time TSF in unit of TUs that is reported by driver.
+ * @event: A-TTLM event
+ * @gfp: allocation flags
+ */
+void cfg80211_attlm_notify(struct wireless_dev *wdev, u16 switch_time_tsf_tu,
+			   enum nl80211_attlm_event event, gfp_t gfp);
 /**
  * cfg80211_obss_color_collision_notify - notify about bss color collision
  * @dev: network device

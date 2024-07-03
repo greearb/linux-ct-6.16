@@ -846,6 +846,10 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
 	[NL80211_ATTR_HW_TIMESTAMP_ENABLED] = { .type = NLA_FLAG },
 	[NL80211_ATTR_EMA_RNR_ELEMS] = { .type = NLA_NESTED },
 	[NL80211_ATTR_MLO_LINK_DISABLED] = { .type = NLA_FLAG },
+	[NL80211_ATTR_MLO_LINK_DISABLED_BMP] = { .type = NLA_U16 },
+	[NL80211_ATTR_MLO_ATTLM_SWITCH_TIME] = { .type = NLA_U16 },
+	[NL80211_ATTR_MLO_ATTLM_DURATION] = { .type = NLA_U32 },
+	[NL80211_ATTR_MLO_ATTLM_SWITCH_TIME_TSF_TU] = { .type = NLA_U16 },
 	[NL80211_ATTR_BSS_DUMP_INCLUDE_USE_DATA] = { .type = NLA_FLAG },
 	[NL80211_ATTR_MLO_TTLM_DLINK] = NLA_POLICY_EXACT_LEN(sizeof(u16) * 8),
 	[NL80211_ATTR_MLO_TTLM_ULINK] = NLA_POLICY_EXACT_LEN(sizeof(u16) * 8),
@@ -16902,6 +16906,30 @@ static int nl80211_set_hw_timestamp(struct sk_buff *skb,
 }
 
 static int
+nl80211_set_attlm(struct sk_buff *skb, struct genl_info *info)
+{
+	struct cfg80211_registered_device *rdev = info->user_ptr[0];
+	struct net_device *dev = info->user_ptr[1];
+	struct wireless_dev *wdev = dev->ieee80211_ptr;
+	u16 switch_time, disabled_links;
+	u32 duration;
+
+	if (wdev->iftype != NL80211_IFTYPE_AP)
+		return -EOPNOTSUPP;
+
+	if (!info->attrs[NL80211_ATTR_MLO_LINK_DISABLED_BMP] ||
+	    !info->attrs[NL80211_ATTR_MLO_ATTLM_SWITCH_TIME] ||
+	    !info->attrs[NL80211_ATTR_MLO_ATTLM_DURATION])
+		return -EINVAL;
+
+	disabled_links = nla_get_u16(info->attrs[NL80211_ATTR_MLO_LINK_DISABLED_BMP]);
+	switch_time = nla_get_u16(info->attrs[NL80211_ATTR_MLO_ATTLM_SWITCH_TIME]);
+	duration = nla_get_u32(info->attrs[NL80211_ATTR_MLO_ATTLM_DURATION]);
+
+	return rdev_set_attlm(rdev, dev, disabled_links, switch_time, duration);
+}
+
+static int
 nl80211_set_ttlm(struct sk_buff *skb, struct genl_info *info)
 {
 	struct cfg80211_ttlm_params params = {};
@@ -18198,6 +18226,12 @@ static const struct genl_small_ops nl80211_small_ops[] = {
 	{
 		.cmd = NL80211_CMD_SET_HW_TIMESTAMP,
 		.doit = nl80211_set_hw_timestamp,
+		.flags = GENL_UNS_ADMIN_PERM,
+		.internal_flags = IFLAGS(NL80211_FLAG_NEED_NETDEV_UP),
+	},
+	{
+		.cmd = NL80211_CMD_SET_ATTLM,
+		.doit = nl80211_set_attlm,
 		.flags = GENL_UNS_ADMIN_PERM,
 		.internal_flags = IFLAGS(NL80211_FLAG_NEED_NETDEV_UP),
 	},
@@ -20247,6 +20281,47 @@ nla_put_failure:
 	return -EINVAL;
 }
 EXPORT_SYMBOL(cfg80211_bss_color_notify);
+
+void cfg80211_attlm_notify(struct wireless_dev *wdev, u16 switch_time_tsf_tu,
+			   enum nl80211_attlm_event event, gfp_t gfp)
+{
+	struct wiphy *wiphy = wdev->wiphy;
+	struct net_device *netdev = wdev->netdev;
+	struct sk_buff *msg;
+	void *hdr;
+
+	trace_cfg80211_attlm_notify(wiphy, netdev, event, switch_time_tsf_tu);
+
+	msg = nlmsg_new(NLMSG_DEFAULT_SIZE, gfp);
+	if (!msg)
+		return;
+
+	hdr = nl80211hdr_put(msg, 0, 0, 0, NL80211_CMD_ATTLM_EVENT);
+	if (!hdr) {
+		nlmsg_free(msg);
+		return;
+	}
+
+	if (nla_put_u32(msg, NL80211_ATTR_IFINDEX, netdev->ifindex))
+		goto nla_put_failure;
+
+	if (nla_put_u32(msg, NL80211_ATTR_MLO_ATTLM_EVENT, event))
+		goto nla_put_failure;
+
+	if (nla_put_u16(msg, NL80211_ATTR_MLO_ATTLM_SWITCH_TIME_TSF_TU,
+			switch_time_tsf_tu))
+		goto nla_put_failure;
+
+	genlmsg_end(msg, hdr);
+
+	genlmsg_multicast_netns(&nl80211_fam, wiphy_net(wiphy), msg, 0,
+				NL80211_MCGRP_MLME, gfp);
+	return;
+
+nla_put_failure:
+	nlmsg_free(msg);
+}
+EXPORT_SYMBOL(cfg80211_attlm_notify);
 
 void
 nl80211_radar_notify(struct cfg80211_registered_device *rdev,

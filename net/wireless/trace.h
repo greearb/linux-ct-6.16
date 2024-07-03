@@ -3036,6 +3036,30 @@ TRACE_EVENT(rdev_set_hw_timestamp,
 		  __entry->enable)
 );
 
+TRACE_EVENT(rdev_set_attlm,
+	TP_PROTO(struct wiphy *wiphy, struct net_device *netdev,
+		 u16 disabled_links, u16 switch_time, u32 duration),
+	TP_ARGS(wiphy, netdev, disabled_links, switch_time, duration),
+	TP_STRUCT__entry(
+		WIPHY_ENTRY
+		NETDEV_ENTRY
+		__field(u16, disabled_links)
+		__field(u16, switch_time)
+		__field(u32, duration)
+	),
+	TP_fast_assign(
+		WIPHY_ASSIGN;
+		NETDEV_ASSIGN;
+		__entry->disabled_links = disabled_links;
+		__entry->switch_time = switch_time;
+		__entry->duration = duration;
+	),
+	TP_printk(WIPHY_PR_FMT ", " NETDEV_PR_FMT ", disabled_link: %u"
+		  ", switch_time=%u, duration=%u",
+		  WIPHY_PR_ARG, NETDEV_PR_ARG, __entry->disabled_links,
+		  __entry->switch_time, __entry->duration)
+);
+
 TRACE_EVENT(rdev_set_ttlm,
 	TP_PROTO(struct wiphy *wiphy, struct net_device *netdev,
 		 struct cfg80211_ttlm_params *params),
@@ -4022,6 +4046,27 @@ TRACE_EVENT(cfg80211_bss_color_notify,
 	TP_printk(NETDEV_PR_FMT ", cmd: %x, count: %u, bitmap: %llx",
 		  NETDEV_PR_ARG, __entry->cmd, __entry->count,
 		  __entry->color_bitmap)
+);
+
+TRACE_EVENT(cfg80211_attlm_notify,
+	TP_PROTO(struct wiphy *wiphy, struct net_device *netdev,
+		 enum nl80211_attlm_event event, u16 switch_time_tsf_tu),
+	TP_ARGS(wiphy, netdev, event, switch_time_tsf_tu),
+	TP_STRUCT__entry(
+		WIPHY_ENTRY
+		NETDEV_ENTRY
+		__field(u32, event)
+		__field(u16, switch_time_tsf_tu)
+	),
+	TP_fast_assign(
+		WIPHY_ASSIGN;
+		NETDEV_ASSIGN;
+		__entry->event = event;
+		__entry->switch_time_tsf_tu = switch_time_tsf_tu;
+	),
+	TP_printk(WIPHY_PR_FMT ", " NETDEV_PR_FMT ", event: %x, switch_time_tsf_tu: %u",
+		  WIPHY_PR_ARG, NETDEV_PR_ARG, __entry->event,
+		  __entry->switch_time_tsf_tu)
 );
 
 TRACE_EVENT(cfg80211_assoc_comeback,

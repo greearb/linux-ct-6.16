@@ -1522,6 +1522,24 @@ rdev_set_hw_timestamp(struct cfg80211_registered_device *rdev,
 }
 
 static inline int
+rdev_set_attlm(struct cfg80211_registered_device *rdev, struct net_device *dev,
+	       u16 disabled_links, u16 switch_time, u32 duration)
+{
+	struct wiphy *wiphy = &rdev->wiphy;
+	int ret;
+
+	if (!rdev->ops->set_attlm)
+		return -EOPNOTSUPP;
+
+	trace_rdev_set_attlm(wiphy, dev, disabled_links, switch_time, duration);
+	ret = rdev->ops->set_attlm(wiphy, dev, disabled_links, switch_time,
+				   duration);
+	trace_rdev_return_int(wiphy, ret);
+
+	return ret;
+}
+
+static inline int
 rdev_set_ttlm(struct cfg80211_registered_device *rdev,
 	      struct net_device *dev,
 	      struct cfg80211_ttlm_params *params)
