@@ -63,15 +63,32 @@ static void ieee80211_get_ringparam(struct net_device *dev,
 }
 
 static const char ieee80211_gstrings_sta_stats[][ETH_GSTRING_LEN] = {
-	"rx_packets", "rx_bytes",
-	"rx_duplicates", "rx_fragments", "rx_dropped",
-	"tx_packets", "tx_bytes",
-	"tx_filtered", "tx_retry_failed", "tx_retries",
-	"sta_state", "txrate", "rxrate", "signal", "signal_beacon",
-	"signal_chains", "signal_chains_avg", "bss_color",
+	"rx_packets",
+	"rx_bytes",
+	"rx_duplicates",
+	"rx_fragments",
+	"rx_dropped",
+	"tx_packets",
+	"tx_bytes",
+	"tx_filtered",
+	"tx_retry_failed",
+	"tx_retries",
+	"sta_state",
+	"txrate",
+	"rxrate",
+	"signal",
+	"signal_beacon",
+	"signal_chains",
+	"signal_chains_avg",
+	"bss_color",
 	/* Add new stats here, channel and others go below */
-	"channel", "noise", "ch_time", "ch_time_busy",
-	"ch_time_ext_busy", "ch_time_rx", "ch_time_tx"
+	"channel",
+	"noise",
+	"ch_time",
+	"ch_time_busy",
+	"ch_time_ext_busy",
+	"ch_time_rx",
+	"ch_time_tx"
 };
 #define STA_STATS_LEN	ARRAY_SIZE(ieee80211_gstrings_sta_stats)
 
