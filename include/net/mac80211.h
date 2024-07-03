@@ -4542,6 +4542,7 @@ struct ieee80211_prep_tx_info {
  *	flow offloading for flows originating from the vif.
  *	Note that the driver must not assume that the vif driver_data is valid
  *	at this point, since the callback can be called during netdev teardown.
+ * @set_attlm: For AP MLD to request a advertised TID-To-Link mapping.
  * @can_neg_ttlm: for managed interface, requests the driver to determine
  *	if the requested TID-To-Link mapping can be accepted or not.
  *	If it's not accepted the driver may suggest a preferred mapping and
@@ -4941,6 +4942,8 @@ struct ieee80211_ops {
 			    struct net_device *dev,
 			    enum tc_setup_type type,
 			    void *type_data);
+	int (*set_attlm)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+			 u16 disabled_links, u16 switch_time, u32 druation);
 	enum ieee80211_neg_ttlm_res
 	(*can_neg_ttlm)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			struct ieee80211_neg_ttlm *ttlm);
@@ -7901,6 +7904,16 @@ int ieee80211_emulate_switch_vif_chanctx(struct ieee80211_hw *hw,
 					 struct ieee80211_vif_chanctx_switch *vifs,
 					 int n_vifs,
 					 enum ieee80211_chanctx_switch_mode mode);
+
+/**
+ * ieee80211_attlm_notify - notify Advertised Tid-to-Link-Mapping
+ * @vif: interface to be notified
+ * @switch_time_tsf_tu: switch time TSF in unit of TUs that is reported by driver.
+ * @event: A-TTLM event
+ * @gfp: allocation flags
+ */
+void ieee80211_attlm_notify(struct ieee80211_vif *vif, u16 switch_time_tsf_tu,
+			    enum nl80211_attlm_event event, gfp_t gfp);
 
 /**
  * ieee80211_links_removed - notify removed links

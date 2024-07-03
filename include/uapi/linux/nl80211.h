@@ -1623,6 +1623,10 @@ enum nl80211_commands {
 
 	/* add new commands above here */
 
+	/* MTK internal */
+	NL80211_CMD_ATTLM_EVENT,
+	NL80211_CMD_SET_ATTLM,
+
 	/* used to define NL80211_CMD_MAX below */
 	__NL80211_CMD_AFTER_LAST,
 	NL80211_CMD_MAX = __NL80211_CMD_AFTER_LAST - 1
@@ -2935,6 +2939,25 @@ enum nl80211_commands {
  *	applicable to that specific radio only. If the radio id is greater
  *	thank the number of radios, error denoting invalid value is returned.
  *
+ * @NL80211_ATTR_MLO_LINK_DISABLED_BMP: u16 bitmap of A-TTLM disabled links for
+ * 	the %NL80211_CMD_SET_ATTLM.
+ *
+ * @NL80211_ATTR_MLO_ATTLM_SWITCH_TIME: u16 attribute specifying the time for
+ * 	how long the Adv-TTLM is established.
+ *
+ * @NL80211_ATTR_MLO_ATTLM_DURATION: u32 attribute specifying the duration
+ * 	of the Adv-TTLM.
+ *
+ * @NL80211_ATTR_MLO_ATTLM_EVENT: Type of Adv-TTLM event for notification to
+ * 	userspace, contains a value of enum nl80211_attlm_event (u32).
+ *
+ * @NL80211_ATTR_MLO_ATTLM_SWITCH_TIME_TSF_TU: u16 attribute reported by the
+ * 	driver to speciffy the switch time in TU at which the Adv-TTLM is
+ * 	established.
+ *
+ * @NL80211_ATTR_CRTI_UPDATE_EVENT: Type of critical update event for notification
+ *	to userspace, contains a value of enum nl80211_crit_update_event (u8).
+ *
  * @NUM_NL80211_ATTR: total number of nl80211_attrs available
  * @NL80211_ATTR_MAX: highest attribute number currently defined
  * @__NL80211_ATTR_AFTER_LAST: internal use
@@ -3498,6 +3521,12 @@ enum nl80211_attrs {
 
 	/* MTK internal */
 	NL80211_ATTR_CNTDWN_OFFS_STA_PROF,
+
+	NL80211_ATTR_MLO_LINK_DISABLED_BMP,
+	NL80211_ATTR_MLO_ATTLM_SWITCH_TIME,
+	NL80211_ATTR_MLO_ATTLM_DURATION,
+	NL80211_ATTR_MLO_ATTLM_EVENT,
+	NL80211_ATTR_MLO_ATTLM_SWITCH_TIME_TSF_TU,
 
 	__NL80211_ATTR_AFTER_LAST,
 	NUM_NL80211_ATTR = __NL80211_ATTR_AFTER_LAST,
@@ -8178,6 +8207,20 @@ enum nl80211_wiphy_radio_freq_range {
 
 	__NL80211_WIPHY_RADIO_FREQ_ATTR_LAST,
 	NL80211_WIPHY_RADIO_FREQ_ATTR_MAX = __NL80211_WIPHY_RADIO_FREQ_ATTR_LAST - 1,
+};
+
+/**
+ * enum nl80211_attlm_event - type of events for Advertised Tid-to-Link
+ * Mapping operations
+ *
+ * @NL80211_ATTLM_STARTED: A A-TTLM request has been set and start to count down.
+ * @NL80211_ATTLM_SWITCH_TIME_EXPIRED: The switch time of A-TTLM has expired.
+ * @NL80211ATTLM_END: The A-TTLM has been done.
+ */
+enum nl80211_attlm_event {
+	NL80211_ATTLM_STARTED,
+	NL80211_ATTLM_SWITCH_TIME_EXPIRED,
+	NL80211_ATTLM_END,
 };
 
 #endif /* __LINUX_NL80211_H */
