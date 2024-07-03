@@ -281,6 +281,20 @@ static void ieee80211_get_stats2(struct net_device *dev,
 	start_link_i = i;
 	if (sdata->vif.type == NL80211_IFTYPE_STATION) {
 		int li;
+		struct link_sta_info *link_sta;
+		struct sta_info *tmp_sta;
+
+		// From struct sta_info *sta, I can get link_sta_info, which has the stats.
+		// struct ieee80211_link_data *link
+
+		sta = NULL;
+		list_for_each_entry(tmp_sta, &local->sta_list, list) {
+			/* Make sure this station belongs to the proper dev */
+			if (tmp_sta->sdata->dev == dev) {
+				sta = tmp_sta;
+				break; /* first and only sta for IFTYPE_STATION */
+			}
+		}
 
 		/* For each of the first 3 links */
 		for (li = 0; li<ETHTOOL_LINK_COUNT; li++) {
@@ -292,10 +306,12 @@ static void ieee80211_get_stats2(struct net_device *dev,
 				rcu_read_unlock();
 				continue;
 			}
-			sta = sta_info_get_bss(sdata, link->u.mgd.bssid);
+			if (sta)
+				link_sta = rcu_dereference_protected(sta->link[li],
+								     lockdep_is_held(&local->hw.wiphy->mtx));
 			rcu_read_unlock();
 
-			if (!(sta && !WARN_ON(sta->sdata->dev != dev))) {
+			if (!(sta && link_sta && !WARN_ON(sta->sdata->dev != dev))) {
 				i += PER_LINK_STATS_LEN;
 				continue;
 			}
@@ -306,7 +322,7 @@ static void ieee80211_get_stats2(struct net_device *dev,
 			 */
 			sta_set_sinfo(sta, &sinfo, false);
 
-			ADD_STA_STATS(&sta->deflink);
+			ADD_STA_STATS(link_sta);
 
 			data[i++] = sta->sta_state;
 
