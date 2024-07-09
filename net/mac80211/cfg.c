@@ -1915,12 +1915,18 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 		break;
 	}
 
-	if (!link || !link_sta)
+	if (!link || !link_sta) {
+		sdata_info(sdata, "sta-link-apply-parameters failed: link: %p  link_sta: %p link-id: %d link-apply-mode: %d\n",
+			   link, link_sta, link_id, mode);
+		WARN_ON(1);
 		return -EINVAL;
+	}
 
 	sband = ieee80211_get_link_sband(link);
-	if (!sband)
+	if (!sband) {
+		sdata_info(sdata, "sta-link-apply-parameters failed: sband is null\n");
 		return -EINVAL;
+	}
 
 	if (params->link_mac) {
 		if (mode == STA_LINK_MODE_NEW) {
@@ -1928,6 +1934,8 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 			memcpy(link_sta->pub->addr, params->link_mac, ETH_ALEN);
 		} else if (!ether_addr_equal(link_sta->addr,
 					     params->link_mac)) {
+			sdata_info(sdata, "sta-link-apply-parameters failed: link-sta-addr: %pM != params->link_mac: %pM\n",
+				   link_sta->addr, params->link_mac);
 			return -EINVAL;
 		}
 	}
@@ -1939,8 +1947,11 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 		if (params->txpwr.type == NL80211_TX_POWER_LIMITED)
 			link_sta->pub->txpwr.power = params->txpwr.power;
 		ret = drv_sta_set_txpwr(local, sdata, sta);
-		if (ret)
+		if (ret) {
+			sdata_info(sdata, "sta-link-apply-parameters failed: drv-sta-set-txpwr failed: %d\n",
+				   ret);
 			return ret;
+		}
 	}
 
 	if (params->supported_rates &&
@@ -2048,8 +2059,10 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 	    !((mask & BIT(NL80211_STA_FLAG_ASSOCIATED)) &&
 	      (set & BIT(NL80211_STA_FLAG_ASSOCIATED)))) {
 		ret = sta_apply_auth_flags(local, sta, mask, set);
-		if (ret)
+		if (ret) {
+			sdata_info(sdata, "sta-apply-parameters: apply-auth-flags (not TDLS) failed: %d\n", ret);
 			return ret;
+		}
 	}
 
 	if (mask & BIT(NL80211_STA_FLAG_SHORT_PREAMBLE)) {
@@ -2122,8 +2135,10 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 
 	ret = sta_link_apply_parameters(local, sta, STA_LINK_MODE_STA_MODIFY,
 					&params->link_sta_params);
-	if (ret)
+	if (ret) {
+		sdata_info(sdata, "sta-apply-parameters: sta-link-apply-parameters failed: %d\n", ret);
 		return ret;
+	}
 
 	if (params->support_p2p_ps >= 0)
 		sta->sta.support_p2p_ps = params->support_p2p_ps;
@@ -2138,8 +2153,10 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 	if (test_sta_flag(sta, WLAN_STA_TDLS_PEER) ||
 	    set & BIT(NL80211_STA_FLAG_ASSOCIATED)) {
 		ret = sta_apply_auth_flags(local, sta, mask, set);
-		if (ret)
+		if (ret) {
+			sdata_info(sdata, "sta-apply-parameters: sta-apply-auth-flags (TDLS) failed: %d\n", ret);
 			return ret;
+		}
 	}
 
 	/* Mark the STA as MLO if MLD MAC address is available */
@@ -2261,6 +2278,9 @@ static int ieee80211_change_station(struct wiphy *wiphy,
 
 	lockdep_assert_wiphy(local->hw.wiphy);
 
+	sdata_info(sdata, "change-station: entering method link-id: %d\n",
+		   params->link_sta_params.link_id);
+
 	sta = sta_info_get_bss(sdata, mac);
 	if (!sta) {
 		sdata_info(sdata, "change-station: Could not find bss: %pM\n", mac);
@@ -2337,7 +2357,8 @@ static int ieee80211_change_station(struct wiphy *wiphy,
 
 	err = sta_apply_parameters(local, sta, params);
 	if (err) {
-		sdata_info(sdata, "change-station: sta-apply-parameters failed: %d\n", err);
+		sdata_info(sdata, "change-station: sta-apply-parameters failed: %d link-id: %d\n",
+			   err, params->link_sta_params.link_id);
 		return err;
 	}
 
