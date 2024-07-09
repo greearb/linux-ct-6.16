@@ -1042,6 +1042,25 @@ static ssize_t iwl_dbgfs_fw_system_stats_read(struct file *file,
 			 "accu_radio_stats.tx_time %lld\n",
 			 mvm->accu_radio_stats.tx_time);
 
+	pos += scnprintf(pos, endpos - pos,
+			 "mvmvif.esr_disable_reason: 0x%x\n",
+			 mvmvif->esr_disable_reason);
+	pos += scnprintf(pos, endpos - pos,
+			 "mvmvif.link_selection_res: 0x%x\n",
+			 mvmvif->link_selection_res);
+	pos += scnprintf(pos, endpos - pos,
+			 "mvmvif.primary_link: %d\n",
+			 mvmvif->primary_link);
+	pos += scnprintf(pos, endpos - pos,
+			 "mvmvif.link_selection_primary: %d\n",
+			 mvmvif->link_selection_primary);
+	pos += scnprintf(pos, endpos - pos,
+			 "mvmvif.last_esr_exit: ts: %lu  reason: 0x%x\n",
+			 mvmvif->last_esr_exit.ts, mvmvif->last_esr_exit.reason);
+	pos += scnprintf(pos, endpos - pos,
+			 "mvmvif.esr_active: %d\n",
+			 mvmvif->esr_active);
+
 release_send_out:
 	mutex_unlock(&mvm->mutex);
 
