@@ -844,6 +844,8 @@ void iwl_mvm_select_links(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	 */
 	WARN_ON_ONCE(max_active_links > 2);
 
+	IWL_DEBUG_INFO(mvm, "iwl-mvm-select-links, max-active: %d  usable: %d\n",
+		       max_active_links, usable_links);
 	n_data = iwl_mvm_set_link_selection_data(vif, data, usable_links,
 						 &best);
 
@@ -856,8 +858,11 @@ void iwl_mvm_select_links(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	/* eSR is not supported/blocked, or only one usable link */
 	if (max_active_links == 1 || !iwl_mvm_vif_has_esr_cap(mvm, vif) ||
-	    mvmvif->esr_disable_reason || n_data == 1)
+	    mvmvif->esr_disable_reason || n_data == 1) {
+		IWL_DEBUG_INFO(mvm, "iwl-mvm-select-links, eSR not supported/blocked: max-active: %d esr-cap: %d disable-reason: %d  n_data: %d\n",
+			       max_active_links, !!iwl_mvm_vif_has_esr_cap(mvm, vif), mvmvif->esr_disable_reason, n_data);
 		goto set_active;
+	}
 
 	for (u8 a = 0; a < n_data; a++)
 		for (u8 b = a + 1; b < n_data; b++) {
@@ -875,8 +880,11 @@ void iwl_mvm_select_links(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 		}
 
 	/* No valid pair was found, go with the best link */
-	if (hweight16(new_active_links) <= 1)
+	if (hweight16(new_active_links) <= 1) {
+		IWL_DEBUG_INFO(mvm, "iwl-mvm-select-links, check valid pairs, new-active-links: %d\n",
+			       new_active_links);
 		goto set_active;
+	}
 
 	/* For equal grade - prefer EMLSR */
 	if (best_link->grade > max_esr_grade) {

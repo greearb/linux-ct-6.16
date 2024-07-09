@@ -1188,16 +1188,26 @@ bool iwl_mvm_vif_has_esr_cap(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	lockdep_assert_held(&mvm->mutex);
 
 	if (!ieee80211_vif_is_mld(vif) || !vif->cfg.assoc ||
-	    hweight16(ieee80211_vif_usable_links(vif)) == 1)
+	    hweight16(ieee80211_vif_usable_links(vif)) == 1) {
+		IWL_DEBUG_INFO(mvm, "iwl-has-esr-cap false, is-mld: %d  assoc: %d usable-links: 0x%x\n",
+			       ieee80211_vif_is_mld(vif), !!vif->cfg.assoc, ieee80211_vif_usable_links(vif));
 		return false;
+	}
 
-	if (!(vif->cfg.eml_cap & IEEE80211_EML_CAP_EMLSR_SUPP))
+	if (!(vif->cfg.eml_cap & IEEE80211_EML_CAP_EMLSR_SUPP)) {
+		IWL_DEBUG_INFO(mvm, "iwl-has-esr-cap false, eml_cap does not support CAP_EMLSR_SUPP\n");
 		return false;
+	}
 
 	ext_capa = cfg80211_get_iftype_ext_capa(mvm->hw->wiphy,
 						ieee80211_vif_type_p2p(vif));
-	return (ext_capa &&
-		(ext_capa->eml_capabilities & IEEE80211_EML_CAP_EMLSR_SUPP));
+	if (!(ext_capa &&
+	      (ext_capa->eml_capabilities & IEEE80211_EML_CAP_EMLSR_SUPP))) {
+		IWL_DEBUG_INFO(mvm, "iwl-has-esr-cap false, ext-capa: %p  CAP_EMLSR_SUPP: %d\n",
+			       ext_capa, ext_capa ? (ext_capa->eml_capabilities & IEEE80211_EML_CAP_EMLSR_SUPP) : 0);
+		return false;
+	}
+	return true;
 }
 
 static bool iwl_mvm_mld_can_activate_links(struct ieee80211_hw *hw,
