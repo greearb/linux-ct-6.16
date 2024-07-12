@@ -3924,8 +3924,11 @@ begin:
 	skb = __skb_dequeue(&txqi->frags);
 	if (unlikely(skb)) {
 		if (!(IEEE80211_SKB_CB(skb)->control.flags &
-				IEEE80211_TX_INTCFL_NEED_TXPROCESSING))
+				IEEE80211_TX_INTCFL_NEED_TXPROCESSING)) {
+			// TODO: report airtime of non-first fragments.
+			IEEE80211_SKB_CB(skb)->control.vif = vif;
 			goto out;
+		}
 		IEEE80211_SKB_CB(skb)->control.flags &=
 			~IEEE80211_TX_INTCFL_NEED_TXPROCESSING;
 	} else {
