@@ -267,6 +267,7 @@ static void ieee80211_get_stats2(struct net_device *dev,
 		data[i++] += sinfo.tx_failed;			\
 		data[i++] += sinfo.tx_retries;			\
 	} while (0)
+#define STA_STATS_COUNT 10
 
 	/* NOTE/HACK:  TX stats are not updated for anything except
 	 * deflink currently.  Use those stats on the active link.
@@ -476,7 +477,7 @@ static void ieee80211_get_stats2(struct net_device *dev,
 		s64 sig_accum_beacon = 0;
 		s64 sig_accum_chain[8] = {0};
 		s64 sig_accum_chain_avg[8] = {0};
-		int start_accum_idx = 0;
+		int start_accum_idx = start_link_i + 1 /* sta-state */ + STA_STATS_COUNT;
 
 		list_for_each_entry(sta, &local->sta_list, list) {
 			/* Make sure this station belongs to the proper dev */
@@ -485,10 +486,8 @@ static void ieee80211_get_stats2(struct net_device *dev,
 
 			memset(&sinfo, 0, sizeof(sinfo));
 			sta_set_sinfo(sta, &sinfo, false);
+			i = start_link_i;
 			ADD_STA_STATS(&sta->deflink);
-
-			i++; /* skip sta state */
-			start_accum_idx = i;
 
 			if (sinfo.filled & BIT(NL80211_STA_INFO_TX_BITRATE)) {
 				tx_accum += 100000ULL *
@@ -517,7 +516,6 @@ static void ieee80211_get_stats2(struct net_device *dev,
 					amt_accum_chain[z]++;
 				}
 			}
-			i++;
 
 			if (sinfo.filled & BIT_ULL(NL80211_STA_INFO_CHAIN_SIGNAL_AVG)) {
 				int mn;
@@ -529,8 +527,7 @@ static void ieee80211_get_stats2(struct net_device *dev,
 					amt_accum_chain_avg[z]++;
 				}
 			}
-			i++;
-		}
+		} /* for each stations associated to AP */
 
 		/* Do averaging */
 		i = start_accum_idx;
