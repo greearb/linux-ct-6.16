@@ -6559,6 +6559,10 @@ static const char iwl_mvm_gstrings_stats[][ETH_GSTRING_LEN] = {
 	"txo_tx_mpdu_retry", /* number of times frames were retried, txo frames */
 	"txo_tx_mpdu_ok", /* frames that succeeded, perhaps after retry, txo frames */
 
+	"esr_disabled_reasons", /* Bitfield for why ESR is disabled (0 means not disabled) */
+	"esr_active", /* Attempting to do ESR or not? */
+	"esr_last_exit_reason", /* Why we exited ESR last */
+
 	"tx_direct_done",
 	"tx_postpone_delay",
 	"tx_postpone_few_bytes",
@@ -6724,6 +6728,7 @@ void iwl_mvm_get_et_stats(struct ieee80211_hw *hw,
 			  struct ethtool_stats *stats, u64 *data)
 {
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 
 	int i, ei = 0;
 
@@ -6743,6 +6748,10 @@ void iwl_mvm_get_et_stats(struct ieee80211_hw *hw,
 	data[ei++] = mib->txo_tx_mpdu_fail;
 	data[ei++] = mib->txo_tx_mpdu_retry;
 	data[ei++] = mib->txo_tx_mpdu_ok;
+
+	data[ei++] = mvmvif->esr_disable_reason;
+	data[ei++] = mvmvif->esr_active;
+	data[ei++] = mvmvif->last_esr_exit.reason;
 
 	data[ei++] = mib->tx_status_counts[TX_STATUS_DIRECT_DONE];
 	data[ei++] = mib->tx_status_counts[TX_STATUS_POSTPONE_DELAY];
