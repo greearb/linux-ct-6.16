@@ -27,3 +27,11 @@ Some packages you may need to install on Fedora:
 
 dnf install uboot-tools
 dnf install gcc-aarch64-linux-gnu
+
+On Ubuntu, these packages are
+
+gcc-12-aarch64-linux-gnu
+u-boot-tools
+
+Additionally, you will need to run
+ln -s /usr/bin/aarch64-linux-gnu-gcc-12 to /usr/bin/aarch64-linux-gnu-gcc
