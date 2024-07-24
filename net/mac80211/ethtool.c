@@ -489,6 +489,7 @@ static void ieee80211_get_stats2(struct net_device *dev,
 			i = start_link_i;
 			ADD_STA_STATS(&sta->deflink);
 
+			i++; /* skip sta state */
 			if (sinfo.filled & BIT(NL80211_STA_INFO_TX_BITRATE)) {
 				tx_accum += 100000ULL *
 					cfg80211_calculate_bitrate(&sinfo.txrate);
