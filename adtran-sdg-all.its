@@ -18,6 +18,17 @@
 				algo = "sha1";
 			};
 		};
+		fdt@SDG-8733 {
+			description = "Flattened Device Tree blob";
+			data = /incbin/("./arch/arm64/boot/dts/mediatek/mt7988a-smartrg-SDG-8733.dtb");
+			type = "flat_dt";
+			arch = "arm64";
+			load = <0x43500000>;
+			compression = "none";
+			hash-1 {
+				algo = "sha1";
+			};
+		};
 		fdt@SDG-8733v {
 			description = "Flattened Device Tree blob";
 			data = /incbin/("./arch/arm64/boot/dts/mediatek/mt7988a-smartrg-SDG-8733v.dtb");
@@ -42,7 +53,15 @@
 		};
 	};
 	configurations {
-		default = "conf@431";
+		default = "conf@430";
+		conf@430 {
+			description = "Boot Linux kernel with adtran SDG-8733 FDT blob";
+			kernel = "kernel-1";
+			fdt = "fdt@SDG-8733";
+			hash-1 {
+				algo = "sha1";
+			};
+		};
 		conf@431 {
 			description = "Boot Linux kernel with adtran SDG-8733v FDT blob";
 			kernel = "kernel-1";
