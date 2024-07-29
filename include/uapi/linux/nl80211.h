@@ -1361,6 +1361,9 @@ struct ct_preq_info {
  *	control EPCS configuration. Used to notify userland on the current state
  *	of EPCS.
  *
+ * @NL80211_CMD_NOTIFY_CRIT_UPDATE: Notify the userspace that the status of a
+ *	critical update event was changed.
+ *
  * @NL80211_CMD_MAX: highest used command number
  * @__NL80211_CMD_AFTER_LAST: internal use
  */
@@ -1626,6 +1629,7 @@ enum nl80211_commands {
 	/* MTK internal */
 	NL80211_CMD_ATTLM_EVENT,
 	NL80211_CMD_SET_ATTLM,
+	NL80211_CMD_NOTIFY_CRIT_UPDATE,
 
 	/* used to define NL80211_CMD_MAX below */
 	__NL80211_CMD_AFTER_LAST,
@@ -3527,6 +3531,8 @@ enum nl80211_attrs {
 	NL80211_ATTR_MLO_ATTLM_DURATION,
 	NL80211_ATTR_MLO_ATTLM_EVENT,
 	NL80211_ATTR_MLO_ATTLM_SWITCH_TIME_TSF_TU,
+
+	NL80211_ATTR_CRTI_UPDATE_EVENT,
 
 	__NL80211_ATTR_AFTER_LAST,
 	NUM_NL80211_ATTR = __NL80211_ATTR_AFTER_LAST,
@@ -8221,6 +8227,27 @@ enum nl80211_attlm_event {
 	NL80211_ATTLM_STARTED,
 	NL80211_ATTLM_SWITCH_TIME_EXPIRED,
 	NL80211_ATTLM_END,
+};
+
+/**
+ * enum nl80211_crit_update_event - type of critical update event
+ *
+ * Type of event to be used with NL80211_ATTR_CRTI_UPDATE_EVENT to inform userspace
+ * about the status of the current critical update flag.
+ *
+ * @NL80211_CRIT_UPDATE_NONE: clear the critical update flag.
+ * @NL80211_CRIT_UPDATE_SINGLE: update the BPCC of a single BSS and
+ *	set the critical update flag of the BSS.
+ * @NL80211_CRIT_UPDATE_ALL: update the BPCC of all the BSSes and
+ *	set the critical update flag of all the BSSes.
+ * @NL80211_CRIT_UPDATE_FLAG: set the critical update flag without updating BPCC.
+ */
+
+enum nl80211_crit_update_event {
+	NL80211_CRIT_UPDATE_NONE,
+	NL80211_CRIT_UPDATE_SINGLE,
+	NL80211_CRIT_UPDATE_ALL,
+	NL80211_CRIT_UPDATE_FLAG
 };
 
 #endif /* __LINUX_NL80211_H */

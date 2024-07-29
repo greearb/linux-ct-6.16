@@ -9857,6 +9857,16 @@ void cfg80211_schedule_channels_check(struct wireless_dev *wdev);
  */
 void cfg80211_epcs_changed(struct net_device *netdev, bool enabled);
 
+/**
+ * cfg80211_crit_update_notify - notify about the status of a critical update event.
+ * @wdev: the wireless device to check.
+ * @link_id: valid link_id in case of MLO or 0 for non-MLO.
+ * @event: critical update event type.
+ * @gfp: context flags
+ */
+void cfg80211_crit_update_notify(struct wireless_dev *wdev, unsigned int link_id,
+				 enum nl80211_crit_update_event event, gfp_t gfp);
+
 #ifdef CONFIG_CFG80211_DEBUGFS
 /**
  * wiphy_locked_debugfs_read - do a locked read in debugfs

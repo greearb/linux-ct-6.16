@@ -4069,6 +4069,27 @@ TRACE_EVENT(cfg80211_attlm_notify,
 		  __entry->switch_time_tsf_tu)
 );
 
+TRACE_EVENT(cfg80211_crit_update_notify,
+	TP_PROTO(struct wiphy *wiphy, struct wireless_dev *wdev,
+		 unsigned int link_id, enum nl80211_crit_update_event event),
+	TP_ARGS(wiphy, wdev, link_id, event),
+	TP_STRUCT__entry(
+		WIPHY_ENTRY
+		WDEV_ENTRY
+		__field(unsigned int, link_id)
+		__field(enum nl80211_crit_update_event, event)
+	),
+	TP_fast_assign(
+		WIPHY_ASSIGN;
+		WDEV_ASSIGN;
+		__entry->link_id = link_id;
+		__entry->event = event;
+	),
+	TP_printk(WIPHY_PR_FMT ", " WDEV_PR_FMT ", link_id: %d,"
+		  " event: %d",
+		  WIPHY_PR_ARG, WDEV_PR_ARG, __entry->link_id, __entry->event)
+);
+
 TRACE_EVENT(cfg80211_assoc_comeback,
 	TP_PROTO(struct wireless_dev *wdev, const u8 *ap_addr, u32 timeout),
 	TP_ARGS(wdev, ap_addr, timeout),

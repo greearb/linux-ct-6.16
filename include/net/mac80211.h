@@ -7929,4 +7929,17 @@ void ieee80211_links_removed(struct ieee80211_vif *vif, u16 removed_links);
  * @hw: pointer as obtained from ieee80211_alloc_hw()
  */
 unsigned long ieee80211_get_scanning(struct ieee80211_hw *hw);
+
+/**
+ * ieee80211_crit_update_notify - notify mac80211 about the status of a critical update event
+ * @vif: &struct ieee80211_vif pointer from the add_interface callback.
+ * @link_id: valid link_id during MLO or 0 for non-MLO
+ * @event: critical update event type
+ * @gfp: context flags
+ *
+ * This function may be called by the driver to notify mac80211 that
+ * the current status of a critical update event.
+ */
+void ieee80211_crit_update_notify(struct ieee80211_vif *vif, unsigned int link_id,
+				  enum nl80211_crit_update_event event, gfp_t gfp);
 #endif /* MAC80211_H */
