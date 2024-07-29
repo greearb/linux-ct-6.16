@@ -6630,6 +6630,8 @@ enum nl80211_feature_flags {
  * @NL80211_EXT_FEATURE_ETHTOOL_VDEV_STATS: The driver uses the alternate
  *	ethtool string stat block which include per-vdev accumulator stats.
  *	This flag is intended for use with IEEE802.11ac and older radios.
+ *	NOTE: This feature will only work if CONFIG_MAC80211_DEBUG_STA_COUNTERS
+ *	is set in the build configuration.
  *
  * @NUM_NL80211_EXT_FEATURES: number of extended features.
  * @MAX_NL80211_EXT_FEATURES: highest extended feature index.

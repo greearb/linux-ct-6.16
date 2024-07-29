@@ -155,6 +155,7 @@ static const char ieee80211_gstrings_sta_stats[][ETH_GSTRING_LEN] = {
 #define ETHTOOL_LINK_COUNT 3 /* we will show stats for first 3 links */
 #define PER_LINK_STATS_LEN ((STA_STATS_LEN - SDATA_STATS_LEN) / ETHTOOL_LINK_COUNT)
 
+#ifdef CONFIG_MAC80211_DEBUG_STA_COUNTERS
 /* Stations can use this by setting the NL80211_EXT_FEATURE_ETHTOOL_VDEV_STATS
  * flag. Intended for use with IEEE802.11ac and older radios.
  */
@@ -218,6 +219,7 @@ static const char ieee80211_gstrings_sta_vdev_stats[][ETH_GSTRING_LEN] = {
 	"ch_time_tx",
 };
 #define STA_VDEV_STATS_LEN ARRAY_SIZE(ieee80211_gstrings_sta_vdev_stats)
+#endif
 
 static int ieee80211_get_sset_count(struct net_device *dev, int sset)
 {
@@ -225,11 +227,15 @@ static int ieee80211_get_sset_count(struct net_device *dev, int sset)
 	int rv = 0;
 
 	if (sset == ETH_SS_STATS) {
+#ifdef CONFIG_MAC80211_DEBUG_STA_COUNTERS
 		if (wiphy_ext_feature_isset(sdata->local->hw.wiphy,
 					    NL80211_EXT_FEATURE_ETHTOOL_VDEV_STATS))
 			rv += STA_VDEV_STATS_LEN;
 		else
 			rv += STA_STATS_LEN;
+#else
+		rv += STA_STATS_LEN;
+#endif
 	}
 
 	rv += drv_get_et_sset_count(sdata, sset);
@@ -327,6 +333,7 @@ static int ieee80211_get_sset_count(struct net_device *dev, int sset)
 	} while (0)
 #define STA_STATS_COUNT 10
 
+#ifdef CONFIG_MAC80211_DEBUG_STA_COUNTERS
 static void ieee80211_get_stats2_vdev(struct net_device *dev,
 				      struct ethtool_stats *stats,
 				      u64 *data, u32 level)
@@ -545,6 +552,7 @@ do_survey:
 	drv_get_et_stats(sdata, stats, &data[STA_VDEV_STATS_LEN], level);
 	wiphy_unlock(local->hw.wiphy);
 }
+#endif
 
 static void ieee80211_get_stats2(struct net_device *dev,
 				 struct ethtool_stats *stats,
@@ -558,12 +566,14 @@ static void ieee80211_get_stats2(struct net_device *dev,
 	int i = 0, start_link_i;
 	int z;
 
+#ifdef CONFIG_MAC80211_DEBUG_STA_COUNTERS
 	/* If the driver needs to get vdev stats from here...*/
 	if (wiphy_ext_feature_isset(sdata->local->hw.wiphy,
 				    NL80211_EXT_FEATURE_ETHTOOL_VDEV_STATS)) {
 		ieee80211_get_stats2_vdev(dev, stats, data, level);
 		return;
 	}
+#endif
 
 	memset(data, 0, sizeof(u64) * STA_STATS_LEN);
 
@@ -889,6 +899,7 @@ static void ieee80211_get_strings(struct net_device *dev, u32 sset, u8 *data)
 	int sz_sta_stats = 0;
 
 	if (sset == ETH_SS_STATS) {
+#ifdef CONFIG_MAC80211_DEBUG_STA_COUNTERS
 		if (wiphy_ext_feature_isset(sdata->local->hw.wiphy,
 					    NL80211_EXT_FEATURE_ETHTOOL_VDEV_STATS)) {
 			sz_sta_stats = sizeof(ieee80211_gstrings_sta_vdev_stats);
@@ -897,6 +908,10 @@ static void ieee80211_get_strings(struct net_device *dev, u32 sset, u8 *data)
 			sz_sta_stats = sizeof(ieee80211_gstrings_sta_stats);
 			memcpy(data, ieee80211_gstrings_sta_stats, sz_sta_stats);
 		}
+#else
+		sz_sta_stats = sizeof(ieee80211_gstrings_sta_stats);
+		memcpy(data, ieee80211_gstrings_sta_stats, sz_sta_stats);
+#endif
 	}
 	drv_get_et_strings(sdata, sset, &(data[sz_sta_stats]));
 }
