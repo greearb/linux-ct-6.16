@@ -1,17 +1,635 @@
-// SPDX-License-Identifier: (GPL-2.0 OR MIT)
-/*
- * Copyright (C) 2023 SmartRG Inc.
- * Author: Chad Monroe <chad.monroe@smartrg.com>
- */
+// SPDX-License-Identifier: GPL-2.0-only OR MIT
 
-#include "mt7988a-smartrg-mt-stuart.dtsi"
+/dts-v1/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
+#include <dt-bindings/regulator/richtek,rt5190a-regulator.h>
+
+#include "mt7988a.dtsi"
 
 / {
-	model = "SmartRG SDG-8733";
-	compatible = "smartrg,sdg-8733", "mediatek,mt7988a";
+	compatible = "smartrg,sdg-8733v", "mediatek,mt7988a";
+	model = "SmartRG SDG-8733v";
+	chassis-type = "embedded";
+
+	aliases {
+		serial0 = &uart0;
+		led-boot = &led_green;
+		led-failsafe = &led_green;
+		led-running = &led_green;
+		led-upgrade = &led_green;
+	};
+
+	chosen {
+		stdout-path = &uart0;
+		bootargs = "console=ttyS0,115200n1 loglevel=8 pci=pcie_bus_perf";
+	};
+
+	memory {
+		reg = <0x00 0x40000000 0x00 0x10000000>;
+	};
+
+	sound_wm8960 {
+		compatible = "mediatek,mt7986-wm8960-sound";
+		audio-routing = "Headphone", "HP_L", "Headphone", "HP_R", "LINPUT1", "AMIC", "RINPUT1", "AMIC";
+		status = "disabled";
+
+		platform {
+			sound-dai = <&afe>;
+		};
+
+		codec {
+			sound-dai = <&wm8960>;
+		};
+	};
+
+	dummy_codec: dummy_codec {
+		compatible = "d2,slic-dummy-codec";
+		#sound-dai-cells = <0>;
+	};
+
+	sound_si3218x {
+		compatible = "mediatek,mt7986-si3218x-sound";
+		status = "okay";
+
+		platform {
+			sound-dai = <&afe>;
+		};
+
+		codec {
+			sound-dai = <&dummy_codec>;
+		};
+	};
+
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		wps {
+			label = "WPS";
+			linux,code = <KEY_RESTART>;
+			gpios = <&pio 14 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	gpio-export {
+		compatible = "gpio-export";
+
+		bluetooth_reset {
+			gpio-export,name = "bt_reset";
+			gpio-export,direction_may_change;
+			gpios = <&pio 20 GPIO_ACTIVE_HIGH>;
+		};
+
+		bluetooth_txrx_ctl {
+			gpio-export,name = "bt_txrx_ctl";
+			gpio-export,direction_may_change;
+			gpios = <&pio 74 GPIO_ACTIVE_HIGH>;
+		};
+
+		gps_enable {
+			gpio-export,name = "gps_enable";
+			gpio-export,output = <1>;
+			gpios = <&pio 9 GPIO_ACTIVE_LOW>;
+		};
+
+		slic_interrupt {
+			gpio-export,name = "slic_interrupt";
+			gpio-export,direction_may_change;
+			gpios = <&pio 54 GPIO_ACTIVE_HIGH>;
+		};
+
+		slic_reset {
+			gpio-export,name = "slic_reset";
+			gpio-export,output = <0>;
+			gpios = <&pio 72 GPIO_ACTIVE_HIGH>;
+		};
+
+		usb_enable {
+			gpio-export,name = "usb_enable";
+			gpio-export,output = <1>;
+			gpios = <&pio 63 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
+	gpio-leds {
+		compatible = "gpio-leds";
+
+		led_green: led-green {
+			function = LED_FUNCTION_STATUS;
+			color = <LED_COLOR_ID_GREEN>;
+			gpios = <&pio 79 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+
+		led_blue: led-blue {
+			function = LED_FUNCTION_WPS;
+			color = <LED_COLOR_ID_BLUE>;
+			gpios = <&pio 63 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+	};
 };
 
+&eth {
+	status = "okay";
+};
+
+&fan {
+	pwms = <&pwm 0 40000 0>;
+
+	/**
+	 * set fan speed
+	 *
+	 * 0 = off
+	 * 61 = 24% duty cycle
+	 * 77 = 30% duty cycle
+	 * 102 = 40% duty cycle
+	 * 128 - 50% duty cycle
+	 * 255 = 100% duty cycle
+	 */
+	cooling-levels = <61 77 102 128>;
+
+	interrupt-parent = <&pio>;
+	interrupts = <21 IRQ_TYPE_EDGE_FALLING>;
+	pulses-per-revolution = <2>;
+
+	status = "okay";
+};
+
+/* 10G connected to the switch */
+&gmac0 {
+	status = "okay";
+};
+
+/* 10G RJ45 WAN */
 &gmac1 {
+	label = "wan";
+	managed = "in-band-status";
+	phy-mode = "usxgmii";
 	phy-connection-type = "usxgmii";
 	phy = <&phy0>;
+	status = "okay";
+};
+
+/* 10G RF45 LAN 1*/
+&gmac2 {
+	label = "lan1";
+	managed = "in-band-status";
+	phy-mode = "usxgmii";
+	phy-connection-type = "usxgmii";
+	phy = <&phy8>;
+	status = "okay";
+};
+
+&mdio_bus {
+	phy0: ethernet-phy@0 {
+		/* AQR113C */
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0>;
+
+		reset-gpios = <&pio 62 GPIO_ACTIVE_LOW>;
+		reset-assert-us = <100000>;
+		reset-deassert-us = <1000000>;
+
+		aqr,led-config = <0xC000 0x60 0x80>;
+		aqr,led-drive-vdd = <0x0 0x0 0x1>;
+	};
+
+	phy8: ethernet-phy@8 {
+		/* AQR113C */
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <8>;
+
+		reset-gpios = <&pio 71 GPIO_ACTIVE_LOW>;
+		reset-assert-us = <100000>;
+		reset-deassert-us = <1000000>;
+
+		aqr,led-config = <0xC000 0x60 0x80>;
+		aqr,led-drive-vdd = <0x0 0x0 0x1>;
+	};
+};
+
+&mmc0 {
+	pinctrl-names = "default", "state_uhs";
+	pinctrl-0 = <&mmc0_pins_emmc_51>;
+	pinctrl-1 = <&mmc0_pins_emmc_51>;
+	bus-width = <8>;
+	max-frequency = <200000000>;
+	cap-mmc-highspeed;
+	mmc-hs200-1_8v;
+	mmc-hs400-1_8v;
+	hs400-ds-delay = <0x12814>;
+	vmmc-supply = <&reg_3p3v>;
+	vqmmc-supply = <&reg_1p8v>;
+	non-removable;
+	no-sd;
+	no-sdio;
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	card@0 {
+		#address-cells = <0>;
+		#size-cells = <0>;
+		compatible = "mmc-card";
+		reg = <0>;
+
+		block {
+			compatible = "block-device";
+
+			partitions {
+				block-partition-factory {
+					partname = "factory";
+
+					nvmem-layout {
+						compatible = "fixed-layout";
+						#address-cells = <1>;
+						#size-cells = <1>;
+
+						eeprom_factory_0: eeprom@0 {
+							reg = <0x0 0x1e00>;
+						};
+					};
+				};
+			};
+		};
+	};
+};
+
+&switch {
+	status = "okay";
+};
+
+&gsw_phy0 {
+	pinctrl-names = "gbe-led";
+	pinctrl-0 = <&gbe0_led0_pins>;
+};
+
+&gsw_port0 {
+	status = "disabled";
+};
+
+&gsw_port1 {
+	label = "lan2";
+};
+
+&gsw_port2 {
+	label = "lan3";
+};
+
+&gsw_port3 {
+	label = "lan4";
+};
+
+&gsw_phy0_led0 {
+	status = "okay";
+	color = <LED_COLOR_ID_GREEN>;
+};
+
+&gsw_phy1 {
+	pinctrl-names = "gbe-led";
+	pinctrl-0 = <&gbe1_led0_pins>;
+};
+
+&gsw_phy1_led0 {
+	status = "okay";
+	color = <LED_COLOR_ID_GREEN>;
+};
+
+&gsw_phy2 {
+	pinctrl-names = "gbe-led";
+	pinctrl-0 = <&gbe2_led0_pins>;
+};
+
+&gsw_phy2_led0 {
+	status = "okay";
+	color = <LED_COLOR_ID_GREEN>;
+};
+
+&gsw_phy3 {
+	pinctrl-names = "gbe-led";
+	pinctrl-0 = <&gbe3_led0_pins>;
+};
+
+&gsw_phy3_led0 {
+	status = "okay";
+	color = <LED_COLOR_ID_GREEN>;
+};
+
+&cpu0 {
+	proc-supply = <&rt5190_buck3>;
+};
+
+&cpu1 {
+	proc-supply = <&rt5190_buck3>;
+};
+
+&cpu2 {
+	proc-supply = <&rt5190_buck3>;
+};
+
+&cpu3 {
+	proc-supply = <&rt5190_buck3>;
+};
+
+&cci {
+	proc-supply = <&rt5190_buck3>;
+};
+
+&cpu_thermal {
+	/delete-node/cooling-maps;
+	/delete-node/trips;
+
+	trips {
+		cpu_trip_crit: crit {
+			temperature = <125000>;
+			hysteresis = <2000>;
+			type = "critical";
+		};
+
+		cpu_trip_hot: hot {
+			temperature = <120000>;
+			hysteresis = <2000>;
+			type = "hot";
+		};
+
+		cpu_trip_active_high: active-high {
+			temperature = <110000>;
+			hysteresis = <2000>;
+			type = "active";
+		};
+
+		cpu_trip_active_med: active-med {
+			temperature = <80000>;
+			hysteresis = <2000>;
+			type = "active";
+		};
+
+		cpu_trip_active_low: active-low {
+			temperature = <60000>;
+			hysteresis = <2000>;
+			type = "active";
+		};
+
+		cpu_trip_active_silent: active-silent {
+			temperature = <40000>;
+			hysteresis = <2000>;
+			type = "active";
+		};
+	};
+
+	cooling-maps {
+		cpu-active-high {
+			/* active: set fan to cooling level 3 */
+			cooling-device = <&fan 3 3>;
+			trip = <&cpu_trip_active_high>;
+		};
+
+		cpu-active-med {
+			/* active: set fan to cooling level 2 */
+			cooling-device = <&fan 2 2>;
+			trip = <&cpu_trip_active_med>;
+		};
+
+		cpu-active-low {
+			/* active: set fan to cooling level 1 */
+			cooling-device = <&fan 1 1>;
+			trip = <&cpu_trip_active_low>;
+		};
+
+		cpu-active-silent {
+			/* active: set fan to cooling level 0 */
+			cooling-device = <&fan 0 0>;
+			trip = <&cpu_trip_active_silent>;
+		};
+	};
+};
+
+&i2c0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c0_pins>;
+	status = "okay";
+
+	rt5190a_64: rt5190a@64 {
+		compatible = "richtek,rt5190a";
+		reg = <0x64>;
+		vin2-supply = <&rt5190_buck1>;
+		vin3-supply = <&rt5190_buck1>;
+		vin4-supply = <&rt5190_buck1>;
+
+		regulators {
+			rt5190_buck1: buck1 {
+				regulator-name = "rt5190a-buck1";
+				regulator-min-microvolt = <5090000>;
+				regulator-max-microvolt = <5090000>;
+				regulator-allowed-modes =
+				<RT5190A_OPMODE_AUTO RT5190A_OPMODE_FPWM>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+			buck2 {
+				regulator-name = "vcore";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <1400000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+			rt5190_buck3: buck3 {
+				regulator-name = "vproc";
+				regulator-min-microvolt = <600000>;
+				regulator-max-microvolt = <1400000>;
+				regulator-boot-on;
+			};
+			buck4 {
+				regulator-name = "rt5190a-buck4";
+				regulator-min-microvolt = <850000>;
+				regulator-max-microvolt = <850000>;
+				regulator-allowed-modes =
+				<RT5190A_OPMODE_AUTO RT5190A_OPMODE_FPWM>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+			ldo {
+				regulator-name = "rt5190a-ldo";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <1200000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+		};
+	};
+};
+
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_pins>;
+	status = "okay";
+	#address-cells = <0x01>;
+	#size-cells = <0x00>;
+
+	system-leds@30 {
+		compatible = "srg,sysled";
+		reg = <0x30>;
+		#address-cells = <0x00>;
+		#size-cells = <0x1>;
+
+		led_sys_red: system_red {
+			label = "red";
+			reg = <0x01>;
+		};
+
+		led_sys_green: system_green {
+			label = "green";
+			reg = <0x02>;
+			linux,default-trigger = "timer";
+		};
+
+		led_sys_blue: system_blue {
+			label = "blue";
+			reg = <0x03>;
+		};
+
+		led_sys_white: system_white {
+			label = "white";
+			reg = <0x04>;
+		};
+	};
+
+	wm8960: wm8960@1a {
+		compatible = "wlf,wm8960";
+		reg = <0x1a>;
+		#sound-dai-cells = <0>;
+	};
+};
+
+&pcie0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie0_1_pins>;
+	reset-gpios = <&pio 7 GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	pcie@0,0 {
+		#address-cells = <0x01>;
+		#size-cells = <0x0>;
+		reg = <0x0000 0 0 0 0>;
+
+		mt7996@0,0 {
+			reg = <0x0000 0 0 0 0>;
+			nvmem-cells = <&eeprom_factory_0>;
+			nvmem-cell-names = "eeprom";
+			ieee80211-freq-limit = <2400000 2500000>, <5170000 5835000>, <5945000 7125000>;
+		};
+	};
+};
+
+&pcie1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie1_pins>;
+	status = "okay";
+};
+
+&pcie2 {
+	status = "disabled";
+};
+
+&pcie3 {
+	status = "disabled";
+};
+
+&pio {
+	pcie0_1_pins: pcie0-pins-g1 {
+		mux {
+			function = "pcie";
+			groups = "pcie_2l_0_pereset", "pcie_clk_req_n0_0";
+		};
+	};
+	pwm_pins: pwm-pins {
+		mux {
+			function = "pwm";
+			groups = "pwm0", "pwm1";
+		};
+	};
+	sfp_i2c_pins: sfp-i2c-pins {
+		conf-scl {
+			pins = "LED_A";
+			drive-strength =  <8>;
+			mediatek,pull-up-adv = <1>;
+		};
+		conf-sda {
+			pins = "LED_E";
+			drive-strength =  <8>;
+			mediatek,pull-up-adv = <0>;
+		};
+	};
+	i2s-pins {
+		mux {
+			function = "audio";
+			groups = "i2s";
+		};
+	};
+
+	pcm-pins {
+		mux {
+			function = "audio";
+			groups = "pcm";
+		};
+	};
+};
+
+&pwm {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pwm_pins>;
+	status = "okay";
+};
+
+&ssusb1 {
+	status = "okay";
+};
+
+&tphy {
+	status = "okay";
+};
+
+&spi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi0_flash_pins>;
+	status = "disabled";
+
+	spi_nand: spi_nand@0 {
+		compatible = "spi-nand";
+		reg = <0>;
+		spi-max-frequency = <52000000>;
+		spi-tx-buswidth = <4>;
+		spi-rx-buswidth = <4>;
+	};
+};
+
+&spi1 {
+	status = "okay";
+	slic: slic@0 {
+		compatible = "silabs,si3210";
+		spi-max-frequency = <10000000>;
+		reg = <0x00>;
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&watchdog {
+	status = "okay";
+};
+
+&xphy {
+	status = "okay";
+};
+
+/* afe: audio-controller@11210000 */
+&afe {
+	status = "okay";
+	#sound-dai-cells = <0>;
 };
