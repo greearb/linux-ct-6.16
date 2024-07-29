@@ -3990,6 +3990,12 @@ static int __ieee80211_csa_finalize(struct ieee80211_link_data *link_data)
 		return err;
 
 	ieee80211_link_info_change_notify(sdata, link_data, changed);
+	/* The critical update flag is set for CSA after beacon
+	 * due to the modification of the operation IE
+	 */
+	ieee80211_crit_update_notify(&sdata->vif, link_data->link_id,
+				     NL80211_CRIT_UPDATE_SINGLE,
+				     GFP_KERNEL);
 
 	ieee80211_vif_unblock_queues_csa(sdata);
 
@@ -5422,6 +5428,17 @@ void ieee80211_links_removed(struct ieee80211_vif *vif, u16 removed_links)
 	wiphy_work_queue(sdata->local->hw.wiphy, &sdata->links_removed_work);
 }
 EXPORT_SYMBOL_GPL(ieee80211_links_removed);
+
+void ieee80211_crit_update_notify(struct ieee80211_vif *vif, unsigned int link_id,
+				  enum nl80211_crit_update_event event, gfp_t gfp)
+{
+	if (!ieee80211_vif_is_mld(vif) ||
+	    WARN_ON(link_id >= IEEE80211_MLD_MAX_NUM_LINKS))
+		return;
+
+	cfg80211_crit_update_notify(ieee80211_vif_to_wdev(vif), link_id, event, gfp);
+}
+EXPORT_SYMBOL_GPL(ieee80211_crit_update_notify);
 
 const struct cfg80211_ops mac80211_config_ops = {
 	.add_virtual_intf = ieee80211_add_iface,
