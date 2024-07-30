@@ -964,6 +964,7 @@ struct mt76_phy {
 		bool al;
 		u8 pin;
 	} leds;
+	int tokens;
 
 #define MT76_MCU_DEBUG_N_MSG 8
 #define MT76_MCU_DEBUG_BUF_SIZE 128
@@ -1035,6 +1036,7 @@ struct mt76_dev {
 	u16 wed_token_count;
 	u16 token_count;
 	u16 token_size;
+	u16 token_threshold;
 
 	spinlock_t rx_token_lock;
 	struct idr rx_token;
@@ -2149,7 +2151,8 @@ static inline bool mt76_queue_is_wed_rx(struct mt76_queue *q)
 
 struct mt76_txwi_cache *
 mt76_token_release(struct mt76_dev *dev, int token, bool *wake);
-int mt76_token_consume(struct mt76_dev *dev, struct mt76_txwi_cache **ptxwi);
+int mt76_token_consume(struct mt76_dev *dev, struct mt76_txwi_cache **ptxwi,
+		       u8 phy_idx);
 void __mt76_set_tx_blocked(struct mt76_dev *dev, bool blocked);
 struct mt76_txwi_cache *mt76_rx_token_release(struct mt76_dev *dev, int token);
 struct mt76_txwi_cache *mt76_rx_token_find(struct mt76_dev *dev, int token);

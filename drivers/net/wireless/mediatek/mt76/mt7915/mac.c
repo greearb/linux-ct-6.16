@@ -932,7 +932,7 @@ int mt7915_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
 	    mgmt->u.action.category == 0xff)
 		return -1;
 
-	id = mt76_token_consume(mdev, &t);
+	id = mt76_token_consume(mdev, &t, 0);
 	if (id < 0) {
 		mtk_dbg(&dev->mt76, TXV, "mt7915-tx-prepare-skb, token_consume error: %d\n",
 			id);

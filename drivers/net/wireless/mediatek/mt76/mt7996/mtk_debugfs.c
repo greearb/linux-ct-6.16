@@ -2407,7 +2407,7 @@ static int mt7996_sta_info(struct seq_file *s, void *data)
 static int mt7996_token_read(struct seq_file *s, void *data)
 {
 	struct mt7996_dev *dev = dev_get_drvdata(s->private);
-	int msdu_id;
+	int msdu_id, i;
 	struct mt76_txwi_cache *txwi;
 
 	seq_printf(s, "Token from host:\n");
@@ -2417,8 +2417,18 @@ static int mt7996_token_read(struct seq_file *s, void *data)
 			   msdu_id, txwi->wcid,
 			   jiffies_to_msecs(jiffies - txwi->jiffies));
 	}
-	spin_unlock_bh(&dev->mt76.token_lock);
 	seq_printf(s, "\n");
+	for (i = 0; i < __MT_MAX_BAND; i++) {
+		struct mt76_phy *phy = mt76_dev_phy(&dev->mt76, i);
+
+		if (!mt7996_band_valid(dev, i))
+			continue;
+
+		seq_printf(s, "Band%u consume: %d, free: %d total: %d\n",
+			   i, phy->tokens, dev->mt76.token_threshold - phy->tokens,
+			   dev->mt76.token_threshold);
+	}
+	spin_unlock_bh(&dev->mt76.token_lock);
 
 	return 0;
 }

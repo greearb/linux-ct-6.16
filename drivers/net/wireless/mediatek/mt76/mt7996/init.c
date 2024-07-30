@@ -1704,6 +1704,8 @@ int mt7996_register_device(struct mt7996_dev *dev)
 			goto error;
 	}
 
+	dev->mt76.token_threshold = MT7996_PER_BAND_TOKEN_SIZE;
+
 	ieee80211_queue_work(mt76_hw(dev), &dev->init_work);
 
 	ret = mt7996_coredump_register(dev);

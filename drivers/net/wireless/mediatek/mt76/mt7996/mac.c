@@ -1445,7 +1445,7 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
 	t->skb = tx_info->skb;
 	t->wcid = wcid->idx;
 
-	id = mt76_token_consume(mdev, &t);
+	id = mt76_token_consume(mdev, &t, mconf->mt76.band_idx);
 	if (id < 0) {
 		mtk_dbg(&dev->mt76, TXV, "mt7996-tx-prepare-skb, token_consume error: %d\n",
 			id);
@@ -2412,8 +2412,11 @@ void mt7996_tx_token_put(struct mt7996_dev *dev)
 
 	spin_lock_bh(&dev->mt76.token_lock);
 	idr_for_each_entry(&dev->mt76.token, txwi, id) {
+		struct mt76_phy *phy = mt76_dev_phy(&dev->mt76, txwi->phy_idx);
+
 		mt7996_txwi_free(dev, txwi, NULL, NULL, NULL, 0, 1, 0);
 		dev->mt76.token_count--;
+		phy->tokens--;
 	}
 	spin_unlock_bh(&dev->mt76.token_lock);
 	idr_destroy(&dev->mt76.token);
