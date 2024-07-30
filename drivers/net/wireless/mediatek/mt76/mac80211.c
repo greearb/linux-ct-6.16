@@ -728,6 +728,7 @@ mt76_alloc_device(struct device *pdev, unsigned int size,
 	INIT_LIST_HEAD(&dev->txwi_cache);
 	INIT_LIST_HEAD(&dev->rxwi_cache);
 	dev->token_size = dev->drv->token_size;
+	dev->token_threshold = 4000;
 	INIT_DELAYED_WORK(&dev->scan_work, mt76_scan_work);
 
 	for (i = 0; i < ARRAY_SIZE(dev->q_rx); i++)
