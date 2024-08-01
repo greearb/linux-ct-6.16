@@ -676,10 +676,17 @@ mt7996_mac_fill_rx(struct mt7996_dev *dev, enum mt76_rxq_id q,
 		nss = hweight8(mphy->antenna_mask);
 
 		if (msta_link) {
+			int i;
+
 			memcpy(msta_link->chain_signal, status->chain_signal,
 			       IEEE80211_MAX_CHAINS);
 			msta_link->signal = mt76_rx_signal(mphy->antenna_mask,
 							   msta_link->chain_signal);
+
+			for (i = 0; i < IEEE80211_MAX_CHAINS; ++i)
+				ewma_avg_signal_add(msta_link->chain_signal_avg + i,
+						    -msta_link->chain_signal[i]);
+			ewma_avg_signal_add(&msta_link->signal_avg, -msta_link->signal);
 		}
 
 		/* RXD Group 5 - C-RXV */
