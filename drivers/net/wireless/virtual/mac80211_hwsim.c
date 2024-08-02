@@ -2559,7 +2559,7 @@ static void mac80211_hwsim_vif_info_changed(struct ieee80211_hw *hw,
 	}
 
 	if (vif->type == NL80211_IFTYPE_STATION &&
-	    changed & (BSS_CHANGED_MLD_VALID_LINKS | BSS_CHANGED_MLD_TTLM)) {
+	    changed & (BSS_CHANGED_MLD_VALID_LINKS | BSS_CHANGED_MLD_NEG_TTLM)) {
 		u16 usable_links = ieee80211_vif_usable_links(vif);
 
 		if (vif->active_links != usable_links)
