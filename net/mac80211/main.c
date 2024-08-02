@@ -330,7 +330,8 @@ EXPORT_SYMBOL(ieee80211_emulate_switch_vif_chanctx);
 				   BSS_CHANGED_ARP_FILTER |\
 				   BSS_CHANGED_SSID |\
 				   BSS_CHANGED_MLD_VALID_LINKS |\
-				   BSS_CHANGED_MLD_TTLM)
+				   BSS_CHANGED_MLD_ADV_TTLM |\
+				   BSS_CHANGED_MLD_NEG_TTLM)
 
 void ieee80211_bss_info_change_notify(struct ieee80211_sub_if_data *sdata,
 				      u64 changed)
