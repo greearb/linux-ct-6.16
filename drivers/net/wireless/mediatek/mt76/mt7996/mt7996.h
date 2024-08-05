@@ -985,6 +985,9 @@ int mt7996_mcu_mld_link_oper(struct mt7996_phy *phy,
 			     struct mt7996_vif_link *mconf, bool add);
 int mt7996_mcu_mld_set_attlm(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 			     u16 disabled_links, u16 switch_time, u32 duration);
+int mt7996_mcu_peer_mld_ttlm_req(struct mt7996_dev *dev, struct ieee80211_vif *vif,
+				 struct ieee80211_sta *sta,
+				 struct ieee80211_neg_ttlm *neg_ttlm);
 
 #define PKT_BIN_DEBUG_MAGIC	0xc8763123
 enum {

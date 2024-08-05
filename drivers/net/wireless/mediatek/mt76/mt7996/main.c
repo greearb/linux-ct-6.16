@@ -953,6 +953,11 @@ mt7996_vif_cfg_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		}
 	}
 
+	// TODO:  Will not compile, some later patch removes it anyway.
+	//if ((changed & BSS_CHANGED_MLD_VALID_LINKS) &&
+	//    (changed & (BSS_CHANGED_MLD_ADV_TTLM | BSS_CHANGED_MLD_NEG_TTLM)))
+	//	mt7996_mcu_peer_mld_ttlm_req(dev, vif, changed);
+
 	mutex_unlock(&dev->mt76.mutex);
 }
 

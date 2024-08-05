@@ -3682,7 +3682,7 @@ int mt7996_mcu_mld_set_attlm(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 	return ret;
 }
 
-static int
+int
 mt7996_mcu_peer_mld_ttlm_req(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 			     struct ieee80211_sta *sta,
 			     struct ieee80211_neg_ttlm *neg_ttlm)
