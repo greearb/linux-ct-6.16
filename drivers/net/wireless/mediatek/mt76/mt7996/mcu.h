@@ -1370,25 +1370,25 @@ enum {
 };
 
 struct peer_mld_req_hdr {
-        u8 ver;
-        u8 peer_mld_addr[ETH_ALEN];
-        u8 mld_idx;
-        u8 rsv[4];
-        u8 buf[];
+	u8 ver;
+	u8 peer_mld_addr[ETH_ALEN];
+	u8 mld_idx;
+	u8 rsv[4];
+	u8 buf[];
 } __packed;
 
 struct peer_mld_ttlm_req {
-        __le16 tag;
-        __le16 len;
-        u8 mld_addr[ETH_ALEN];
-        __le16 enabled_link_bitmap;
-        __le16 link_to_wcid[IEEE80211_MLD_MAX_NUM_LINKS + 1];
-        u8 dl_tid_map[IEEE80211_MLD_MAX_NUM_LINKS + 1];
-        u8 ul_tid_map[IEEE80211_MLD_MAX_NUM_LINKS + 1];
+	__le16 tag;
+	__le16 len;
+	u8 mld_addr[ETH_ALEN];
+	__le16 enabled_link_bitmap;
+	__le16 link_to_wcid[IEEE80211_MLD_MAX_NUM_LINKS + 1];
+	u8 dl_tid_map[IEEE80211_MLD_MAX_NUM_LINKS + 1];
+	u8 ul_tid_map[IEEE80211_MLD_MAX_NUM_LINKS + 1];
 } __packed;
 
 enum {
-        UNI_CMD_PEER_MLD_TTLM_REQ = 0x0,
+	UNI_CMD_PEER_MLD_TTLM_REQ = 0x0,
 };
 
 #define UNI_CMD_SDO_CFG_BSS_NUM 96
