@@ -144,6 +144,9 @@ enum offs_rev {
 #define MT_MDP_BASE				0x820cc000
 #define MT_MDP(ofs)				(MT_MDP_BASE + (ofs))
 
+/* Default: F0003, enable tx checksum: F0001 */
+#define MT_MDP_TX_CTRL				MT_MDP(0x040)
+
 #define MT_MDP_DCR2				MT_MDP(0x8e8)
 #define MT_MDP_DCR2_RX_TRANS_SHORT		BIT(2)
 
