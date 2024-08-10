@@ -1361,8 +1361,8 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
 	bool is_8023 = info->flags & IEEE80211_TX_CTL_HW_80211_ENCAP;
 	u8 *txwi = (u8 *)txwi_ptr;
 
-	mtk_dbg(&dev->mt76, TXV, "mt7996-tx-prepare-skb, skb-len: %d\n",
-		tx_info->skb->len);
+	mtk_dbg(&dev->mt76, TXV, "mt7996-tx-prepare-skb, skb: %p skb-len: %d wcid: %p qid: %d\n",
+		tx_info->skb, tx_info->skb->len, wcid, qid);
 
 	if (unlikely(tx_info->skb->len <= ETH_HLEN))
 		return -EINVAL;
@@ -1803,6 +1803,9 @@ mt7996_mac_add_txs_skb(struct mt7996_dev *dev, struct mt76_wcid *wcid,
 	rate.nss = FIELD_GET(MT_TX_RATE_NSS, txrate) + 1;
 	stbc = le32_get_bits(txs_data[3], MT_TXS3_RATE_STBC);
 
+	mtk_dbg(&dev->mt76, TX, "mt7996-mac-add-txs-skb, tx-mcs: %d  tx-nss: %d skb: %p\n",
+		rate.mcs, rate.nss, skb);
+
 	if (stbc && rate.nss > 1)
 		rate.nss >>= 1;
 
@@ -1931,11 +1934,11 @@ static void mt7996_mac_add_txs(struct mt7996_dev *dev, void *data)
 	u16 wcidx;
 	u8 pid;
 
-	mtk_dbg(&dev->mt76, TX, "mt7996-mac-add-txs, format: %d\n",
-		le32_get_bits(txs_data[0], MT_TXS0_TXS_FORMAT));
-
 	wcidx = le32_get_bits(txs_data[2], MT_TXS2_WCID);
 	pid = le32_get_bits(txs_data[3], MT_TXS3_PID);
+
+	mtk_dbg(&dev->mt76, TX, "mt7996-mac-add-txs, format: %d wcidx: %d  pid: %d\n",
+		le32_get_bits(txs_data[0], MT_TXS0_TXS_FORMAT), wcidx, pid);
 
 	if (pid < MT_PACKET_ID_NO_SKB)
 		return;

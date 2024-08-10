@@ -291,6 +291,9 @@ mt76_dma_add_buf(struct mt76_dev *dev, struct mt76_queue *q,
 	int i, idx = -1;
 	u32 ctrl, next;
 
+	mtk_dbg(dev, TXV, "mt76-dma-add-buf, txwi: %p nbufs: %d q->queued: %d\n",
+		txwi, nbufs, q->queued);
+
 	if (txwi) {
 		q->entry[q->head].txwi = DMA_DUMMY_DATA;
 		q->entry[q->head].skip_buf0 = true;
@@ -347,6 +350,9 @@ mt76_dma_add_buf(struct mt76_dev *dev, struct mt76_queue *q,
 	q->entry[idx].skb = skb;
 	q->entry[idx].wcid = 0xffff;
 
+	mtk_dbg(dev, TXV, "mt76-dma-add-buf, at end, idx: %d  skb: %p  txwi: %p  q->queued: %d\n",
+		idx, skb, txwi, q->queued);
+
 	return idx;
 }
 
@@ -375,6 +381,8 @@ static void
 mt76_dma_kick_queue(struct mt76_dev *dev, struct mt76_queue *q)
 {
 	wmb();
+	mtk_dbg(dev, TXV, "mt76-dma-kick-queue, q: %p\n",
+		q);
 	Q_WRITE(q, cpu_idx, q->head);
 }
 
@@ -383,6 +391,9 @@ mt76_dma_tx_cleanup(struct mt76_dev *dev, struct mt76_queue *q, bool flush)
 {
 	struct mt76_queue_entry entry;
 	int last;
+
+	mtk_dbg(dev, TXV, "mt76-dma-tx-cleanup, q: %p flush: %d\n",
+		q, flush);
 
 	if (!q || !q->ndesc)
 		return;
@@ -393,6 +404,8 @@ mt76_dma_tx_cleanup(struct mt76_dev *dev, struct mt76_queue *q, bool flush)
 	else
 		last = Q_READ(q, dma_idx);
 
+	mtk_dbg(dev, TXV, "mt76-dma-tx-cleanup, queued: %d  last: 0x%x  q->tail: 0x%x\n",
+		q->queued, last, q->tail);
 	while (q->queued > 0 && q->tail != last) {
 		mt76_dma_tx_cleanup_idx(dev, q, q->tail, &entry);
 		mt76_queue_tx_complete(dev, q, &entry);
@@ -477,6 +490,9 @@ mt76_dma_dequeue(struct mt76_dev *dev, struct mt76_queue *q, bool flush,
 		 int *len, u32 *info, bool *more, bool *drop)
 {
 	int idx = q->tail;
+
+	mtk_dbg(dev, RXV, "mt76-dma-dequeue, tail-idx: %d queued: %d\n",
+		idx, q->queued);
 
 	*more = false;
 	if (!q->queued)
@@ -653,6 +669,8 @@ free_skb:
 	spin_lock_bh(&dev->rx_lock);
 	ieee80211_tx_status_ext(hw, &status);
 	spin_unlock_bh(&dev->rx_lock);
+
+	mtk_dbg(dev, TXV, "mt76-dma-tx-queue-skb failed, ret: %d\n", ret);
 
 	return ret;
 }
