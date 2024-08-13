@@ -672,14 +672,16 @@ struct bss_bcn_crit_update_tlv {
 	__le32 bypass_seq_bitmap;
 	__le16 tim_ie_pos[32];
 	__le16 cap_info_ie_pos[32];
+	bool require_event;
+	u8 rsv[3];
 } __packed;
 
 struct bss_bcn_sta_prof_cntdwn_tlv {
 	__le16 tag;
 	__le16 len;
-	__le16 sta_prof_csa_offs;
-	u8 cs_bss_idx;
-	u8 pkt_content[9];
+	__le16 sta_prof_csa_offs[__MT_MAX_BAND];
+	u8 cs_bss_idx[__MT_MAX_BAND];
+	u8 pkt_content[3];
 } __packed;
 
 struct bss_bcn_ml_reconf_tlv {
@@ -1393,6 +1395,26 @@ enum {
 
 #define UNI_CMD_SDO_CFG_BSS_NUM 96
 #define UNI_CMD_SDO_CFG_BSS_MAP_WORDLEN ((UNI_CMD_SDO_CFG_BSS_NUM) / 32)
+
+struct mt7996_mcu_bss_event {
+	struct mt7996_mcu_rxd rxd;
+
+	/* fixed field */
+	u8 bss_idx;
+	u8 __rsv[3];
+	/* tlv */
+	u8 buf[];
+} __packed;
+
+struct mt7996_mcu_bss_bcn_crit_update_event {
+	__le16 tag;
+	__le16 len;
+	u8 rsv[4];
+} __packed;
+
+enum {
+	UNI_EVENT_BSS_BCN_CRIT_UPDATE = 0x01,
+};
 
 struct tx_power_ctrl {
         u8 _rsv[4];

@@ -1375,6 +1375,54 @@ mt7996_mcu_mld_event(struct mt7996_dev *dev, struct sk_buff *skb)
 }
 
 static void
+mt7996_mcu_bss_bcn_crit_finish(void *priv, u8 *mac, struct ieee80211_vif *vif)
+{
+	struct mt7996_mcu_bss_event *data = priv;
+	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
+	struct mt7996_vif_link *mconf;
+	unsigned long valid_links = vif->valid_links;
+	unsigned int link_id;
+
+	if (!ieee80211_vif_is_mld(vif))
+		return;
+
+	rcu_read_lock();
+	for_each_set_bit(link_id, &valid_links, IEEE80211_MLD_MAX_NUM_LINKS) {
+		mconf = (struct mt7996_vif_link *)rcu_dereference(mvif->mt76.link[link_id]);
+		if (!mconf)
+			continue;
+
+		if (mconf->mt76.idx == data->bss_idx) {
+			ieee80211_crit_update_notify(vif, link_id,
+						     NL80211_CRIT_UPDATE_NONE,
+						     GFP_ATOMIC);
+			rcu_read_unlock();
+			return;
+		}
+	}
+	rcu_read_unlock();
+}
+
+static void
+mt7996_mcu_bss_event(struct mt7996_dev *dev, struct sk_buff *skb)
+{
+	struct mt7996_mcu_bss_event *event = (void *)skb->data;
+	struct tlv *tlv = (struct tlv *)event->buf;
+
+	switch (le16_to_cpu(tlv->tag)) {
+	case UNI_EVENT_BSS_BCN_CRIT_UPDATE:
+		ieee80211_iterate_active_interfaces_atomic(dev->mt76.hw,
+				IEEE80211_IFACE_ITER_RESUME_ALL,
+				mt7996_mcu_bss_bcn_crit_finish, event);
+		break;
+	default:
+		dev_err(dev->mt76.dev, "Unknown BSS event tag: %d\n",
+			le16_to_cpu(tlv->tag));
+		return;
+	}
+}
+
+static void
 mt7996_mcu_uni_rx_unsolicited_event(struct mt7996_dev *dev, struct sk_buff *skb)
 {
 	struct mt7996_mcu_rxd *rxd = (struct mt7996_mcu_rxd *)skb->data;
@@ -1400,6 +1448,9 @@ mt7996_mcu_uni_rx_unsolicited_event(struct mt7996_dev *dev, struct sk_buff *skb)
 		break;
 	case MCU_UNI_EVENT_MLD:
 		mt7996_mcu_mld_event(dev, skb);
+		break;
+	case MCU_UNI_EVENT_BSS_INFO:
+		mt7996_mcu_bss_event(dev, skb);
 		break;
 	case MCU_UNI_EVENT_SR:
 		mt7996_mcu_rx_sr_event(dev, skb);
@@ -3880,6 +3931,7 @@ mt7996_mcu_beacon_crit_update(struct sk_buff *rskb, struct sk_buff *skb,
 	crit->tim_ie_pos[0] = cpu_to_le16(offs->tim_offset);
 	crit->cap_info_ie_pos[0] = cpu_to_le16(offsetof(struct ieee80211_mgmt,
 							u.beacon.capab_info));
+	crit->require_event = true;
 }
 
 static void
@@ -3892,6 +3944,7 @@ mt7996_mcu_beacon_sta_prof_csa(struct sk_buff *rskb,
 	struct mt7996_vif_link *cs_mconf;
 	struct bss_bcn_sta_prof_cntdwn_tlv *sta_prof;
 	struct tlv *tlv;
+	u8 cs_band;
 
 	if (!ieee80211_vif_is_mld(vif) || !offs->sta_prof_cntdwn_offs[0])
 		return;
@@ -3902,9 +3955,10 @@ mt7996_mcu_beacon_sta_prof_csa(struct sk_buff *rskb,
 
 	tlv = mt7996_mcu_add_uni_tlv(rskb, UNI_BSS_INFO_BCN_STA_PROF_CSA, sizeof(*sta_prof));
 
+	cs_band = cs_mconf->phy->mt76->band_idx;
 	sta_prof = (struct bss_bcn_sta_prof_cntdwn_tlv *)tlv;
-	sta_prof->sta_prof_csa_offs = cpu_to_le16(offs->sta_prof_cntdwn_offs[0] - 4);
-	sta_prof->cs_bss_idx = cs_mconf->mt76.idx;
+	sta_prof->sta_prof_csa_offs[cs_band] = cpu_to_le16(offs->sta_prof_cntdwn_offs[0] - 4);
+	sta_prof->cs_bss_idx[cs_band] = cs_mconf->mt76.idx;
 }
 
 static void
