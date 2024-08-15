@@ -909,41 +909,57 @@ int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 		need_offchan = false;
 	} else if (!need_offchan) {
 		struct ieee80211_chanctx_conf *chanctx_conf = NULL;
-		int i;
+		struct ieee80211_bss_conf *conf;
+		unsigned int link;
 
 		rcu_read_lock();
-		/* Check all the links first */
-		for (i = 0; i < ARRAY_SIZE(sdata->vif.link_conf); i++) {
-			struct ieee80211_bss_conf *conf;
 
-			conf = rcu_dereference(sdata->vif.link_conf[i]);
-			if (!conf)
-				continue;
+		if (ieee80211_vif_is_mld(&sdata->vif) && mlo_sta &&
+		    ether_addr_equal(sdata->vif.addr, mgmt->sa)) {
+			unsigned long links = sdata->vif.active_links;
 
-			chanctx_conf = rcu_dereference(conf->chanctx_conf);
-			if (!chanctx_conf)
-				continue;
+			for_each_set_bit(link, &links, IEEE80211_MLD_MAX_NUM_LINKS) {
+				conf = rcu_dereference(sdata->vif.link_conf[link]);
+				if (!conf)
+					continue;
 
-			if (mlo_sta && params->chan == chanctx_conf->def.chan &&
-			    ether_addr_equal(sdata->vif.addr, mgmt->sa)) {
-				link_id = i;
-				break;
+				chanctx_conf = rcu_dereference(conf->chanctx_conf);
+				if (!chanctx_conf)
+					continue;
+
+				if (params->chan == chanctx_conf->def.chan) {
+					link_id = link;
+					break;
+				}
+
+				chanctx_conf = NULL;
 			}
+		} else {
+			for (link = 0; link < ARRAY_SIZE(sdata->vif.link_conf); link++) {
+				conf = rcu_dereference(sdata->vif.link_conf[link]);
+				if (!conf)
+					continue;
 
-			if (ether_addr_equal(conf->addr, mgmt->sa)) {
-				/* If userspace requested Tx on a specific link
-				 * use the same link id if the link bss is matching
-				 * the requested chan.
-				 */
-				if (sdata->vif.valid_links &&
-				    params->link_id >= 0 && params->link_id == i &&
-				    params->chan == chanctx_conf->def.chan)
-					link_id = i;
+				chanctx_conf = rcu_dereference(conf->chanctx_conf);
+				if (!chanctx_conf)
+					continue;
 
-				break;
+				if (ether_addr_equal(conf->addr, mgmt->sa)) {
+					/* If userspace requested Tx on a specific link
+					 * use the same link id if the link bss is matching
+					 * the requested chan.
+					 */
+					if (sdata->vif.valid_links &&
+					    params->link_id >= 0 &&
+					    params->link_id == link &&
+					    params->chan == chanctx_conf->def.chan)
+						link_id = link;
+
+					break;
+				}
+
+				chanctx_conf = NULL;
 			}
-
-			chanctx_conf = NULL;
 		}
 
 		if (chanctx_conf) {
