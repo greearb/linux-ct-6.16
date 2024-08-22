@@ -2482,7 +2482,7 @@ static void ath10k_peer_assoc_h_crypto(struct ath10k *ar,
 
 	lockdep_assert_held(&ar->conf_mutex);
 
-	if (WARN_ON(ath10k_mac_vif_chan(vif, &def)))
+	if (WARN_ON_ONCE(ath10k_mac_vif_chan(vif, &def)))
 		return;
 
 	bss = cfg80211_get_bss(ar->hw->wiphy, def.chan, info->bssid,
@@ -2540,7 +2540,7 @@ static void ath10k_peer_assoc_h_rates(struct ath10k *ar,
 
 	lockdep_assert_held(&ar->conf_mutex);
 
-	if (WARN_ON(ath10k_mac_vif_chan(vif, &def)))
+	if (WARN_ON_ONCE(ath10k_mac_vif_chan(vif, &def)))
 		return;
 
 	band = def.chan->band;
@@ -2665,7 +2665,7 @@ static void ath10k_peer_assoc_h_rate_overrides(struct ath10k *ar,
 
 	lockdep_assert_held(&ar->conf_mutex);
 
-	if (WARN_ON(ath10k_mac_vif_chan(vif, &def)))
+	if (WARN_ON_ONCE(ath10k_mac_vif_chan(vif, &def)))
 		return;
 
 	band = def.chan->band;
@@ -2806,7 +2806,7 @@ static void ath10k_peer_assoc_h_ht(struct ath10k *ar,
 
 	lockdep_assert_held(&ar->conf_mutex);
 
-	if (WARN_ON(ath10k_mac_vif_chan(vif, &def)))
+	if (WARN_ON_ONCE(ath10k_mac_vif_chan(vif, &def)))
 		return;
 
 	if (!ht_cap->ht_supported)
@@ -3080,7 +3080,7 @@ static void ath10k_peer_assoc_h_vht(struct ath10k *ar,
 	u8 max_nss, vht_mcs;
 	int i;
 
-	if (WARN_ON(ath10k_mac_vif_chan(vif, &def)))
+	if (WARN_ON_ONCE(ath10k_mac_vif_chan(vif, &def)))
 		return;
 
 	if (!vht_cap->vht_supported)
@@ -3348,7 +3348,7 @@ static void ath10k_peer_assoc_h_phymode(struct ath10k *ar,
 	const u16 *vht_mcs_mask;
 	enum wmi_phy_mode phymode = MODE_UNKNOWN;
 
-	if (WARN_ON(ath10k_mac_vif_chan(vif, &def)))
+	if (WARN_ON_ONCE(ath10k_mac_vif_chan(vif, &def)))
 		return;
 
 	band = def.chan->band;
@@ -7719,7 +7719,7 @@ static void ath10k_sta_rc_update_wk(struct work_struct *wk)
 	arvif = arsta->arvif;
 	ar = arvif->ar;
 
-	if (WARN_ON(ath10k_mac_vif_chan(arvif->vif, &def)))
+	if (WARN_ON_ONCE(ath10k_mac_vif_chan(arvif->vif, &def)))
 		return;
 
 	band = def.chan->band;
@@ -8006,7 +8006,7 @@ ath10k_mac_tid_bitrate_config(struct ath10k *ar,
 	u8 nss, rate;
 	int vht_num_rates, ret;
 
-	if (WARN_ON(ath10k_mac_vif_chan(vif, &def)))
+	if (WARN_ON_ONCE(ath10k_mac_vif_chan(vif, &def)))
 		return -EINVAL;
 
 	if (txrate_type == NL80211_TX_RATE_AUTOMATIC) {
@@ -11190,9 +11190,9 @@ static int ath10k_mac_init_rd(struct ath10k *ar)
    } while (0)
 
 
-int ath10k_copy_comb(struct ath10k* ar,
-		     const struct ieee80211_iface_combination* comb,
-		     int array_len)
+static int ath10k_copy_comb(struct ath10k* ar,
+			    const struct ieee80211_iface_combination* comb,
+			    int array_len)
 {
 	int i;
 	int ln;
