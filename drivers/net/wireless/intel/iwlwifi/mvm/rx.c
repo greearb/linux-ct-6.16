@@ -1043,6 +1043,8 @@ iwl_mvm_stat_iterator_all_links(struct iwl_mvm *mvm,
 #define SEC_LINK_MIN_PERC 10
 #define SEC_LINK_MIN_TX 3000
 #define SEC_LINK_MIN_RX 400
+/* Compare tput over this interval to determine in/out of ESR mode */
+#define MVM_ESR_TPT_INTERVAL (5 * HZ)
 
 /* Accept a ~20% short window to avoid issues due to jitter */
 #define IWL_MVM_TPT_MIN_COUNT_WINDOW (IWL_MVM_TPT_COUNT_WINDOW_SEC * HZ * 4 / 5)
@@ -1073,6 +1075,10 @@ static void iwl_mvm_update_esr_mode_tpt(struct iwl_mvm *mvm)
 	if (!mvmsta->mpdu_counters)
 		return;
 
+	if (!time_after(jiffies, mvm->esr_tpt_ts + MVM_ESR_TPT_INTERVAL))
+		return; /* check back later */
+	mvm->esr_tpt_ts = jiffies;
+
 	/* Get the FW ID of the secondary link */
 	sec_link = iwl_mvm_get_other_link(bss_vif,
 					  iwl_mvm_get_primary_link(bss_vif));
@@ -1096,6 +1102,8 @@ static void iwl_mvm_update_esr_mode_tpt(struct iwl_mvm *mvm)
 		/*
 		 * In EMLSR we have statistics every 5 seconds, so we can reset
 		 * the counters upon every statistics notification.
+		 * NOTE:  This is not actually correct, I see this method called
+		 * often.  Thus the back-off timer 'esr_tpt_ts' above. --Ben
 		 * The FW sends the notification regularly, but it will be
 		 * misaligned at the start. Skipping the measurement if it is
 		 * short will synchronize us.
@@ -1115,8 +1123,8 @@ static void iwl_mvm_update_esr_mode_tpt(struct iwl_mvm *mvm)
 		return;
 	}
 
-	IWL_DEBUG_INFO(mvm, "total Tx MPDUs: %ld. total Rx MPDUs: %ld\n",
-		       total_tx, total_rx);
+	IWL_DEBUG_INFO(mvm, "EMLSR: total Tx MPDUs: %ld. Rx: %ld sec-link tx: %ld  rx: %ld mvm-tput-thresh: %d\n",
+		       total_tx, total_rx, sec_link_tx, sec_link_rx, IWL_MVM_ENTER_ESR_TPT_THRESH);
 
 	/* If we don't have enough MPDUs - exit EMLSR */
 	if (total_tx < IWL_MVM_ENTER_ESR_TPT_THRESH &&

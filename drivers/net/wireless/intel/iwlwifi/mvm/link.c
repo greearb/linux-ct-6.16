@@ -1125,6 +1125,11 @@ static void iwl_mvm_esr_unblocked(struct iwl_mvm *mvm,
 
 	IWL_DEBUG_INFO(mvm, "EMLSR is unblocked\n");
 
+	/* Don't block based on tput until at least our sample period,
+	 * by faking that we sampled just now.
+	 */
+	mvm->esr_tpt_ts = jiffies;
+
 	/* If we exited due to an EXIT reason, and the exit was in less than
 	 * 30 seconds, then a MLO scan was scheduled already.
 	 */

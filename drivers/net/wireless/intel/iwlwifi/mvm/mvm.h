@@ -1113,6 +1113,7 @@ struct iwl_mvm {
 	unsigned long init_status;
 
 	unsigned long status;
+	unsigned long esr_tpt_ts; /* last time we compared tput for ESR */
 
 	u32 queue_sync_cookie;
 	unsigned long queue_sync_state;
