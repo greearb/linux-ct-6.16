@@ -17,6 +17,7 @@
 	HOW(EXIT_LOW_RSSI)		\
 	HOW(EXIT_COEX)			\
 	HOW(EXIT_BANDWIDTH)		\
+	HOW(EXIT_BAND)			\
 	HOW(EXIT_CSA)			\
 	HOW(EXIT_LINK_USAGE)		\
 	HOW(EXIT_FAIL_ENTRY)
@@ -768,8 +769,10 @@ bool iwl_mvm_mld_valid_link_pair(struct ieee80211_vif *vif,
 	    iwl_mvm_esr_disallowed_with_link(mvm, vif, b, false))
 		return false;
 
-	if (a->chandef->chan->band == b->chandef->chan->band ||
-	    a->chandef->width != b->chandef->width)
+	if (a->chandef->chan->band == b->chandef->chan->band)
+		ret |= IWL_MVM_ESR_EXIT_BAND;
+
+	if (a->chandef->width != b->chandef->width)
 		ret |= IWL_MVM_ESR_EXIT_BANDWIDTH;
 
 	if (ret) {
