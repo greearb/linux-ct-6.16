@@ -774,8 +774,9 @@ bool iwl_mvm_mld_valid_link_pair(struct ieee80211_vif *vif,
 
 	if (ret) {
 		IWL_DEBUG_INFO(mvm,
-			       "Links %d and %d are not a valid pair for EMLSR, a->chwidth: %d  b: %d\n",
-			       a->link_id, b->link_id, a->chandef->width, b->chandef->width);
+			       "Links %d and %d are not a valid pair for EMLSR, a->chwidth: %d  b: %d band-a: %d  band-b: %d\n",
+			       a->link_id, b->link_id, a->chandef->width, b->chandef->width,
+			       a->chandef->chan->band, b->chandef->chan->band);
 		iwl_mvm_print_esr_state(mvm, ret);
 		return false;
 	}
