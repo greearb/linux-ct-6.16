@@ -543,6 +543,7 @@ struct mt7996_phy {
 	bool sr_enable;
 	bool enhanced_sr_enable;
 	bool thermal_protection_enable;
+	bool mru_probe_enable;
 	u8 pp_mode;
 	u16 punct_bitmap;
 	struct mt7996_scs_ctrl scs_ctrl;
@@ -1152,6 +1153,9 @@ int mt7996_mmio_wed_init(struct mt7996_dev *dev, void *pdev_ptr,
 u32 mt7996_wed_init_buf(void *ptr, dma_addr_t phys, int token_id);
 int mt7996_set_muru_cfg(struct mt7996_phy *phy, u8 action, u8 val);
 int mt7996_mcu_set_muru_cfg(struct mt7996_phy *phy, void *data);
+int mt7996_mcu_set_sr_pp_en(struct mt7996_dev *dev, u8 enable);
+int mt7996_mcu_set_uba_en(struct mt7996_dev *dev, u8 enable);
+int mt7996_mcu_set_mru_probe_en(struct mt7996_phy *phy);
 
 // TODO:  Control is in vendor.c, consider adding debugfs control.
 int mt7996_mcu_edcca_enable(struct mt7996_phy *phy, bool enable);
@@ -1193,4 +1197,5 @@ static inline void mt7996_set_pse_drop(struct mt7996_dev *dev, bool enable)
 
 int mt7996_mcu_set_qos_map(struct mt7996_dev *dev, struct mt7996_vif_link *mconf,
 			   struct cfg80211_qos_map *usr_qos_map);
+
 #endif

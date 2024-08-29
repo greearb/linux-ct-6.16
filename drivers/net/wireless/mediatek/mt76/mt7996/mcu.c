@@ -6952,6 +6952,12 @@ int mt7996_mcu_set_pp_en(struct mt7996_phy *phy, u8 mode, u16 bitmap)
 	phy->punct_bitmap = bitmap;
 	phy->pp_mode = mode;
 
+#ifdef CONFIG_MTK_DEBUG
+	/* Configuring PP would cause FW to disable MRU Probe by default. */
+	if (is_mt7992(&dev->mt76))
+		phy->mru_probe_enable = false;
+#endif
+
 	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(PP),
 				 &req, sizeof(req), false);
 }
@@ -8503,4 +8509,88 @@ int mt7996_mcu_set_muru_qos_cfg(struct mt7996_dev *dev, u16 wlan_idx, u8 dir,
 
 	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(MURU), &req,
 				 sizeof(req), true);
+}
+
+int mt7996_mcu_set_sr_pp_en(struct mt7996_dev *dev, u8 enable)
+{
+#define SR_PP_MODE 5
+	struct {
+		u8 _rsv1[4];
+
+		__le16 tag;
+		__le16 len;
+
+		__le32 category;
+		__le32 enable;
+		u8 _rsv2[4];
+	} __packed req = {
+		.tag = cpu_to_le16(UNI_CMD_PP_CHANGE_CAP_CTRL),
+		.len = cpu_to_le16(sizeof(req) - 4),
+		.category = cpu_to_le32(SR_PP_MODE),
+		.enable = cpu_to_le32(enable),
+	};
+
+	if (!is_mt7992(&dev->mt76))
+		return -EINVAL;
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(PP),
+				 &req, sizeof(req), false);
+}
+
+int mt7996_mcu_set_uba_en(struct mt7996_dev *dev, u8 enable)
+{
+#define UNI_CMD_RA_OPTION_CTRL 4
+#define UBA_TYPE 3
+	struct {
+		u8 _rsv1[4];
+
+		__le16 tag;
+		__le16 len;
+
+		u8 option_type;
+		u8 val;
+		u8 _rsv2[4];
+	} __packed req = {
+		.tag = cpu_to_le16(UNI_CMD_RA_OPTION_CTRL),
+		.len = cpu_to_le16(sizeof(req) - 4),
+		.option_type = UBA_TYPE,
+		.val = enable,
+	};
+
+	if (!is_mt7992(&dev->mt76))
+		return -EINVAL;
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(RA),
+				 &req, sizeof(req), false);
+}
+
+int mt7996_mcu_set_mru_probe_en(struct mt7996_phy *phy)
+{
+#define MRU_PROBE_MODE 2
+	struct mt7996_dev *dev = phy->dev;
+	struct {
+		u8 _rsv1[4];
+
+		__le16 tag;
+		__le16 len;
+
+		u8 mgmt_mode;
+		u8 band_idx;
+		u8 force_bitmap_ctrl;
+		u8 auto_mode;
+		__le16 bitmap;
+		u8 csa_enable;
+		u8 _rsv2;
+	} __packed req = {
+		.tag = cpu_to_le16(UNI_CMD_PP_EN_CTRL),
+		.len = cpu_to_le16(sizeof(req) - 4),
+		.auto_mode = MRU_PROBE_MODE,
+		.band_idx = phy->mt76->band_idx,
+	};
+
+	if (!is_mt7992(&dev->mt76))
+		return -EINVAL;
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(PP),
+				 &req, sizeof(req), false);
 }
