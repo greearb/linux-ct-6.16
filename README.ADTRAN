@@ -1,0 +1,33 @@
+This page describes some steps to build the Linux Kernel and load it onto the USB card for the
+Adtran SDG 8733 Mediatek 7996 wifi-7 chipset AP.
+
+Set it up to be cross compiled. See arm64a.sh for an example on how to do it.
+In the Linux kernel source directory, copy the example .config file.
+cp -a config-sdg-8734v-ct .config
+make menuconfig    <- Change any settings you wish.
+./build_adtran.bash
+
+The resulting file will be called something like:
+ct6.10.6+.adtran.tar.gz
+
+scp this to the AP, and then un-tar with this command.  You can also
+do it slightly different and copy it on the USB drive from your PC as long as you place
+the files in the correct partitions.
+
+tar --no-same-owner -mhxzf /tmp/ct6.10.6+.adtran.tar.gz
+
+reboot
+
+###
+Some packages you may need to install on Fedora:
+
+dnf install uboot-tools
+dnf install gcc-aarch64-linux-gnu
+
+On Ubuntu, these packages are
+
+gcc-12-aarch64-linux-gnu
+u-boot-tools
+
+Additionally, you will need to run
+ln -s /usr/bin/aarch64-linux-gnu-gcc-12 to /usr/bin/aarch64-linux-gnu-gcc

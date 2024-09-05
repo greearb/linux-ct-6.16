@@ -2,9 +2,6 @@ This page describes some steps to build the Linux Kernel and load it onto the SD
 This Linux kernel will run on the bpi-r4.
 https://openwrt.org/inbox/toh/sinovoip/bananapi_bpi-r4
 
-git clone https://github.com/jcdutton/linux-bpi.git
-git checkout v6.9-rc1-bpi    <- This is the branch that works on the BPI-R4.
-
 Set it up to be cross compiled. See arm64a.sh for an example on how to do it.
 In the Linux kernel source directory, copy the example .config file.
 cp -a config-bpi-r4 .config
