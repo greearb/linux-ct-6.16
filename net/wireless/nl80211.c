@@ -850,6 +850,8 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
 	[NL80211_ATTR_MLO_ATTLM_SWITCH_TIME] = { .type = NLA_U16 },
 	[NL80211_ATTR_MLO_ATTLM_DURATION] = { .type = NLA_U32 },
 	[NL80211_ATTR_MLO_ATTLM_SWITCH_TIME_TSF_TU] = { .type = NLA_U16 },
+	[NL80211_ATTR_MLO_TSF_OFFSET_VAL] =
+		{ .type = NLA_BINARY, .len = IEEE80211_MLD_MAX_NUM_LINKS * sizeof(s64) },
 	[NL80211_ATTR_BSS_DUMP_INCLUDE_USE_DATA] = { .type = NLA_FLAG },
 	[NL80211_ATTR_MLO_TTLM_DLINK] = NLA_POLICY_EXACT_LEN(sizeof(u16) * 8),
 	[NL80211_ATTR_MLO_TTLM_ULINK] = NLA_POLICY_EXACT_LEN(sizeof(u16) * 8),
@@ -20323,6 +20325,41 @@ nla_put_failure:
 	nlmsg_free(msg);
 }
 EXPORT_SYMBOL(cfg80211_attlm_notify);
+
+void cfg80211_tsf_offset_notify(struct wireless_dev *wdev, unsigned int link_id,
+				s64 *tsf_offset, size_t len, gfp_t gfp)
+{
+	struct wiphy *wiphy = wdev->wiphy;
+	struct sk_buff *msg;
+	void *hdr;
+
+	msg = nlmsg_new(NLMSG_DEFAULT_SIZE, gfp);
+	if (!msg)
+		return;
+
+	hdr = nl80211hdr_put(msg, 0, 0, 0, NL80211_CMD_TSF_OFFSET_EVENT);
+	if (!hdr) {
+		nlmsg_free(msg);
+		return;
+	}
+
+	if (wdev->valid_links &&
+	    nla_put_u8(msg, NL80211_ATTR_MLO_LINK_ID, link_id))
+		goto nla_put_failure;
+
+	if (nla_put(msg, NL80211_ATTR_MLO_TSF_OFFSET_VAL, len, tsf_offset))
+		goto nla_put_failure;
+
+	genlmsg_end(msg, hdr);
+
+	genlmsg_multicast_netns(&nl80211_fam, wiphy_net(wiphy), msg, 0,
+				NL80211_MCGRP_MLME, gfp);
+	return;
+
+nla_put_failure:
+	nlmsg_free(msg);
+}
+EXPORT_SYMBOL(cfg80211_tsf_offset_notify);
 
 void
 nl80211_radar_notify(struct cfg80211_registered_device *rdev,

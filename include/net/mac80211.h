@@ -7931,6 +7931,15 @@ void ieee80211_links_removed(struct ieee80211_vif *vif, u16 removed_links);
 unsigned long ieee80211_get_scanning(struct ieee80211_hw *hw);
 
 /**
+ * ieee80211_tsf_offset_notify - Get tsf offset
+ * @vif: interface to be notified
+ * @tsf_offset: The tsf_offset
+ *
+ */
+void ieee80211_tsf_offset_notify(struct ieee80211_vif *vif, unsigned int link_id,
+				 s64 *tsf_offset, size_t len, gfp_t gfp);
+
+/**
  * ieee80211_crit_update_notify - notify mac80211 about the status of a critical update event
  * @vif: &struct ieee80211_vif pointer from the add_interface callback.
  * @link_id: valid link_id during MLO or 0 for non-MLO

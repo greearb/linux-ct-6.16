@@ -5420,6 +5420,14 @@ void ieee80211_attlm_notify(struct ieee80211_vif *vif, u16 switch_time_tsf_tu,
 }
 EXPORT_SYMBOL_GPL(ieee80211_attlm_notify);
 
+void ieee80211_tsf_offset_notify(struct ieee80211_vif *vif, unsigned int link_id,
+				 s64 *tsf_offset, size_t len, gfp_t gfp)
+{
+	cfg80211_tsf_offset_notify(ieee80211_vif_to_wdev(vif), link_id,
+				   tsf_offset, len, gfp);
+}
+EXPORT_SYMBOL_GPL(ieee80211_tsf_offset_notify);
+
 void ieee80211_links_removed(struct ieee80211_vif *vif, u16 removed_links)
 {
 	struct ieee80211_sub_if_data *sdata = vif_to_sdata(vif);
