@@ -576,8 +576,11 @@ int mt7996_mmio_wed_init(struct mt7996_dev *dev, void *pdev_ptr,
 		wed->wlan.reset_complete = mt76_wed_reset_complete;
 	}
 
-	if (mtk_wed_device_attach(wed))
+	if (mtk_wed_device_attach(wed)) {
+		wed_enable = false;
+		dev->has_rro = false;
 		return 0;
+	}
 
 	*irq = wed->irq;
 	dev->mt76.dma_dev = wed->dev;
