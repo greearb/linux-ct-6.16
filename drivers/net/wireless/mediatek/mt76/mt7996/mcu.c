@@ -1875,6 +1875,71 @@ out:
 				     MCU_WMWA_UNI_CMD(BSS_INFO_UPDATE), true);
 }
 
+int mt7996_mcu_get_tsf_offset(struct mt7996_phy *phy,
+			      struct mt7996_vif *mvif,
+			      int rpting_link_id,
+			      int rpted_link_id)
+{
+	struct ieee80211_vif *vif = container_of((void *)mvif, struct ieee80211_vif,
+						 drv_priv);
+	struct mt7996_dev *dev = phy->dev;
+	struct mt7996_vif_link *rpting_conf, *rpted_conf;
+	struct mt7996_mcu_mac_info_tsf_diff *req;
+	struct mt7996_mcu_mac_info_tsf_diff_resp *resp;
+	struct sk_buff *skb, *rskb;
+	struct tlv *tlv;
+	struct {
+		u8 __rsv[4];
+		u8 buf[];
+	} __packed hdr;
+	int len = sizeof(hdr) + sizeof(*req), ret;
+	int32_t tsf0_31, tsf32_63;
+	int64_t tsf_rpted, tsf_rpting, tsf_offset;
+
+	rpted_conf = mt7996_vif_link(dev, vif, rpted_link_id);
+	rpting_conf = mt7996_vif_link(dev, vif, rpting_link_id);
+	if (!rpted_conf || !rpting_conf)
+		return -EINVAL;
+
+	skb = mt76_mcu_msg_alloc(&dev->mt76, NULL, len);
+	if (!skb)
+		return -ENOMEM;
+
+	skb_put_data(skb, &hdr, sizeof(hdr));
+	tlv = mt7996_mcu_add_uni_tlv(skb, UNI_CMD_MAC_INFO_TSF_DIFF, sizeof(*req));
+
+	req = (struct mt7996_mcu_mac_info_tsf_diff *)tlv;
+	req->bss_idx0 = rpted_link_id;
+	req->bss_idx1 = rpting_link_id;
+
+	ret = mt76_mcu_skb_send_and_get_msg(&dev->mt76, skb,
+					    MCU_WM_UNI_CMD(GET_MAC_INFO),
+					    true, &rskb);
+	if (ret)
+		return ret;
+
+	skb_pull(rskb, sizeof(struct mt7996_mcu_mac_info_event));
+	resp = (struct mt7996_mcu_mac_info_tsf_diff_resp *)rskb->data;
+
+	switch(le16_to_cpu(resp->tag)) {
+	case UNI_EVENT_MAC_INFO_TSF_DIFF:
+		tsf0_31 = le32_to_cpu(resp->tsf0_bit0_31);
+		tsf32_63 = le32_to_cpu(resp->tsf0_bit32_63);
+		tsf_rpted = (int64_t)tsf0_31 + ((int64_t)tsf32_63 << 32);
+		tsf0_31 = le32_to_cpu(resp->tsf1_bit0_31);
+		tsf32_63 = le32_to_cpu(resp->tsf1_bit32_63);
+		tsf_rpting = (int64_t)tsf0_31 + ((int64_t)tsf32_63 << 32);
+		tsf_offset = (tsf_rpted - tsf_rpting) / 2;
+		rpted_conf->tsf_offset[rpting_link_id] = tsf_offset;
+		break;
+	default:
+		break;
+	}
+
+	dev_kfree_skb(rskb);
+	return ret;
+}
+
 int mt7996_mcu_set_timing(struct mt7996_phy *phy, struct ieee80211_vif *vif,
 			  struct ieee80211_bss_conf *link_conf)
 {

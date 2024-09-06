@@ -1135,6 +1135,8 @@ int mt7996_mcu_set_pp_alg_ctrl(struct mt7996_phy *phy, u8 action);
 int mt7996_mcu_set_eml_omn(struct ieee80211_vif *vif, u8 link_id,
 			   struct ieee80211_sta *sta, struct mt7996_dev *dev,
 			   struct mt7996_eml_omn *eml_omn);
+int mt7996_mcu_get_tsf_offset(struct mt7996_phy *phy, struct mt7996_vif *mvif,
+			      int rpting_link_id, int rpted_link_id);
 #ifdef CONFIG_MAC80211_DEBUGFS
 void mt7996_sta_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			    struct ieee80211_sta *sta, struct dentry *dir);
@@ -1173,6 +1175,7 @@ void mt7996_mcu_rx_sr_event(struct mt7996_dev *dev, struct sk_buff *skb);
 int mt7996_mcu_get_tx_power_info(struct mt7996_phy *phy, u8 category, void *event);
 int mt7996_mcu_set_lpi_psd(struct mt7996_phy *phy, u8 enable);
 int mt7996_mcu_set_sniffer_mode(struct mt7996_phy *phy, bool enabled);
+int mt7996_vendor_tsf_offset_event(struct mt7996_phy *phy, s64 *tsf_offset, int tsf_len);
 
 #ifdef CONFIG_NET_MEDIATEK_SOC_WED
 int mt7996_dma_rro_init(struct mt7996_dev *dev);

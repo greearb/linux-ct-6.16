@@ -961,6 +961,33 @@ mt7996_vif_cfg_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	mutex_unlock(&dev->mt76.mutex);
 }
 
+static void mt7996_get_tsf_offset(struct ieee80211_vif *vif,
+				  struct mt7996_phy *phy,
+				  struct mt7996_dev *dev)
+{
+	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
+	struct mt7996_vif_link *rpted_mconf;
+	unsigned long valid_links = vif->valid_links;
+	unsigned int rpting_linkid, rpted_linkid;
+
+	for_each_set_bit(rpted_linkid, &valid_links, IEEE80211_MLD_MAX_NUM_LINKS) {
+
+		rpted_mconf = mt7996_vif_link(dev, vif, rpted_linkid);
+		if (!rpted_mconf)
+			return;
+
+		for_each_set_bit(rpting_linkid, &valid_links, IEEE80211_MLD_MAX_NUM_LINKS) {
+
+			if (rpted_linkid == rpting_linkid)
+				continue;
+			mt7996_mcu_get_tsf_offset(phy, mvif, rpting_linkid, rpted_linkid);
+		}
+
+		ieee80211_tsf_offset_notify(vif, rpted_linkid, rpted_mconf->tsf_offset,
+					    sizeof(rpted_mconf->tsf_offset), GFP_KERNEL);
+	}
+}
+
 static void
 mt7996_link_info_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			 struct ieee80211_bss_conf *info, u64 changed)
@@ -1036,6 +1063,9 @@ mt7996_link_info_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		 */
 		if (!info->enable_beacon || !info->csa_active)
 			mt7996_mcu_add_beacon(hw, vif, info, info->enable_beacon);
+
+		if (!info->enable_beacon && hweight16(vif->valid_links) > 1)
+			mt7996_get_tsf_offset(vif, phy, dev);
 	}
 
 	if (changed & (BSS_CHANGED_UNSOL_BCAST_PROBE_RESP |
