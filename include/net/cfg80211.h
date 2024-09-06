@@ -9727,6 +9727,18 @@ int cfg80211_bss_color_notify(struct net_device *dev,
  */
 void cfg80211_attlm_notify(struct wireless_dev *wdev, u16 switch_time_tsf_tu,
 			   enum nl80211_attlm_event event, gfp_t gfp);
+
+/**
+ * cfg80211_tsf_offset_notify - notify about tsf offset
+ * @wdev: the wireless device to receive notification
+ * @link_id: the link ID of the other reported link which would be put in per-sta profile
+ * @tsf_offset: the TSF offset of the reporting links
+ * @len: The len of tsf_offset
+ * @gfp: allocation flags
+ */
+void cfg80211_tsf_offset_notify(struct wireless_dev *wdev, unsigned int link_id,
+				s64 *tsf_offset, size_t len, gfp_t gfp);
+
 /**
  * cfg80211_obss_color_collision_notify - notify about bss color collision
  * @dev: network device
