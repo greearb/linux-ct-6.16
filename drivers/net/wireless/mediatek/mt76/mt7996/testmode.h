@@ -15,18 +15,6 @@ enum {
 	TM_CBW_320MHZ = 12,
 };
 
-/* BW defined in FW hal_cal_flow_rom.h */
-enum {
-	FW_CDBW_20MHZ,
-	FW_CDBW_40MHZ,
-	FW_CDBW_80MHZ,
-	FW_CDBW_160MHZ,
-	FW_CDBW_320MHZ,
-	FW_CDBW_5MHZ,
-	FW_CDBW_10MHZ,
-	FW_CDBW_8080MHZ,
-};
-
 enum bw_mapping_method {
 	BW_MAP_NL_TO_FW,
 	BW_MAP_NL_TO_TM,
