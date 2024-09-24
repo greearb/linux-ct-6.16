@@ -3505,7 +3505,7 @@ int mt7915_mcu_set_txpower_sku(struct mt7915_phy *phy)
 
 	tx_power = mt76_get_power_bound(mphy, hw->conf.power_level);
 	tx_power = mt76_get_rate_power_limits(mphy, mphy->chandef.chan,
-					      &limits_array, tx_power);
+					      &limits_array, NULL, tx_power);
 	mphy->txpower_cur = tx_power;
 
 	for (i = 0, idx = 0; i < ARRAY_SIZE(mt7915_sku_group_len); i++) {
