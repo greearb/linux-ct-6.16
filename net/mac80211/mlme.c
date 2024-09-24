@@ -5523,6 +5523,7 @@ static bool ieee80211_assoc_config_link(struct ieee80211_link_data *link,
 	link->u.mgd.wmm_last_param_set = -1;
 	link->u.mgd.mu_edca_last_param_set = -1;
 
+	//printk("WMM Before Beacon: disable_wmm_tracking=%d link->wmm_last_param_set=0x%.2x\n", link->u.mgd.disable_wmm_tracking, link->u.mgd.wmm_last_param_set);
 	if (link->u.mgd.disable_wmm_tracking) {
 		ieee80211_set_wmm_default(link, false, false);
 	} else if (!ieee80211_sta_wmm_params(local, link, elems->wmm_param,
@@ -5539,6 +5540,7 @@ static bool ieee80211_assoc_config_link(struct ieee80211_link_data *link,
 		 */
 		link->u.mgd.disable_wmm_tracking = true;
 	}
+	//printk("WMM After Beacon: disable_wmm_tracking=%d link->wmm_last_param_set=0x%.2x\n", link->u.mgd.disable_wmm_tracking, link->u.mgd.wmm_last_param_set);
 
 	if (elems->max_idle_period_ie) {
 		bss_conf->max_idle_period =
@@ -7469,12 +7471,16 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_link_data *link,
 
 	ieee80211_mgd_update_bss_param_ch_cnt(sdata, bss_conf, elems);
 
+	//printk("WMM Before Beacon: disable_wmm_tracking=%d link->wmm_last_param_set=0x%.2x\n",
+	//       link->u.mgd.disable_wmm_tracking, link->u.mgd.wmm_last_param_set);
 	if (!sdata->u.mgd.epcs.enabled &&
 	    !link->u.mgd.disable_wmm_tracking &&
 	    ieee80211_sta_wmm_params(local, link, elems->wmm_param,
 				     elems->wmm_param_len,
 				     elems->mu_edca_param_set))
 		changed |= BSS_CHANGED_QOS;
+	//printk("WMM After Beacon: disable_wmm_tracking=%d link->wmm_last_param_set=0x%.2x\n",
+	//       link->u.mgd.disable_wmm_tracking, link->u.mgd.wmm_last_param_set);
 
 	/*
 	 * If we haven't had a beacon before, tell the driver about the
@@ -9555,6 +9561,10 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 					      assoc_data->link[i].conn.bw_limit);
 			if (req->flags & ASSOC_REQ_DISABLE_OFDMA)
 				assoc_data->link[i].conn.conn_flags |= IEEE80211_CONN_DISABLE_OFDMA;
+			if (link && req->flags & ASSOC_REQ_IGNORE_EDCA) {
+				pr_info("cfg80211: %s: Ignoring EDCA\n", sdata->name);
+				link->u.mgd.disable_wmm_tracking = true;
+			}
 
 			ieee80211_determine_our_sta_mode_assoc(sdata, sband,
 							       req, true, i,
@@ -9623,6 +9633,10 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 				      assoc_data->link[0].conn.bw_limit);
 		if (req->flags & ASSOC_REQ_DISABLE_OFDMA)
 			assoc_data->link[0].conn.conn_flags |= IEEE80211_CONN_DISABLE_OFDMA;
+		if (req->flags & ASSOC_REQ_IGNORE_EDCA) {
+			pr_info("cfg80211: %s: Ignoring EDCA\n", sdata->name);
+			sdata->deflink.u.mgd.disable_wmm_tracking = true;
+		}
 
 		ieee80211_determine_our_sta_mode_assoc(sdata, sband, req,
 						       assoc_data->wmm, 0,
