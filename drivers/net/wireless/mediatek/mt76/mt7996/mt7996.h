@@ -337,6 +337,8 @@ struct mt7996_phy {
 
 	bool sku_limit_en;
 	bool sku_path_en;
+
+	bool adjust_txp_by_loss; /* adjust txpower higher based on path-loss reported by radio */
 	bool sr_enable;
 	bool enhanced_sr_enable;
 	u8 pp_mode;
