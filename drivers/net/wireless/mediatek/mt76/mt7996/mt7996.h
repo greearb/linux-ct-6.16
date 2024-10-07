@@ -840,6 +840,7 @@ void mt7996_mcu_rx_sr_event(struct mt7996_dev *dev, struct sk_buff *skb);
 
 int mt7996_mcu_get_tx_power_info(struct mt7996_phy *phy, u8 category, void *event);
 int mt7996_mcu_set_lpi_psd(struct mt7996_phy *phy, u8 enable);
+int mt7996_mcu_set_sniffer_mode(struct mt7996_phy *phy, bool enabled);
 
 #ifdef CONFIG_NET_MEDIATEK_SOC_WED
 int mt7996_dma_rro_init(struct mt7996_dev *dev);
