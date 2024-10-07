@@ -370,6 +370,27 @@ static ssize_t mt7921_write_set_rate_override(struct file *file,
 	/* make sure that buf is null terminated */
 	buf[sizeof(buf) - 1] = 0;
 
+#define MT7921_PARSE_LTOK(a, b)						\
+	do {								\
+		tok = strstr(bufptr, " " #a "=");			\
+		if (tok) {						\
+			char *tspace;					\
+			tok += 1; /* move past initial space */		\
+			strncpy(tmp, tok + strlen(#a "="), sizeof(tmp) - 1); \
+			tmp[sizeof(tmp) - 1] = 0;			\
+			tspace = strstr(tmp, " ");			\
+			if (tspace)					\
+				*tspace = 0;				\
+			if (kstrtol(tmp, 0, &rc) != 0)			\
+				dev_info(dev->mt76.dev,			\
+					 "mt7921: set-rate-override: " #a \
+					 "= could not be parsed, tmp: %s\n", \
+					 tmp);				\
+			else						\
+				td->b = rc;				\
+		}							\
+	} while (0)
+
 	/* drop the possible '\n' from the end */
 	if (buf[count - 1] == '\n')
 		buf[count - 1] = 0;
@@ -395,21 +416,30 @@ static ssize_t mt7921_write_set_rate_override(struct file *file,
 			if (!(mask & 1))
 				continue;
 
+			rcu_read_lock();
 			wcid = rcu_dereference(dev->mt76.wcid[j]);
-			if (!wcid)
+			if (!wcid) {
+				rcu_read_unlock();
 				continue;
+			}
 
 			link_sta = container_of(wcid, struct mt792x_link_sta, wcid);
 			msta = link_sta->sta;
 
 			// TOOD:  Support setting specific link, not just first one we fine.
+			if (!msta->vif) {
+				rcu_read_unlock();
+				continue;
+			}
 
 			vif = container_of((void *)msta->vif, struct ieee80211_vif, drv_priv);
 
 			wdev = ieee80211_vif_to_wdev(vif);
 
-			if (!wdev)
+			if (!wdev || !wdev->netdev) {
+				rcu_read_unlock();
 				continue;
+			}
 
 			snprintf(dev_name_match, sizeof(dev_name_match) - 1, "%s ",
 				 wdev->netdev->name);
@@ -418,8 +448,54 @@ static ssize_t mt7921_write_set_rate_override(struct file *file,
 				vdev_id = j;
 				td = &link_sta->test;
 				bufptr = buf + strlen(dev_name_match) - 1;
-				break;
+
+				MT7921_PARSE_LTOK(tpc, tx_power[0]);
+				MT7921_PARSE_LTOK(sgi, tx_rate_sgi);
+				MT7921_PARSE_LTOK(mcs, tx_rate_idx);
+				MT7921_PARSE_LTOK(nss, tx_rate_nss);
+				MT7921_PARSE_LTOK(pream, tx_rate_mode);
+				MT7921_PARSE_LTOK(retries, tx_xmit_count);
+				MT7921_PARSE_LTOK(dynbw, tx_dynbw);
+				MT7921_PARSE_LTOK(ldpc, tx_rate_ldpc);
+				MT7921_PARSE_LTOK(stbc, tx_rate_stbc);
+				MT7921_PARSE_LTOK(bw, txbw);
+				MT7921_PARSE_LTOK(active, txo_active);
+
+				/* To match Intel's API
+				 * HE 0: 1xLTF+0.8us, 1: 2xLTF+0.8us, 2: 2xLTF+1.6us, 3: 4xLTF+3.2us, 4: 4xLTF+0.8us
+				 */
+				if (td->tx_rate_mode >= 4) {
+					if (td->tx_rate_sgi == 0) {
+						td->tx_rate_sgi = 0;
+						td->tx_ltf = 0;
+					} else if (td->tx_rate_sgi == 1) {
+						td->tx_rate_sgi = 0;
+						td->tx_ltf = 1;
+					} else if (td->tx_rate_sgi == 2) {
+						td->tx_rate_sgi = 1;
+						td->tx_ltf = 1;
+					} else if (td->tx_rate_sgi == 3) {
+						td->tx_rate_sgi = 2;
+						td->tx_ltf = 2;
+					}
+					else {
+						td->tx_rate_sgi = 0;
+						td->tx_ltf = 2;
+					}
+				}
+				//td->tx_ltf = 1; /* 0: HTLTF 3.2us, 1: HELTF, 6.4us, 2 HELTF 12,8us */
+
+				dev_info(dev->mt76.dev,
+					 "mt7921: set-rate-overrides, vdev %i(%s) active=%d tpc=%d sgi=%d ltf=%d mcs=%d"
+					 " nss=%d pream=%d retries=%d dynbw=%d bw=%d ldpc=%d stbc=%d\n",
+					 vdev_id, dev_name_match,
+					 td->txo_active, td->tx_power[0], td->tx_rate_sgi, td->tx_ltf, td->tx_rate_idx,
+					 td->tx_rate_nss, td->tx_rate_mode, td->tx_xmit_count, td->tx_dynbw,
+					 td->txbw, td->tx_rate_ldpc, td->tx_rate_stbc);
+
 			}
+
+			rcu_read_unlock();
 		}
 	}
 
@@ -435,71 +511,6 @@ static ssize_t mt7921_write_set_rate_override(struct file *file,
 		ret = -EINVAL;
 		goto exit;
 	}
-
-#define MT7921_PARSE_LTOK(a, b)					\
-	do {								\
-		tok = strstr(bufptr, " " #a "=");			\
-		if (tok) {						\
-			char *tspace;					\
-			tok += 1; /* move past initial space */		\
-			strncpy(tmp, tok + strlen(#a "="), sizeof(tmp) - 1); \
-			tmp[sizeof(tmp) - 1] = 0;			\
-			tspace = strstr(tmp, " ");			\
-			if (tspace)					\
-				*tspace = 0;				\
-			if (kstrtol(tmp, 0, &rc) != 0)			\
-				dev_info(dev->mt76.dev,			\
-					 "mt7921: set-rate-override: " #a \
-					 "= could not be parsed, tmp: %s\n", \
-					 tmp);				\
-			else						\
-				td->b = rc;				\
-		}							\
-	} while (0)
-
-	MT7921_PARSE_LTOK(tpc, tx_power[0]);
-	MT7921_PARSE_LTOK(sgi, tx_rate_sgi);
-	MT7921_PARSE_LTOK(mcs, tx_rate_idx);
-	MT7921_PARSE_LTOK(nss, tx_rate_nss);
-	MT7921_PARSE_LTOK(pream, tx_rate_mode);
-	MT7921_PARSE_LTOK(retries, tx_xmit_count);
-	MT7921_PARSE_LTOK(dynbw, tx_dynbw);
-	MT7921_PARSE_LTOK(ldpc, tx_rate_ldpc);
-	MT7921_PARSE_LTOK(stbc, tx_rate_stbc);
-	MT7921_PARSE_LTOK(bw, txbw);
-	MT7921_PARSE_LTOK(active, txo_active);
-
-	/* To match Intel's API
-	 * HE 0: 1xLTF+0.8us, 1: 2xLTF+0.8us, 2: 2xLTF+1.6us, 3: 4xLTF+3.2us, 4: 4xLTF+0.8us
-	 */
-	if (td->tx_rate_mode >= 4) {
-		if (td->tx_rate_sgi == 0) {
-			td->tx_rate_sgi = 0;
-			td->tx_ltf = 0;
-		} else if (td->tx_rate_sgi == 1) {
-			td->tx_rate_sgi = 0;
-			td->tx_ltf = 1;
-		} else if (td->tx_rate_sgi == 2) {
-			td->tx_rate_sgi = 1;
-			td->tx_ltf = 1;
-		} else if (td->tx_rate_sgi == 3) {
-			td->tx_rate_sgi = 2;
-			td->tx_ltf = 2;
-		}
-		else {
-			td->tx_rate_sgi = 0;
-			td->tx_ltf = 2;
-		}
-	}
-	//td->tx_ltf = 1; /* 0: HTLTF 3.2us, 1: HELTF, 6.4us, 2 HELTF 12,8us */
-
-	dev_info(dev->mt76.dev,
-		 "mt7921: set-rate-overrides, vdev %i(%s) active=%d tpc=%d sgi=%d ltf=%d mcs=%d"
-		 " nss=%d pream=%d retries=%d dynbw=%d bw=%d ldpc=%d stbc=%d\n",
-		 vdev_id, dev_name_match,
-		 td->txo_active, td->tx_power[0], td->tx_rate_sgi, td->tx_ltf, td->tx_rate_idx,
-		 td->tx_rate_nss, td->tx_rate_mode, td->tx_xmit_count, td->tx_dynbw,
-		 td->txbw, td->tx_rate_ldpc, td->tx_rate_stbc);
 
 	ret = count;
 
