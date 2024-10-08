@@ -3059,9 +3059,12 @@ void mt7996_mac_sta_rc_work(struct work_struct *work)
 
 		link = (struct mt7996_vif_link *)mlink;
 
-		if (changed & (IEEE80211_RC_SUPP_RATES_CHANGED |
-			       IEEE80211_RC_NSS_CHANGED |
-			       IEEE80211_RC_BW_CHANGED))
+		if (changed & IEEE80211_RC_VHT_OMN_CHANGED)
+			mt7996_mcu_set_fixed_field(dev, link_sta, link, msta_link,
+						   NULL, RATE_PARAM_VHT_OMN_UPDATE);
+		else if (changed & (IEEE80211_RC_SUPP_RATES_CHANGED |
+				    IEEE80211_RC_NSS_CHANGED |
+				    IEEE80211_RC_BW_CHANGED))
 			mt7996_mcu_add_rate_ctrl(dev, vif, link_conf,
 						 link_sta, link, msta_link,
 						 true);
