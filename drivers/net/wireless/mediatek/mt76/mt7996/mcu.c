@@ -2897,6 +2897,41 @@ int mt7996_mcu_set_fixed_field(struct mt7996_dev *dev, struct mt7996_sta *msta,
 		ra->mmps_mode = mt7996_mcu_get_mmps_mode(link_sta->smps_mode);
 		break;
 	}
+	case RATE_PARAM_VHT_OMN_UPDATE: {
+		struct ieee80211_sta *sta = wcid_to_sta(&msta_link->wcid);
+		struct ieee80211_link_sta *link_sta;
+
+		link_sta = rcu_dereference(sta->link[link_id]);
+		if (!link_sta) {
+			dev_kfree_skb(skb);
+			goto error_unlock;
+		}
+
+		ra->op_mode = true;
+		switch (link_sta->bandwidth) {
+			case IEEE80211_STA_RX_BW_20:
+				ra->op_vht_chan_width =
+					IEEE80211_OPMODE_NOTIF_CHANWIDTH_20MHZ;
+				break;
+			case IEEE80211_STA_RX_BW_40:
+				ra->op_vht_chan_width =
+					IEEE80211_OPMODE_NOTIF_CHANWIDTH_40MHZ;
+				break;
+			case IEEE80211_STA_RX_BW_80:
+				ra->op_vht_chan_width =
+					IEEE80211_OPMODE_NOTIF_CHANWIDTH_80MHZ;
+				break;
+			case IEEE80211_STA_RX_BW_160:
+				ra->op_vht_chan_width =
+					IEEE80211_OPMODE_NOTIF_CHANWIDTH_160MHZ;
+				break;
+			default:
+				return 0;
+		}
+		ra->op_vht_rx_nss = link_sta->rx_nss > 0 ? link_sta->rx_nss - 1 : 0;
+		ra->op_vht_rx_nss_type = 0;
+		break;
+	}
 	default:
 		break;
 	}
@@ -3038,10 +3073,12 @@ mt7996_mcu_sta_rate_ctrl_tlv(struct sk_buff *skb, struct mt7996_dev *dev,
 			     struct mt7996_vif_link *link)
 {
 #define INIT_RCPI 180
+	enum ieee80211_sta_rx_bandwidth cap_bw = ieee80211_link_sta_cap_bw(link_sta);
 	struct mt76_phy *mphy = link->phy->mt76;
 	struct cfg80211_chan_def *chandef = &mphy->chandef;
 	struct cfg80211_bitrate_mask *mask = &link->bitrate_mask;
 	u32 cap = link_sta->sta->wme ? STA_CAP_WMM : 0;
+	u8 cap_nss = ieee80211_link_sta_cap_nss(link_sta);
 	enum nl80211_band band = chandef->chan->band;
 	struct sta_rec_ra_uni *ra;
 	struct tlv *tlv;
@@ -3054,10 +3091,13 @@ mt7996_mcu_sta_rate_ctrl_tlv(struct sk_buff *skb, struct mt7996_dev *dev,
 	ra->auto_rate = true;
 	ra->phy_mode = mt76_connac_get_phy_mode(mphy, vif, band, link_sta);
 	ra->channel = chandef->chan->hw_value;
-	ra->bw = (link_sta->bandwidth == IEEE80211_STA_RX_BW_320) ?
-		 CMD_CBW_320MHZ : link_sta->bandwidth;
-	ra->phy.bw = ra->bw;
+	ra->bw = mt76_connac_chan_bw(chandef);
+	ra->phy.bw = (cap_bw == IEEE80211_STA_RX_BW_320) ? CMD_CBW_320MHZ : cap_bw;
 	ra->mmps_mode = mt7996_mcu_get_mmps_mode(link_sta->smps_mode);
+	ra->op_mode = cap_bw != link_sta->bandwidth || cap_nss != link_sta->rx_nss;
+	ra->op_vht_chan_width = link_sta->bandwidth;
+	ra->op_vht_rx_nss = link_sta->rx_nss - 1;
+	ra->op_vht_rx_nss_type = 0;
 
 	if (supp_rate) {
 		supp_rate &= mask->control[band].legacy;

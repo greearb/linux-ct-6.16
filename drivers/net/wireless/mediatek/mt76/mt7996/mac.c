@@ -3006,10 +3006,14 @@ void mt7996_mac_sta_rc_work(struct work_struct *work)
 {
 	struct mt7996_dev *dev = container_of(work, struct mt7996_dev, rc_work);
 	struct mt7996_sta_link *msta_link;
+	struct mt7996_vif_link *link;
+	struct mt76_vif_link *mlink;
+	struct ieee80211_sta *sta;
 	struct ieee80211_vif *vif;
 	struct mt7996_vif *mvif;
 	LIST_HEAD(list);
 	u32 changed;
+	u8 link_id;
 
 	spin_lock_bh(&dev->mt76.sta_poll_lock);
 	list_splice_init(&dev->sta_rc_list, &list);
@@ -3021,15 +3025,27 @@ void mt7996_mac_sta_rc_work(struct work_struct *work)
 
 		changed = msta_link->changed;
 		msta_link->changed = 0;
+		sta = wcid_to_sta(&msta_link->wcid);
+		link_id = msta_link->wcid.link_id;
 		mvif = msta_link->sta->vif;
 		vif = container_of((void *)mvif, struct ieee80211_vif,
 				   drv_priv);
 
+		mlink = rcu_dereference(mvif->mt76.link[link_id]);
+		if (!mlink)
+			continue;
+
 		spin_unlock_bh(&dev->mt76.sta_poll_lock);
 
-		if (changed & (IEEE80211_RC_SUPP_RATES_CHANGED |
-			       IEEE80211_RC_NSS_CHANGED |
-			       IEEE80211_RC_BW_CHANGED))
+		link = (struct mt7996_vif_link *)mlink;
+
+		if (changed & IEEE80211_RC_VHT_OMN_CHANGED)
+			mt7996_mcu_set_fixed_field(dev, msta_link->sta, NULL,
+						   msta_link->wcid.link_id,
+						   RATE_PARAM_VHT_OMN_UPDATE);
+		else if (changed & (IEEE80211_RC_SUPP_RATES_CHANGED |
+				    IEEE80211_RC_NSS_CHANGED |
+				    IEEE80211_RC_BW_CHANGED))
 			mt7996_mcu_add_rate_ctrl(dev, msta_link->sta, vif,
 						 msta_link->wcid.link_id,
 						 true);
