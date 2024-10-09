@@ -3842,6 +3842,9 @@ enum ieee80211_rate_control_changed {
 	IEEE80211_RC_SMPS_CHANGED	= BIT(1),
 	IEEE80211_RC_SUPP_RATES_CHANGED	= BIT(2),
 	IEEE80211_RC_NSS_CHANGED	= BIT(3),
+	/* Defined for mtk vendor command */
+	IEEE80211_RC_VHT_OMN_CHANGED	= BIT(6),
+	IEEE80211_RC_CODING_TYPE_CHANGED= BIT(7),
 };
 
 /**
@@ -7951,4 +7954,18 @@ void ieee80211_tsf_offset_notify(struct ieee80211_vif *vif, unsigned int link_id
  */
 void ieee80211_crit_update_notify(struct ieee80211_vif *vif, unsigned int link_id,
 				  enum nl80211_crit_update_event event, gfp_t gfp);
+
+/**
+ * ieee80211_link_sta_cap_bw - get link STA's bandwidth capability.
+ * @pub: STA's public link specific information
+ */
+enum ieee80211_sta_rx_bandwidth
+ieee80211_link_sta_cap_bw(struct ieee80211_link_sta *pub);
+
+/**
+ * ieee80211_link_sta_cap_nss - get link STA's spatial streaming capability.
+ * @pub: STA's public link specific information
+ */
+u8 ieee80211_link_sta_cap_nss(struct ieee80211_link_sta *pub);
+
 #endif /* MAC80211_H */
