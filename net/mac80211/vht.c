@@ -453,6 +453,37 @@ _ieee80211_sta_cap_rx_bw(struct link_sta_info *link_sta,
 		   link_sta->rx_omi_bw_rx);
 }
 
+enum ieee80211_sta_rx_bandwidth
+ieee80211_link_sta_cap_bw(struct ieee80211_link_sta *pub)
+{
+	struct sta_info *sta = container_of(pub->sta, struct sta_info, sta);
+	enum ieee80211_sta_rx_bandwidth bw;
+	struct link_sta_info *link_sta;
+
+	rcu_read_lock();
+	link_sta = rcu_dereference(sta->link[pub->link_id]);
+	bw = ieee80211_sta_cap_rx_bw(link_sta);
+	rcu_read_unlock();
+
+	return bw;
+}
+EXPORT_SYMBOL(ieee80211_link_sta_cap_bw);
+
+u8 ieee80211_link_sta_cap_nss(struct ieee80211_link_sta *pub)
+{
+	struct sta_info *sta = container_of(pub->sta, struct sta_info, sta);
+	struct link_sta_info *link_sta;
+	u8 nss;
+
+	rcu_read_lock();
+	link_sta = rcu_dereference(sta->link[pub->link_id]);
+	nss = link_sta->capa_nss;
+	rcu_read_unlock();
+
+	return nss;
+}
+EXPORT_SYMBOL(ieee80211_link_sta_cap_nss);
+
 enum nl80211_chan_width
 ieee80211_sta_cap_chan_bw(struct link_sta_info *link_sta)
 {
@@ -776,6 +807,7 @@ void ieee80211_vht_handle_opmode(struct ieee80211_sub_if_data *sdata,
 						    opmode, band);
 
 	if (changed > 0) {
+		changed |= IEEE80211_RC_VHT_OMN_CHANGED;
 		ieee80211_recalc_min_chandef(sdata, link_sta->link_id);
 		rate_control_rate_update(local, sband, link_sta, changed);
 	}
