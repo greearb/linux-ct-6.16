@@ -687,6 +687,9 @@ IWL_EXPORT_SYMBOL(iwl_trans_stop_device);
 int iwl_trans_tx(struct iwl_trans *trans, struct sk_buff *skb,
 		 struct iwl_device_tx_cmd *dev_cmd, int queue)
 {
+	struct iwl_tx_cb *cb = iwl_tx_skb_cb(skb);
+	int rv;
+
 	if (unlikely(test_bit(STATUS_FW_ERROR, &trans->status)))
 		return -EIO;
 
@@ -694,10 +697,17 @@ int iwl_trans_tx(struct iwl_trans *trans, struct sk_buff *skb,
 		      "bad state = %d\n", trans->state))
 		return -EIO;
 
-	if (trans->mac_cfg->gen2)
-		return iwl_txq_gen2_tx(trans, skb, dev_cmd, queue);
+	cb->flags |= (IWL_TX_CB_INUSE | IWL_TX_CB_EVER_INUSE); /* owned by firmware/NIC */
+	if (trans->mac_cfg->gen2) {
+		rv = iwl_txq_gen2_tx(trans, skb, dev_cmd, queue);
+		goto out;
+	}
 
-	return iwl_trans_pcie_tx(trans, skb, dev_cmd, queue);
+	rv = iwl_trans_pcie_tx(trans, skb, dev_cmd, queue);
+out:
+	if (rv < 0)
+		cb->flags &= ~(IWL_TX_CB_INUSE);
+	return rv;
 }
 IWL_EXPORT_SYMBOL(iwl_trans_tx);
 
