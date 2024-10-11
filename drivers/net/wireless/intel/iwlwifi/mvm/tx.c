@@ -2426,6 +2426,17 @@ out:
 
 	while (!skb_queue_empty(&reclaimed_skbs)) {
 		skb = __skb_dequeue(&reclaimed_skbs);
+		{ /* debug potential double free? */
+			struct iwl_tx_cb *cb = iwl_tx_skb_cb(skb);
+			if ((cb->flags & IWL_TX_CB_EVER_INUSE) && !(cb->flags & IWL_TX_CB_INUSE)) {
+				WARN_ON(1);
+
+				pr_err("ERROR: skb: %p appears to not be in use, silently dropping pointer, ever-inuse: 0x%x\n",
+				       skb, !!(cb->flags & IWL_TX_CB_EVER_INUSE));
+				continue;
+			}
+			cb->flags &= ~(IWL_TX_CB_INUSE);
+		}
 		ieee80211_tx_status_skb(mvm->hw, skb);
 	}
 }
