@@ -920,8 +920,8 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 {
 	bool is_ap = iftype_data->types_mask & (BIT(NL80211_IFTYPE_AP) |
 						BIT(NL80211_IFTYPE_P2P_GO));
-	bool slow_pcie = (!trans->mac_cfg->integrated &&
-			  trans->info.pcie_link_speed < PCI_EXP_LNKSTA_CLS_8_0GB);
+	//bool slow_pcie = (!trans->mac_cfg->integrated &&
+	//		  trans->info.pcie_link_speed < PCI_EXP_LNKSTA_CLS_8_0GB);
 
 	if (!data->sku_cap_11be_enable || iwlwifi_mod_params.disable_11be)
 		iftype_data->eht_cap.has_eht = false;
@@ -992,6 +992,8 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 			}
 		}
 
+#if 0
+		/* Don't disable rates, even on slow pcie. --Ben */
 		if (slow_pcie) {
 			struct ieee80211_eht_mcs_nss_supp *mcs_nss =
 				&iftype_data->eht_cap.eht_mcs_nss_supp;
@@ -999,6 +1001,7 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 			mcs_nss->bw._320.rx_tx_mcs11_max_nss = 0;
 			mcs_nss->bw._320.rx_tx_mcs13_max_nss = 0;
 		}
+#endif
 	} else {
 		struct ieee80211_he_mcs_nss_supp *he_mcs_nss_supp =
 			&iftype_data->he_cap.he_mcs_nss_supp;
@@ -1097,6 +1100,9 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 	if (trans->step_urm) {
 		iftype_data->eht_cap.eht_mcs_nss_supp.bw._320.rx_tx_mcs11_max_nss = 0;
 		iftype_data->eht_cap.eht_mcs_nss_supp.bw._320.rx_tx_mcs13_max_nss = 0;
+
+		IWL_ERR(trans, "Disabling 320Mhz, trans->setp_urm: %d\n",
+			trans->step_urm);
 	}
 
 	if (trans->cfg->bw_limit && trans->cfg->bw_limit < 160)
@@ -1116,6 +1122,8 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 		iftype_data->eht_cap.eht_mcs_nss_supp.bw._160.rx_tx_mcs13_max_nss = 0;
 		iftype_data->eht_cap.eht_cap_elem.phy_cap_info[8] &=
 			~IEEE80211_EHT_PHY_CAP8_RX_4096QAM_WIDER_BW_DL_OFDMA;
+		IWL_ERR(trans, "Disabling 320Mhz, reduced-cap-sku: %d\n",
+			trans->reduced_cap_sku);
 	}
 }
 
