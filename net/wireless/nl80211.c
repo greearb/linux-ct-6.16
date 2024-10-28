@@ -16982,16 +16982,20 @@ nl80211_set_ttlm(struct sk_buff *skb, struct genl_info *info)
 	if (!wdev->connected)
 		return -ENOLINK;
 
-	if (!info->attrs[NL80211_ATTR_MLO_TTLM_DLINK] ||
-	    !info->attrs[NL80211_ATTR_MLO_TTLM_ULINK])
+	if (info->attrs[NL80211_ATTR_MLO_TTLM_DLINK] &&
+	    info->attrs[NL80211_ATTR_MLO_TTLM_ULINK]) {
+		nla_memcpy(params.dlink,
+			   info->attrs[NL80211_ATTR_MLO_TTLM_DLINK],
+			   sizeof(params.dlink));
+		nla_memcpy(params.ulink,
+			   info->attrs[NL80211_ATTR_MLO_TTLM_ULINK],
+			   sizeof(params.ulink));
+	} else if (!info->attrs[NL80211_ATTR_MLO_TTLM_DLINK] &&
+		   !info->attrs[NL80211_ATTR_MLO_TTLM_ULINK]) {
+		params.is_teardown = true;
+	} else {
 		return -EINVAL;
-
-	nla_memcpy(params.dlink,
-		   info->attrs[NL80211_ATTR_MLO_TTLM_DLINK],
-		   sizeof(params.dlink));
-	nla_memcpy(params.ulink,
-		   info->attrs[NL80211_ATTR_MLO_TTLM_ULINK],
-		   sizeof(params.ulink));
+	}
 
 	return rdev_set_ttlm(rdev, dev, &params);
 }

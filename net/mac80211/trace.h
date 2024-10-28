@@ -3327,6 +3327,23 @@ DEFINE_EVENT(local_sdata_evt, drv_set_qos_map,
 	TP_ARGS(local, sdata)
 );
 
+TRACE_EVENT(drv_set_ttlm,
+	TP_PROTO(struct ieee80211_local *local,
+		 struct ieee80211_sub_if_data *sdata),
+
+	TP_ARGS(local, sdata),
+
+	TP_STRUCT__entry(LOCAL_ENTRY
+			 VIF_ENTRY
+	),
+
+	TP_fast_assign(LOCAL_ASSIGN;
+		       VIF_ASSIGN;
+	),
+
+	TP_printk(LOCAL_PR_FMT  VIF_PR_FMT, LOCAL_PR_ARG, VIF_PR_ARG)
+);
+
 TRACE_EVENT(drv_set_sta_ttlm,
 	TP_PROTO(struct ieee80211_local *local,
 		 struct ieee80211_sub_if_data *sdata,

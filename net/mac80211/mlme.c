@@ -6950,6 +6950,8 @@ static void ieee80211_tid_to_link_map_work(struct wiphy *wiphy,
 		container_of(work, struct ieee80211_sub_if_data,
 			     u.mgd.ttlm_work.work);
 
+	lockdep_assert_wiphy(sdata->local->hw.wiphy);
+
 	new_active_links = sdata->vif.adv_ttlm.map &
 			   sdata->vif.valid_links;
 	new_dormant_links = ~sdata->vif.adv_ttlm.map &
@@ -6963,6 +6965,9 @@ static void ieee80211_tid_to_link_map_work(struct wiphy *wiphy,
 		sdata->vif.adv_ttlm.active = false;
 		return;
 	}
+
+	if (drv_set_ttlm(sdata->local, sdata))
+		ieee80211_disconnect(&sdata->vif, false);
 }
 
 static u16 ieee80211_get_ttlm(u8 bm_size, u8 *data)
@@ -7083,9 +7088,8 @@ static void ieee80211_process_adv_ttlm(struct ieee80211_sub_if_data *sdata,
 				return;
 			}
 			sdata->vif.adv_ttlm.active = false;
-			ieee80211_vif_cfg_change_notify(sdata,
-							BSS_CHANGED_MLD_VALID_LINKS |
-							BSS_CHANGED_MLD_ADV_TTLM);
+			if (drv_set_ttlm(sdata->local, sdata))
+				ieee80211_disconnect(&sdata->vif, false);
 		}
 		memset(&sdata->vif.adv_ttlm, 0,
 		       sizeof(sdata->vif.adv_ttlm));
@@ -7140,6 +7144,13 @@ static void ieee80211_process_adv_ttlm(struct ieee80211_sub_if_data *sdata,
 				delay_jiffies = 0;
 
 			sdata->vif.adv_ttlm = ttlm_info;
+
+			/* FIXME do Neg-TTLM teardown to prevent overlap
+			 * with Adv-TTLM
+			 */
+			if (sdata->vif.neg_ttlm.valid)
+				ieee80211_teardown_neg_ttlm(sdata);
+
 			wiphy_delayed_work_cancel(sdata->local->hw.wiphy,
 						  &sdata->u.mgd.ttlm_work);
 			wiphy_delayed_work_queue(sdata->local->hw.wiphy,
@@ -7630,6 +7641,7 @@ static void ieee80211_apply_neg_ttlm(struct ieee80211_sub_if_data *sdata,
 
 	sdata->vif.neg_ttlm = neg_ttlm;
 	sdata->vif.neg_ttlm.valid = true;
+	drv_set_ttlm(sdata->local, sdata);
 }
 
 static void ieee80211_neg_ttlm_timeout_work(struct wiphy *wiphy,
@@ -7756,6 +7768,20 @@ int ieee80211_req_neg_ttlm(struct ieee80211_sub_if_data *sdata,
 	wiphy_delayed_work_queue(sdata->local->hw.wiphy,
 				 &sdata->u.mgd.neg_ttlm_timeout_work,
 				 IEEE80211_NEG_TTLM_REQ_TIMEOUT);
+	return 0;
+}
+
+int ieee80211_teardown_neg_ttlm(struct ieee80211_sub_if_data *sdata)
+{
+	if (!ieee80211_vif_is_mld(&sdata->vif) ||
+	    !(sdata->vif.cfg.mld_capa_op &
+	      IEEE80211_MLD_CAP_OP_TID_TO_LINK_MAP_NEG_SUPP))
+		return -EINVAL;
+
+	ieee80211_send_teardown_neg_ttlm(&sdata->vif);
+	wiphy_work_queue(sdata->local->hw.wiphy,
+			 &sdata->u.mgd.teardown_ttlm_work);
+
 	return 0;
 }
 
@@ -7988,8 +8014,7 @@ void ieee80211_process_ttlm_teardown(struct ieee80211_sub_if_data *sdata)
 	sdata->vif.suspended_links = 0;
 	ieee80211_vif_set_links(sdata, sdata->vif.valid_links,
 				new_dormant_links);
-	ieee80211_vif_cfg_change_notify(sdata, BSS_CHANGED_MLD_NEG_TTLM |
-					       BSS_CHANGED_MLD_VALID_LINKS);
+	drv_set_ttlm(sdata->local, sdata);
 }
 
 static void ieee80211_teardown_ttlm_work(struct wiphy *wiphy,

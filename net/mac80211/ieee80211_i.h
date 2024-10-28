@@ -2837,6 +2837,7 @@ void ieee80211_process_neg_ttlm_res(struct ieee80211_sub_if_data *sdata,
 int ieee80211_req_neg_ttlm(struct ieee80211_sub_if_data *sdata,
 			   struct cfg80211_ttlm_params *params);
 void ieee80211_process_ttlm_teardown(struct ieee80211_sub_if_data *sdata);
+int ieee80211_teardown_neg_ttlm(struct ieee80211_sub_if_data *sdata);
 
 void ieee80211_check_wbrf_support(struct ieee80211_local *local);
 void ieee80211_add_wbrf(struct ieee80211_local *local, struct cfg80211_chan_def *chandef);

@@ -4564,6 +4564,7 @@ struct ieee80211_prep_tx_info {
  *	flow offloading for flows originating from the vif.
  *	Note that the driver must not assume that the vif driver_data is valid
  *	at this point, since the callback can be called during netdev teardown.
+ * @set_ttlm: For non-AP MLD, set its own TTLM.
  * @set_sta_ttlm: For AP MLD, set a specific non-AP MLD's TID-To-Link mapping.
  * @set_attlm: For AP MLD to request a advertised TID-To-Link mapping.
  * @can_neg_ttlm: for managed interface, requests the driver to determine
@@ -4965,6 +4966,7 @@ struct ieee80211_ops {
 			    struct net_device *dev,
 			    enum tc_setup_type type,
 			    void *type_data);
+	int (*set_ttlm)(struct ieee80211_hw *hw, struct ieee80211_vif *vif);
 	int (*set_sta_ttlm)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			    struct ieee80211_sta *sta,
 			    struct ieee80211_neg_ttlm *neg_ttlm);

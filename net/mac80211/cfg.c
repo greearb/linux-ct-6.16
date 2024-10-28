@@ -5414,7 +5414,9 @@ ieee80211_set_ttlm(struct wiphy *wiphy, struct net_device *dev,
 
 	lockdep_assert_wiphy(sdata->local->hw.wiphy);
 
-	return ieee80211_req_neg_ttlm(sdata, params);
+	return params->is_teardown ?
+		ieee80211_teardown_neg_ttlm(sdata) :
+		ieee80211_req_neg_ttlm(sdata, params);
 }
 
 static int
