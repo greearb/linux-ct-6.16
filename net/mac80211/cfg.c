@@ -1685,11 +1685,11 @@ static int ieee80211_stop_ap(struct wiphy *wiphy, struct net_device *dev,
 
 	ieee80211_free_next_beacon(link);
 
-	/* turn off carrier for this interface and dependent VLANs */
-	list_for_each_entry(vlan, &sdata->u.ap.vlans, u.vlan.list)
-		netif_carrier_off(vlan->dev);
-
 	if (ieee80211_num_beaconing_links(sdata) <= 1) {
+		/* turn off carrier for this interface and dependent VLANs */
+		list_for_each_entry(vlan, &sdata->u.ap.vlans, u.vlan.list)
+			netif_carrier_off(vlan->dev);
+
 		netif_carrier_off(dev);
 		sdata->u.ap.active = false;
 	}
