@@ -1783,6 +1783,19 @@ static inline int drv_set_qos_map(struct ieee80211_local *local,
 	return ret;
 }
 
+static inline int drv_set_ttlm(struct ieee80211_local *local,
+			       struct ieee80211_sub_if_data *sdata)
+{
+	int ret = -EOPNOTSUPP;
+
+	trace_drv_set_ttlm(local, sdata);
+	if (local->ops->set_ttlm)
+		ret = local->ops->set_ttlm(&local->hw, &sdata->vif);
+	trace_drv_return_int(local, ret);
+
+	return ret;
+}
+
 static inline int drv_set_sta_ttlm(struct ieee80211_local *local,
 				   struct ieee80211_sub_if_data *sdata,
 				   struct ieee80211_sta *sta,
