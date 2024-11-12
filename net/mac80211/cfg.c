@@ -3018,6 +3018,8 @@ static int ieee80211_scan(struct wiphy *wiphy,
 		break;
 	case NL80211_IFTYPE_NAN:
 	default:
+		sdata_info(sdata, "Scan failed, incorrect vif type: %d\n",
+			   ieee80211_vif_type_p2p(&sdata->vif));
 		return -EOPNOTSUPP;
 	}
 

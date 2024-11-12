@@ -1070,9 +1070,14 @@ int cfg80211_scan(struct cfg80211_registered_device *rdev)
 	struct cfg80211_scan_request *request;
 	struct cfg80211_scan_request *rdev_req = rdev->scan_req;
 	u32 n_channels = 0, idx, i;
+	int rv;
 
-	if (!(rdev->wiphy.flags & WIPHY_FLAG_SPLIT_SCAN_6GHZ))
-		return rdev_scan(rdev, rdev_req);
+	if (!(rdev->wiphy.flags & WIPHY_FLAG_SPLIT_SCAN_6GHZ)) {
+		rv = rdev_scan(rdev, rdev_req);
+		if (rv)
+			pr_err("cfg80211-scan: rdev-scan, no SPLIT_SCAN_6GHZ: %d\n", rv);
+		return rv;
+	}
 
 	for (i = 0; i < rdev_req->n_channels; i++) {
 		if (rdev_req->channels[i]->band != NL80211_BAND_6GHZ)
@@ -1080,7 +1085,7 @@ int cfg80211_scan(struct cfg80211_registered_device *rdev)
 	}
 
 	if (!n_channels) {
-		int rv = cfg80211_scan_6ghz(rdev);
+		rv = cfg80211_scan_6ghz(rdev);
 		if (rv)
 			pr_err("cfg80211-scan: cfg80211_scan_6ghz failed: %d\n", rv);
 		return rv;
