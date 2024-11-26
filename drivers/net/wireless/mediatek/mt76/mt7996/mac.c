@@ -53,6 +53,7 @@ static const struct mt7996_dfs_radar_spec jp_radar_specs = {
 };
 
 static void mt7996_scan_rx(struct mt7996_phy *phy);
+static void mt7996_rx_beacon_hint(struct mt7996_phy *phy, struct mt7996_vif *mvif);
 
 static struct mt76_wcid *mt7996_rx_get_wcid(struct mt7996_dev *dev,
 					    u16 idx, u8 band_idx)
@@ -807,28 +808,16 @@ mt7996_mac_fill_rx(struct mt7996_dev *dev, enum mt76_rxq_id q,
 		} else if (ieee80211_is_beacon(fc)) {
 			struct ieee80211_hw *hw = phy->mt76->hw;
 			struct ieee80211_sta *sta;
-			struct mt7996_sta *msta;
-			unsigned int link_id = 0;
 
-			sta = ieee80211_find_sta_by_link_addrs(hw, hdr->addr2, NULL, &link_id);
+			sta = ieee80211_find_sta_by_link_addrs(hw, hdr->addr2, NULL, NULL);
 			if (!sta)
 				sta = ieee80211_find_sta_by_ifaddr(hw, hdr->addr2, NULL);
 
 			if (sta) {
 				msta = (struct mt7996_sta *)sta->drv_priv;
-				if (msta && msta->vif) {
-					msta->vif->beacon_received_time[band_idx] = jiffies;
-					/* FIXME: This is a temporary workaround.
-					 * Lost links should be resumed via TTLM or
-					 * link reconfig.
-					 */
-					if (msta->vif->lost_links & BIT(link_id)) {
-						msta->vif->lost_links &= ~BIT(link_id);
-						wiphy_info(hw->wiphy,
-							   "link %d: resume beacon monitoring\n",
-							   link_id);
-					}
-				}
+
+				if (msta && msta->vif)
+					mt7996_rx_beacon_hint(phy, msta->vif);
 			}
 		}
 		skb_set_mac_header(skb, (unsigned char *)hdr - skb->data);
@@ -3537,6 +3526,41 @@ static void mt7996_scan_rx(struct mt7996_phy *phy)
 	}
 }
 
+static void
+mt7996_rx_beacon_hint(struct mt7996_phy *phy, struct mt7996_vif *mvif)
+{
+	struct mt7996_dev *dev = phy->dev;
+	struct mt7996_vif_link *mconf;
+	int band_idx = phy->mt76->band_idx;
+	unsigned int link_id = mvif->mt76.band_to_link[band_idx];
+
+	mvif->beacon_received_time[band_idx] = jiffies;
+
+	if (link_id >= IEEE80211_LINK_UNSPECIFIED)
+		return;
+
+	if (mvif->lost_links & BIT(link_id)) {
+		mvif->lost_links &= ~BIT(link_id);
+		mt76_dbg(&dev->mt76, MT76_DBG_STA,
+			 "%s: link %d: resume beacon monitoring\n",
+			 __func__, link_id);
+	}
+
+	mconf = (struct mt7996_vif_link *)rcu_dereference(mvif->mt76.link[link_id]);
+	if (!mconf) {
+		mvif->tx_paused_links &= ~BIT(link_id);
+		return;
+	}
+
+	/* resume TX */
+	if (mconf->state == MT7996_STA_CHSW_PAUSE_TX &&
+	    mconf->next_state != MT7996_STA_CHSW_RESUME_TX) {
+		mconf->next_state = MT7996_STA_CHSW_RESUME_TX;
+		cancel_delayed_work(&mconf->sta_chsw_work);
+		ieee80211_queue_delayed_work(phy->mt76->hw, &mconf->sta_chsw_work, 0);
+	}
+}
+
 static int
 mt7996_beacon_mon_send_probe(struct mt7996_phy *phy, struct mt7996_vif *mvif,
 			     struct ieee80211_bss_conf *conf, unsigned int link_id)
@@ -3629,8 +3653,10 @@ void mt7996_beacon_mon_work(struct work_struct *work)
 		struct mt7996_vif_link *mconf;
 		struct mt7996_phy *phy;
 		unsigned long timeout, loss_duration;
-		int band_idx;
+		int ret, band_idx;
 		enum monitor_state state = MON_STATE_BEACON_MON;
+		bool tx_paused = mvif->tx_paused_links & BIT(link_id);
+		char lost_reason[64];
 
 		conf = link_conf_dereference_protected(vif, link_id);
 		mconf = mt7996_vif_link(dev, vif, link_id);
@@ -3657,8 +3683,9 @@ void mt7996_beacon_mon_work(struct work_struct *work)
 							 conf->beacon_int);
 			timeout = mvif->beacon_received_time[band_idx] + loss_duration;
 			if (time_after_eq(jiffies, timeout)) {
-				wiphy_info(hw->wiphy, "link %d: detect %d beacon loss\n",
-					   link_id, MT7996_MAX_BEACON_LOSS);
+				mt76_dbg(&dev->mt76, MT76_DBG_STA,
+					 "%s: link %d: detect %d beacon loss\n",
+					 __func__, link_id, MT7996_MAX_BEACON_LOSS);
 				state = MON_STATE_SEND_PROBE;
 			}
 		}
@@ -3667,41 +3694,139 @@ void mt7996_beacon_mon_work(struct work_struct *work)
 		case MON_STATE_BEACON_MON:
 			break;
 		case MON_STATE_SEND_PROBE:
-			if (!mt7996_beacon_mon_send_probe(phy, mvif, conf, link_id)) {
-				timeout = MT7996_MAX_PROBE_TIMEOUT +
-					  mvif->probe_send_time[band_idx];
-				wiphy_info(hw->wiphy,
-					   "link %d: send nullfunc to AP %pM, try %d/%d\n",
-					   link_id, conf->bssid,
-					   mvif->probe_send_count[band_idx],
-					   MT7996_MAX_PROBE_TRIES);
-				break;
+			if (!tx_paused) {
+				ret = mt7996_beacon_mon_send_probe(phy, mvif, conf, link_id);
+				if (!ret) {
+					timeout = MT7996_MAX_PROBE_TIMEOUT +
+						  mvif->probe_send_time[band_idx];
+					mt76_dbg(&dev->mt76, MT76_DBG_STA,
+						 "%s: link %d: send nullfunc to AP %pM, try %d/%d\n",
+						 __func__, link_id, conf->bssid,
+						 mvif->probe_send_count[band_idx],
+						 MT7996_MAX_PROBE_TRIES);
+					break;
+				}
 			}
 			fallthrough;
 		case MON_STATE_LINK_LOST:
 			mvif->lost_links |= BIT(link_id);
-			wiphy_info(hw->wiphy,
-				   "link %d: %s to AP %pM, stop monitoring the lost link\n",
-				   link_id,
-				   state == MON_STATE_LINK_LOST ? "No ack for nullfunc frame" :
-								  "Failed to send nullfunc frame",
-				   conf->bssid);
 			mvif->probe[band_idx] = NULL;
 			mvif->probe_send_count[band_idx] = 0;
-			/* TODO: disable single link TX via TTLM/link reconfig for MLD */
+			if (state == MON_STATE_LINK_LOST)
+				snprintf(lost_reason, sizeof(lost_reason),
+					 "No ack for nullfunc frame");
+			else if (tx_paused)
+				snprintf(lost_reason, sizeof(lost_reason),
+					 "Failed to send nullfunc frame (TX paused)");
+			else
+				snprintf(lost_reason, sizeof(lost_reason),
+					 "Failed to send nullfunc frame (%d)", ret);
+			mt76_dbg(&dev->mt76, MT76_DBG_STA,
+				 "%s: link %d: %s to AP %pM, stop monitoring the lost link\n",
+				 __func__, link_id, lost_reason, conf->bssid);
 			if (mvif->lost_links != valid_links)
 				break;
 			fallthrough;
 		case MON_STATE_DISCONN:
 		default:
 			mutex_unlock(&dev->mt76.mutex);
-			wiphy_info(hw->wiphy, "all links are lost, disconnecting\n");
-			ieee80211_connection_loss(vif);
-			return;
+			goto disconn;
 		}
 		next_time = min(next_time, timeout - jiffies);
 	}
 	mutex_unlock(&dev->mt76.mutex);
 
+	if (next_time == ULONG_MAX)
+		goto disconn;
+
 	ieee80211_queue_delayed_work(hw, &mvif->beacon_mon_work, next_time);
+	return;
+
+disconn:
+	mt76_dbg(&dev->mt76, MT76_DBG_STA,
+		 "%s: all links are lost, disconnecting\n", __func__);
+	ieee80211_connection_loss(vif);
+}
+
+static void mt7996_sta_chsw_state_reset(struct mt7996_vif_link *mconf)
+{
+	struct mt7996_dev *dev = mconf->phy->dev;
+	struct mt7996_vif *mvif = mconf->msta_link.sta->vif;
+	unsigned int link_id = mconf->msta_link.wcid.link_id;
+
+	lockdep_assert_held(&dev->mt76.mutex);
+
+	mvif->tx_paused_links &= ~BIT(link_id);
+	mconf->state = MT7996_STA_CHSW_IDLE;
+	mconf->next_state = MT7996_STA_CHSW_IDLE;
+	mconf->pause_timeout = 0;
+}
+
+void mt7996_sta_chsw_work(struct work_struct *work)
+{
+	struct mt7996_vif_link *mconf =
+			container_of(work, struct mt7996_vif_link, sta_chsw_work.work);
+	struct mt7996_dev *dev = mconf->phy->dev;
+	struct mt7996_vif *mvif = mconf->msta_link.sta->vif;
+	struct ieee80211_vif *vif =
+			container_of((void *)mvif, struct ieee80211_vif, drv_priv);
+	unsigned int link_id = mconf->msta_link.wcid.link_id;
+	struct ieee80211_neg_ttlm merged_ttlm;
+	struct ieee80211_sta *sta;
+	bool success = true;
+	int ret;
+
+	mutex_lock(&dev->mt76.mutex);
+
+	mconf->state = mconf->next_state;
+
+	switch (mconf->state) {
+	case MT7996_STA_CHSW_PAUSE_TX:
+		mvif->tx_paused_links |= BIT(link_id);
+		mconf->next_state = MT7996_STA_CHSW_TIMEOUT;
+		break;
+	case MT7996_STA_CHSW_RESUME_TX:
+	case MT7996_STA_CHSW_TIMEOUT:
+		mvif->tx_paused_links &= ~BIT(link_id);
+		mconf->next_state = MT7996_STA_CHSW_IDLE;
+		mconf->pause_timeout = 0;
+		success = false;
+		break;
+	default:
+		mt7996_sta_chsw_state_reset(mconf);
+		mutex_unlock(&dev->mt76.mutex);
+		return;
+	}
+
+	sta = ieee80211_find_sta(vif, vif->cfg.ap_addr);
+	if (!sta)
+		goto fail;
+
+	mt7996_get_merged_ttlm(vif, &merged_ttlm);
+	ret = mt7996_mcu_peer_mld_ttlm_req(dev, vif, sta, &merged_ttlm);
+	if (ret)
+		goto fail;
+
+	mutex_unlock(&dev->mt76.mutex);
+
+	/* FIXME: trigger connection drop as a workaround for TX pause timeout */
+	if (mconf->state == MT7996_STA_CHSW_PAUSE_TX ||
+	    mconf->state == MT7996_STA_CHSW_TIMEOUT)
+		ieee80211_chswitch_done(vif, success, link_id);
+
+	cancel_delayed_work(&mconf->sta_chsw_work);
+	ieee80211_queue_delayed_work(dev->mt76.hw, &mconf->sta_chsw_work,
+				     msecs_to_jiffies(mconf->pause_timeout));
+	return;
+
+fail:
+	mt76_dbg(&dev->mt76, MT76_DBG_STA, "%s: link %d: fail to %s tx (%d)\n",
+		 __func__, link_id,
+		 mconf->state == MT7996_STA_CHSW_PAUSE_TX ? "pause" : "resume", ret);
+	mt7996_sta_chsw_state_reset(mconf);
+	mutex_unlock(&dev->mt76.mutex);
+
+	/* trigger connection drop */
+	ieee80211_chswitch_done(vif, false, link_id);
+	return;
 }

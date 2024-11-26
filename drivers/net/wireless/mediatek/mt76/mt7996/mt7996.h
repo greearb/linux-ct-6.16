@@ -837,6 +837,30 @@ mt7996_vif_conf_link(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 	for (int __i = 0; __i < ARRAY_SIZE((dev)->radio_phy); __i++)	\
 		if (((phy) = (dev)->radio_phy[__i]) != NULL)
 
+static inline void
+mt7996_get_merged_ttlm(struct ieee80211_vif *vif,
+		       struct ieee80211_neg_ttlm *merged_ttlm)
+{
+	u16 map = vif->valid_links;
+	int tid;
+
+	if (vif->neg_ttlm.valid) {
+		memcpy(merged_ttlm->downlink, vif->neg_ttlm.downlink,
+		       sizeof(merged_ttlm->downlink));
+		memcpy(merged_ttlm->uplink, vif->neg_ttlm.uplink,
+		       sizeof(merged_ttlm->uplink));
+		return;
+	}
+
+	if (vif->adv_ttlm.active)
+		map &= vif->adv_ttlm.map;
+
+	for (tid = 0; tid < IEEE80211_TTLM_NUM_TIDS; tid++) {
+		merged_ttlm->downlink[tid] = map;
+		merged_ttlm->uplink[tid] = map;
+	}
+}
+
 extern const struct ieee80211_ops mt7996_ops;
 extern struct pci_driver mt7996_pci_driver;
 extern struct pci_driver mt7996_hif_driver;
@@ -1096,6 +1120,7 @@ void mt7996_queue_rx_skb(struct mt76_dev *mdev, enum mt76_rxq_id q,
 bool mt7996_rx_check(struct mt76_dev *mdev, void *data, int len);
 void mt7996_stats_work(struct work_struct *work);
 void mt7996_beacon_mon_work(struct work_struct *work);
+void mt7996_sta_chsw_work(struct work_struct *work);
 int mt76_dfs_start_rdd(struct mt7996_dev *dev, bool force);
 int mt7996_dfs_init_radar_detector(struct mt7996_phy *phy);
 void mt7996_set_stream_he_eht_caps(struct mt7996_phy *phy);
