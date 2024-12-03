@@ -1698,14 +1698,17 @@ struct link_station_del_parameters {
  *
  * Used for setting a TID to link mapping.
  *
+ * @is_teardown: If it is a teardown request, the mapping should become the
+ * 	default one, and the dlink & ulink is meanless.
  * @dlink: Downlink TID to link mapping, as defined in section 9.4.2.314
  *     (TID-To-Link Mapping element) in Draft P802.11be_D4.0.
  * @ulink: Uplink TID to link mapping, as defined in section 9.4.2.314
  *     (TID-To-Link Mapping element) in Draft P802.11be_D4.0.
  */
 struct cfg80211_ttlm_params {
-	u16 dlink[8];
-	u16 ulink[8];
+	bool is_teardown;
+	u16 dlink[IEEE80211_TTLM_NUM_TIDS];
+	u16 ulink[IEEE80211_TTLM_NUM_TIDS];
 };
 
 /**

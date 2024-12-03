@@ -1953,8 +1953,6 @@ struct ieee80211_vif_cfg {
 	u8 ap_addr[ETH_ALEN] __aligned(2);
 };
 
-#define IEEE80211_TTLM_NUM_TIDS 8
-
 /**
  * struct ieee8021_adv_ttlm - advertised TID to link map info
  *
