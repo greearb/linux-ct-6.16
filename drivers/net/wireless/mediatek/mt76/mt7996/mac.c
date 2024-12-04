@@ -52,6 +52,8 @@ static const struct mt7996_dfs_radar_spec jp_radar_specs = {
 	},
 };
 
+static void mt7996_scan_rx(struct mt7996_phy *phy);
+
 static struct mt76_wcid *mt7996_rx_get_wcid(struct mt7996_dev *dev,
 					    u16 idx, u8 band_idx)
 {
@@ -786,6 +788,10 @@ mt7996_mac_fill_rx(struct mt7996_dev *dev, enum mt76_rxq_id q,
 
 		hdr = mt76_skb_get_hdr(skb);
 		fc = hdr->frame_control;
+
+		if (unlikely(ieee80211_is_probe_resp(fc) || ieee80211_is_beacon(fc)))
+			mt7996_scan_rx(phy);
+
 		if (ieee80211_is_data_qos(fc)) {
 			u8 *qos = ieee80211_get_qos_ctl(hdr);
 
@@ -3478,6 +3484,23 @@ void mt7996_mac_twt_teardown_flow(struct mt7996_dev *dev,
 	msta_link->twt.flowid_mask &= ~BIT(flowid);
 	dev->twt.table_mask &= ~BIT(flow->table_id);
 	dev->twt.n_agrt--;
+}
+
+static void mt7996_scan_rx(struct mt7996_phy *phy)
+{
+        struct mt76_dev *dev = &phy->dev->mt76;
+        struct ieee80211_vif *vif = dev->scan.vif;
+        struct mt7996_vif *mvif;
+
+        if (!vif || !test_bit(MT76_SCANNING, &phy->mt76->state))
+                return;
+
+        if (test_and_clear_bit(MT76_SCANNING_WAIT_BEACON, &phy->mt76->state)) {
+                mvif = (struct mt7996_vif *)vif->drv_priv;
+                set_bit(MT76_SCANNING_BEACON_DONE, &phy->mt76->state);
+                cancel_delayed_work(&dev->scan_work);
+                ieee80211_queue_delayed_work(phy->mt76->hw, &dev->scan_work, 0);
+        }
 }
 
 static int
