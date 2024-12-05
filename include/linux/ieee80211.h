@@ -4100,6 +4100,9 @@ enum ieee80211_tdls_actioncode {
  */
 #define WLAN_EXT_CAPA4_INTERWORKING_ENABLED	BIT(7)
 
+/* QoS Map information support */
+#define WLAN_EXT_CAPA5_QOS_MAP	BIT(0)
+
 /*
  * TDLS capabililites to be enabled in the 5th byte of the
  * @WLAN_EID_EXT_CAPABILITY information element
@@ -4139,6 +4142,8 @@ enum ieee80211_tdls_actioncode {
 
 /* Enable Beacon Protection */
 #define WLAN_EXT_CAPA11_BCN_PROTECT	BIT(4)
+/* Mirrored stream classification service support */
+#define WLAN_EXT_CAPA11_MIRRORED_SCS_SUPPORT	BIT(5)
 
 /* TDLS specific payload type in the LLC/SNAP header */
 #define WLAN_TDLS_SNAP_RFTYPE	0x2
