@@ -84,8 +84,10 @@ static const struct ieee80211_iface_combination if_comb_7992 = {
 static const u8 mt7996_if_types_ext_capa_ap[] = {
 	[0] = WLAN_EXT_CAPA1_EXT_CHANNEL_SWITCHING,
 	[2] = WLAN_EXT_CAPA3_MULTI_BSSID_SUPPORT,
+	[4] = WLAN_EXT_CAPA5_QOS_MAP,
 	[6] = WLAN_EXT_CAPA7_SCS_SUPPORT,
 	[7] = WLAN_EXT_CAPA8_OPMODE_NOTIF,
+	[10] = WLAN_EXT_CAPA11_MIRRORED_SCS_SUPPORT,
 };
 
 static const u8 mt7996_if_types_ext_capa_sta[] = {
