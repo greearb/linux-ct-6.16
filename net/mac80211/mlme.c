@@ -2776,11 +2776,6 @@ ieee80211_sta_process_chanswitch(struct ieee80211_link_data *link,
 			}
 			break;
 		case IEEE80211_CSA_SOURCE_OTHER_LINK:
-			/* active link: we want to see the beacon to continue */
-			if (ieee80211_vif_link_active(&sdata->vif,
-						      link->link_id))
-				return;
-
 			/* switch work ran, so just complete the process */
 			if (link->u.mgd.csa.waiting_bcn) {
 				ieee80211_chswitch_post_beacon(link);
@@ -2792,6 +2787,11 @@ ieee80211_sta_process_chanswitch(struct ieee80211_link_data *link,
 				 */
 				break;
 			}
+
+			/* active link: we want to see the beacon to continue */
+			if (ieee80211_vif_link_active(&sdata->vif,
+						      link->link_id))
+				return;
 
 			/* link still has CSA but we already know, do nothing */
 			if (!res)
@@ -7258,7 +7258,7 @@ ieee80211_mgd_check_cross_link_csa(struct ieee80211_sub_if_data *sdata,
 		struct ieee80211_mle_per_sta_profile *prof;
 		struct ieee802_11_elems *prof_elems;
 		struct ieee80211_link_data *link;
-		ssize_t len;
+		ssize_t len, capab_info_len = sizeof(u16);
 
 		if (link_id == reporting_link_id)
 			continue;
@@ -7282,10 +7282,12 @@ ieee80211_mgd_check_cross_link_csa(struct ieee80211_sub_if_data *sdata,
 			continue;
 
 		prof = (void *)sta_profiles[link_id];
+		/* skip capab info (u16) */
 		prof_elems = ieee802_11_parse_elems(prof->variable +
-						    (prof->sta_info_len - 1),
-						    len -
-						    (prof->sta_info_len - 1),
+						    (prof->sta_info_len - 1) +
+						    capab_info_len,
+						    len - (prof->sta_info_len - 1) -
+						    capab_info_len,
 						    false, NULL);
 
 		/* memory allocation failed - let's hope that's transient */
