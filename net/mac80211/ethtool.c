@@ -682,18 +682,26 @@ static void ieee80211_get_stats2(struct net_device *dev,
 
 			data[i++] = sta->sta_state;
 
-			if (sinfo.filled & BIT_ULL(NL80211_STA_INFO_TX_BITRATE))
-				data[i] = 100000ULL *
-					cfg80211_calculate_bitrate(&sinfo.txrate);
-			i++;
 			if (mld) {
-				struct rate_info rxrate;
+				struct rate_info txrxrate;
 				int mn;
 				u64 accum;
 
-				link_sta_set_rate_info_rx(link_sta, &rxrate, last_rxstats);
+				if (sinfo.link_info[li].filled &
+				    BIT_ULL(NL80211_STA_INFO_TX_BITRATE)) {
+					data[i] = 100000ULL *
+						cfg80211_calculate_bitrate(&sinfo.link_info[li].txrate);
+				} else {
+					/* Get it from sinfo then, better than nothing I guess */
+					if (sinfo.filled & BIT_ULL(NL80211_STA_INFO_TX_BITRATE))
+						data[i] = 100000ULL *
+							cfg80211_calculate_bitrate(&sinfo.txrate);
+				}
+				i++;
+
+				link_sta_set_rate_info_rx(link_sta, &txrxrate, last_rxstats);
 				data[i++] = 100000ULL *
-					cfg80211_calculate_bitrate(&rxrate);
+					cfg80211_calculate_bitrate(&txrxrate);
 
 				data[i++] = (u8)last_rxstats->last_signal;
 
@@ -732,6 +740,11 @@ static void ieee80211_get_stats2(struct net_device *dev,
 				}
 				i++;
 			} else {
+				if (sinfo.filled & BIT_ULL(NL80211_STA_INFO_TX_BITRATE))
+					data[i] = 100000ULL *
+						cfg80211_calculate_bitrate(&sinfo.txrate);
+				i++;
+
 				if (sinfo.filled & BIT_ULL(NL80211_STA_INFO_RX_BITRATE))
 					data[i] = 100000ULL *
 						cfg80211_calculate_bitrate(&sinfo.rxrate);

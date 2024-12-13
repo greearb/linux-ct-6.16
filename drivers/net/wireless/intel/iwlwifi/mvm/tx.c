@@ -1852,6 +1852,7 @@ static void iwl_mvm_rx_tx_cmd_single(struct iwl_mvm *mvm,
 	u8 lq_color;
 	u16 next_reclaimed, seq_ctl;
 	bool is_ndp = false;
+	bool did_once = false;
 	struct ieee80211_link_sta *link_sta;
 	int link_sta_id = -1;
 
@@ -2040,6 +2041,17 @@ static void iwl_mvm_rx_tx_cmd_single(struct iwl_mvm *mvm,
 
 	if (!IS_ERR(sta)) {
 		struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
+
+		if (link_sta) {
+			/* Save last tx rate_n_flags for per-link reporting.
+			 */
+			struct iwl_mvm_vif *mvmvif =
+				iwl_mvm_vif_from_mac80211(mvmsta->vif);
+			struct iwl_mvm_vif_link_info *link_info;
+
+			link_info = mvmvif->link[link_sta->link_id];
+			link_info->last_tx_rate_n_flags = le32_to_cpu(tx_resp->initial_rate);
+		}
 
 		iwl_mvm_tx_airtime(mvm, mvmsta,
 				   le16_to_cpu(tx_resp->wireless_media_time));
