@@ -333,7 +333,7 @@ void iwl_mvm_bt_coex_update_link_esr(struct iwl_mvm *mvm,
 		return;
 
 	if (!iwl_mvm_bt_coex_calculate_esr_mode(mvm, vif,
-						(s8)link->beacon_stats.avg_signal,
+						link->beacon_stats.avg_signal,
 						link_id == iwl_mvm_get_primary_link(vif)))
 		/* In case we decided to exit eSR - stay with the primary */
 		iwl_mvm_exit_esr(mvm, vif, IWL_MVM_ESR_EXIT_COEX,
