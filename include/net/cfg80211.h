@@ -2016,6 +2016,17 @@ struct cfg80211_tid_stats {
 	struct cfg80211_txq_stats txq_stats;
 };
 
+#define IEEE80211_MAX_STA_INFO_LINK 3
+/**
+ * struct station_info_link -- Link info
+ *
+ * Same definitions as in station_info, but for links.
+ */
+struct station_info_link {
+	u64 filled;
+	s8 rx_beacon_signal_avg;
+};
+
 #define IEEE80211_MAX_CHAINS	4
 
 /**
@@ -2166,6 +2177,8 @@ struct station_info {
 	u8 mld_addr[ETH_ALEN] __aligned(2);
 	const u8 *assoc_resp_ies;
 	size_t assoc_resp_ies_len;
+
+	struct station_info_link link_info[IEEE80211_MAX_STA_INFO_LINK];
 };
 
 /**
