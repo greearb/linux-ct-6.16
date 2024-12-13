@@ -6270,6 +6270,10 @@ void iwl_mvm_mac_sta_statistics(struct ieee80211_hw *hw,
 		ilink->filled |= BIT_ULL(NL80211_STA_INFO_BEACON_SIGNAL_AVG);
 		ilink->rx_beacon_signal_avg =
 			-ewma_signal_read(&link_info->rx_avg_beacon_signal);
+
+		iwl_mvm_set_sta_rate(link_info->last_tx_rate_n_flags, &ilink->txrate);
+		ilink->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
+
 	}
 
 	if (iwl_mvm_has_tlc_offload(mvm)) {

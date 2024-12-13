@@ -2025,6 +2025,7 @@ struct cfg80211_tid_stats {
 struct station_info_link {
 	u64 filled;
 	s8 rx_beacon_signal_avg;
+	struct rate_info txrate;
 };
 
 #define IEEE80211_MAX_CHAINS	4
