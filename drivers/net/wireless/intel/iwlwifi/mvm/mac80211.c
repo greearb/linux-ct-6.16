@@ -6257,6 +6257,21 @@ void iwl_mvm_mac_sta_statistics(struct ieee80211_hw *hw,
 		}
 	}
 
+	for_each_mvm_vif_valid_link(mvmvif, i) {
+		struct station_info_link *ilink;
+		struct iwl_mvm_vif_link_info *link_info;
+
+		if (i >= IEEE80211_MAX_STA_INFO_LINK)
+			break;
+
+		ilink = &sinfo->link_info[i];
+		link_info = mvmvif->link[i];
+
+		ilink->filled |= BIT_ULL(NL80211_STA_INFO_BEACON_SIGNAL_AVG);
+		ilink->rx_beacon_signal_avg =
+			-ewma_signal_read(&link_info->rx_avg_beacon_signal);
+	}
+
 	if (iwl_mvm_has_tlc_offload(mvm)) {
 		struct iwl_lq_sta_rs_fw *lq_sta = &mvmsta->deflink.lq_sta.rs_fw;
 
