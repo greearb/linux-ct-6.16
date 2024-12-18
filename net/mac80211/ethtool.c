@@ -577,9 +577,6 @@ static void ieee80211_get_stats2(struct net_device *dev,
 
 	memset(data, 0, sizeof(u64) * STA_STATS_LEN);
 
-	/* NOTE/HACK:  TX stats are not updated for anything except
-	 * deflink currently.  Use those stats on the active link.
-	 */
 #define ADD_LINK_STA_STATS(sta, link_rx_stats, active)		\
 	do {							\
 		data[i++] += link_rx_stats.packets;		\
@@ -589,18 +586,11 @@ static void ieee80211_get_stats2(struct net_device *dev,
 		data[i++] += link_rx_stats.dropped;		\
 								\
 		if (active) {						\
-			data[i++] += sinfo.tx_packets;			\
-			data[i++] += sinfo.tx_bytes;			\
-			data[i++] += (sta)->status_stats.filtered;	\
-			data[i++] += sinfo.tx_failed;			\
-			data[i++] += sinfo.tx_retries;			\
-			/*
-			data[i++] += _sum_acs((sta)->tx_stats.packets);	\
-			data[i++] += _sum_acs((sta)->tx_stats.bytes);	\
+			data[i++] += (sta)->tx_stats.rep_packets;	\
+			data[i++] += (sta)->tx_stats.rep_bytes;	\
 			data[i++] += (sta)->status_stats.filtered;	\
 			data[i++] += (sta)->status_stats.retry_failed;	\
 			data[i++] += (sta)->status_stats.retry_count;	\
-			*/						\
 		} else {						\
 			i += 5;	/* skip non active links */		\
 		}							\
