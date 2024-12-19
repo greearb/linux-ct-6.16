@@ -276,16 +276,15 @@ int mt7996_mcu_set_rfeature_trig_type(struct mt7996_phy *phy, u8 enable, u8 trig
 	}
 }
 
-void mt7996_mcu_set_ppdu_tx_type(struct mt7996_phy *phy, u8 ppdu_type)
+void mt7996_mcu_set_ppdu_tx_type(struct mt7996_dev *dev, u8 ppdu_type)
 {
-	struct mt7996_dev *dev = phy->dev;
 	int enable_su;
 
 	switch (ppdu_type) {
 	case CAPI_SU:
 		enable_su = 1;
 		mt7996_mcu_set_muru_cmd(dev, UNI_CMD_MURU_SUTX_CTRL, enable_su);
-		mt7996_set_muru_cfg(phy, MU_CTRL_DL_USER_CNT, 0);
+		mt7996_set_muru_cfg(dev, MU_CTRL_DL_USER_CNT, 0);
 		break;
 	case CAPI_MU:
 		enable_su = 0;
@@ -305,7 +304,7 @@ void mt7996_mcu_set_nusers_ofdma(struct mt7996_phy *phy, u8 type, u8 user_cnt)
 	mt7996_mcu_set_muru_cmd(dev, UNI_CMD_MURU_SET_MUDL_ACK_POLICY, MU_DL_ACK_POLICY_SU_BAR);
 	mt7996_mcu_muru_set_prot_frame_thr(dev, 9999);
 
-	mt7996_set_muru_cfg(phy, type, user_cnt);
+	mt7996_set_muru_cfg(dev, type, user_cnt);
 }
 
 void mt7996_mcu_set_mimo(struct mt7996_phy *phy)

@@ -8515,9 +8515,8 @@ int mt7996_mcu_muru_set_prot_frame_thr(struct mt7996_dev *dev, u32 val)
 				 false);
 }
 
-int mt7996_mcu_set_muru_cfg(struct mt7996_phy *phy, void *data)
+int mt7996_mcu_set_muru_cfg(struct mt7996_dev *dev, void *data)
 {
-	struct mt7996_dev *dev = phy->dev;
 	struct mt7996_muru *muru;
 	struct {
 		u8 _rsv[4];
@@ -8543,7 +8542,7 @@ int mt7996_mcu_set_muru_cfg(struct mt7996_phy *phy, void *data)
 				 sizeof(req), false);
 }
 
-int mt7996_set_muru_cfg(struct mt7996_phy *phy, u8 action, u8 val)
+int mt7996_set_muru_cfg(struct mt7996_dev *dev, u8 action, u8 val)
 {
 	struct mt7996_muru *muru;
 	struct mt7996_muru_dl *dl;
@@ -8563,7 +8562,7 @@ int mt7996_set_muru_cfg(struct mt7996_phy *phy, u8 action, u8 val)
 		comm->sch_type = MURU_OFDMA_SCH_TYPE_DL;
 		muru->cfg_comm = cpu_to_le32(MURU_COMM_SET);
 		muru->cfg_dl = cpu_to_le32(MURU_FIXED_DL_TOTAL_USER_CNT);
-		ret = mt7996_mcu_set_muru_cfg(phy, muru);
+		ret = mt7996_mcu_set_muru_cfg(dev, muru);
 		break;
 	case MU_CTRL_UL_USER_CNT:
 		ul->user_num = val;
@@ -8571,7 +8570,7 @@ int mt7996_set_muru_cfg(struct mt7996_phy *phy, u8 action, u8 val)
 		comm->sch_type = MURU_OFDMA_SCH_TYPE_UL;
 		muru->cfg_comm = cpu_to_le32(MURU_COMM_SET);
 		muru->cfg_ul = cpu_to_le32(MURU_FIXED_UL_TOTAL_USER_CNT);
-		ret = mt7996_mcu_set_muru_cfg(phy, muru);
+		ret = mt7996_mcu_set_muru_cfg(dev, muru);
 		break;
 	default:
 		break;

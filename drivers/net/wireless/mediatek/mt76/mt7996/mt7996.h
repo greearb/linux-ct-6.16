@@ -972,10 +972,10 @@ mt7996_band_valid(struct mt7996_dev *dev, u8 band)
 static inline bool
 mt7996_radio_valid(struct mt7996_dev *dev, u8 radio)
 {
-        if (radio >= dev->mt76.hw->wiphy->n_radio ||
-            !dev->radio_phy[radio])
-                return false;
-        return true;
+	if (radio >= dev->mt76.hw->wiphy->n_radio ||
+	    !dev->radio_phy[radio])
+		return false;
+	return true;
 }
 
 static inline struct mt7996_phy *
@@ -1392,7 +1392,7 @@ int mt7996_mcu_set_txbf_internal(struct mt7996_phy *phy, u8 action, int idx, boo
 int mt7996_mcu_set_txbf_snd_info(struct mt7996_phy *phy, void *para);
 int mt7996_mcu_set_bypass_smthint(struct mt7996_phy *phy, u8 val);
 int mt7996_mcu_set_rfeature_trig_type(struct mt7996_phy *phy, u8 enable, u8 trig_type);
-void mt7996_mcu_set_ppdu_tx_type(struct mt7996_phy *phy, u8 ppdu_type);
+void mt7996_mcu_set_ppdu_tx_type(struct mt7996_dev *dev, u8 ppdu_type);
 void mt7996_mcu_set_nusers_ofdma(struct mt7996_phy *phy, u8 type, u8 ofdma_user_cnt);
 void mt7996_mcu_set_cert(struct mt7996_phy *phy, u8 type);
 void mt7996_tm_update_channel(struct mt7996_phy *phy);
@@ -1407,8 +1407,8 @@ int mt7996_mtk_init_band_debugfs_internal(struct mt7996_phy *phy, struct dentry 
 int mt7996_mcu_mlo_agc(struct mt7996_dev *dev, const void *data, int len);
 #endif
 
-int mt7996_set_muru_cfg(struct mt7996_phy *phy, u8 action, u8 val);
-int mt7996_mcu_set_muru_cfg(struct mt7996_phy *phy, void *data);
+int mt7996_set_muru_cfg(struct mt7996_dev *dev, u8 action, u8 val);
+int mt7996_mcu_set_muru_cfg(struct mt7996_dev *dev, void *data);
 int mt7996_mcu_set_sr_pp_en(struct mt7996_dev *dev, u8 enable);
 int mt7996_mcu_set_uba_en(struct mt7996_dev *dev, u8 enable);
 int mt7996_mcu_set_mru_probe_en(struct mt7996_phy *phy);

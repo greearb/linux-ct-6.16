@@ -16,7 +16,7 @@ mu_ctrl_policy[NUM_MTK_VENDOR_ATTRS_MU_CTRL] = {
 	[MTK_VENDOR_ATTR_MU_CTRL_ONOFF] = {.type = NLA_U8 },
 	[MTK_VENDOR_ATTR_MU_CTRL_DUMP] = {.type = NLA_U8 },
 	[MTK_VENDOR_ATTR_MU_CTRL_STRUCT] = {.type = NLA_BINARY },
-	[MTK_VENDOR_ATTR_MU_CTRL_BAND_IDX] = {.type = NLA_U8 },
+	[MTK_VENDOR_ATTR_MU_CTRL_RADIO_IDX] = {.type = NLA_U8 },
 };
 
 static const struct nla_policy
@@ -123,7 +123,7 @@ beacon_ctrl_policy[NUM_MTK_VENDOR_ATTRS_BEACON_CTRL] = {
 
 static const struct nla_policy
 csi_ctrl_policy[NUM_MTK_VENDOR_ATTRS_CSI_CTRL] = {
-	[MTK_VENDOR_ATTR_CSI_CTRL_BAND_IDX] = { .type = NLA_U8 },
+	[MTK_VENDOR_ATTR_CSI_CTRL_RADIO_IDX] = { .type = NLA_U8 },
 	[MTK_VENDOR_ATTR_CSI_CTRL_CFG] = {.type = NLA_NESTED },
 	[MTK_VENDOR_ATTR_CSI_CTRL_CFG_MODE] = { .type = NLA_U8 },
 	[MTK_VENDOR_ATTR_CSI_CTRL_CFG_TYPE] = { .type = NLA_U8 },
@@ -155,10 +155,10 @@ static int mt7996_vendor_mu_ctrl(struct wiphy *wiphy,
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct nlattr *tb[NUM_MTK_VENDOR_ATTRS_MU_CTRL];
 	struct mt7996_dev *dev = mt7996_hw_dev(hw);
-	struct mt7996_phy *phy = &dev->phy;
+	struct mt7996_phy *phy;
 	struct mt7996_muru *muru;
 	int err;
-	u8 val8, band_idx;
+	u8 val8, radio_idx;
 	u32 val32 = 0;
 
 	err = nla_parse(tb, MTK_VENDOR_ATTR_MU_CTRL_MAX, data, data_len,
@@ -167,12 +167,16 @@ static int mt7996_vendor_mu_ctrl(struct wiphy *wiphy,
 		return err;
 
 	if (tb[MTK_VENDOR_ATTR_MU_CTRL_ONOFF] &&
-	    tb[MTK_VENDOR_ATTR_MU_CTRL_BAND_IDX]) {
+	    tb[MTK_VENDOR_ATTR_MU_CTRL_RADIO_IDX]) {
 		val8 = nla_get_u8(tb[MTK_VENDOR_ATTR_MU_CTRL_ONOFF]);
-		band_idx = nla_get_u8(tb[MTK_VENDOR_ATTR_MU_CTRL_BAND_IDX]);
+		radio_idx = nla_get_u8(tb[MTK_VENDOR_ATTR_MU_CTRL_RADIO_IDX]);
+		if (!mt7996_radio_valid(dev, radio_idx))
+			return -EINVAL;
+		phy = dev->radio_phy[radio_idx];
+
 		val32 |= FIELD_PREP(RATE_CFG_MODE, RATE_PARAM_AUTO_MU) |
 			 FIELD_PREP(RATE_CFG_VAL, val8) |
-			 FIELD_PREP(RATE_CFG_BAND_IDX, band_idx);
+			 FIELD_PREP(RATE_CFG_BAND_IDX, phy->mt76->band_idx);
 		ieee80211_iterate_active_interfaces_atomic(hw, IEEE80211_IFACE_ITER_RESUME_ALL,
 							   mt7996_set_wireless_vif, &val32);
 	} else if (tb[MTK_VENDOR_ATTR_MU_CTRL_STRUCT]) {
@@ -181,7 +185,7 @@ static int mt7996_vendor_mu_ctrl(struct wiphy *wiphy,
 		nla_memcpy(muru, tb[MTK_VENDOR_ATTR_MU_CTRL_STRUCT],
 			   sizeof(struct mt7996_muru));
 
-		err = mt7996_mcu_set_muru_cfg(phy, muru);
+		err = mt7996_mcu_set_muru_cfg(dev, muru);
 		kfree(muru);
 	}
 
@@ -196,10 +200,9 @@ mt7996_vendor_mu_ctrl_dump(struct wiphy *wiphy, struct wireless_dev *wdev,
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct mt7996_dev *dev = mt7996_hw_dev(hw);
 	struct mt7996_phy *phy;
-	struct mt76_phy *mphy;
 	struct nlattr *tb[NUM_MTK_VENDOR_ATTRS_MU_CTRL];
 	int len = 0, err;
-	u8 band_idx;
+	u8 radio_idx;
 
 	if (*storage == 1)
 		return -ENOENT;
@@ -210,18 +213,13 @@ mt7996_vendor_mu_ctrl_dump(struct wiphy *wiphy, struct wireless_dev *wdev,
 	if (err)
 		return err;
 
-	if (!tb[MTK_VENDOR_ATTR_MU_CTRL_BAND_IDX])
+	if (!tb[MTK_VENDOR_ATTR_MU_CTRL_RADIO_IDX])
 		return -EINVAL;
 
-	band_idx = nla_get_u8(tb[MTK_VENDOR_ATTR_MU_CTRL_BAND_IDX]);
-	if (!mt7996_band_valid(dev, band_idx))
+	radio_idx = nla_get_u8(tb[MTK_VENDOR_ATTR_MU_CTRL_RADIO_IDX]);
+	if (!mt7996_radio_valid(dev, radio_idx))
 		goto error;
-
-	mphy = dev->mt76.phys[band_idx];
-	if (!mphy)
-		goto error;
-
-	phy = (struct mt7996_phy *)mphy->priv;
+	phy = dev->radio_phy[radio_idx];
 
 	if (nla_put_u8(skb, MTK_VENDOR_ATTR_MU_CTRL_DUMP, phy->muru_onoff))
 		return -ENOMEM;
@@ -230,7 +228,7 @@ mt7996_vendor_mu_ctrl_dump(struct wiphy *wiphy, struct wireless_dev *wdev,
 	return len;
 
 error:
-	dev_err(dev->mt76.dev, "Invalid band idx to dump\n");
+	dev_err(dev->mt76.dev, "Invalid radio idx to dump\n");
 	return -EINVAL;
 }
 
@@ -1050,9 +1048,8 @@ static int mt7996_vendor_csi_ctrl(struct wiphy *wiphy,
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct mt7996_dev *dev = mt7996_hw_dev(hw);
 	struct mt7996_phy *phy;
-	struct mt76_phy *mphy;
 	struct nlattr *tb[NUM_MTK_VENDOR_ATTRS_CSI_CTRL];
-	u8 band_idx = 0;
+	u8 radio_idx = 0;
 	int err;
 
 	err = nla_parse(tb, MTK_VENDOR_ATTR_CSI_CTRL_MAX, data, data_len,
@@ -1060,19 +1057,12 @@ static int mt7996_vendor_csi_ctrl(struct wiphy *wiphy,
 	if (err)
 		return err;
 
-	if (tb[MTK_VENDOR_ATTR_CSI_CTRL_BAND_IDX])
-		band_idx = nla_get_u8(tb[MTK_VENDOR_ATTR_CSI_CTRL_BAND_IDX]);
+	if (tb[MTK_VENDOR_ATTR_CSI_CTRL_RADIO_IDX])
+		radio_idx = nla_get_u8(tb[MTK_VENDOR_ATTR_CSI_CTRL_RADIO_IDX]);
 
-	if (!mt7996_band_valid(dev, band_idx))
+	if (!mt7996_radio_valid(dev, radio_idx))
 		goto error;
-
-	mphy = dev->mt76.phys[band_idx];
-	if (!mphy)
-		goto error;
-
-	phy = (struct mt7996_phy *)mphy->priv;
-	if (!phy)
-		goto error;
+	phy = dev->radio_phy[radio_idx];
 
 	if (tb[MTK_VENDOR_ATTR_CSI_CTRL_CFG]) {
 		u8 mode = 0, type = 0, v1 = 0;
@@ -1139,7 +1129,7 @@ static int mt7996_vendor_csi_ctrl(struct wiphy *wiphy,
 	return 0;
 
 error:
-	dev_err(dev->mt76.dev, "Invalid band idx: %d\n", band_idx);
+	dev_err(dev->mt76.dev, "Invalid radio idx: %d\n", radio_idx);
 	return -EINVAL;
 }
 
@@ -1152,9 +1142,8 @@ mt7996_vendor_csi_ctrl_dump(struct wiphy *wiphy, struct wireless_dev *wdev,
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct mt7996_dev *dev = mt7996_hw_dev(hw);
 	struct mt7996_phy *phy;
-	struct mt76_phy *mphy;
 	struct nlattr *tb[NUM_MTK_VENDOR_ATTRS_CSI_CTRL] = {0};
-	u8 band_idx = 0;
+	u8 radio_idx = 0;
 	int err = 0;
 
 	if (*storage & RESERVED_SET) {
@@ -1169,19 +1158,12 @@ mt7996_vendor_csi_ctrl_dump(struct wiphy *wiphy, struct wireless_dev *wdev,
 			return err;
 	}
 
-	if (tb[MTK_VENDOR_ATTR_CSI_CTRL_BAND_IDX])
-		band_idx = nla_get_u8(tb[MTK_VENDOR_ATTR_CSI_CTRL_BAND_IDX]);
+	if (tb[MTK_VENDOR_ATTR_CSI_CTRL_RADIO_IDX])
+		radio_idx = nla_get_u8(tb[MTK_VENDOR_ATTR_CSI_CTRL_RADIO_IDX]);
 
-	if (!mt7996_band_valid(dev, band_idx))
+	if (!mt7996_radio_valid(dev, radio_idx))
 		return -EINVAL;
-
-	mphy = dev->mt76.phys[band_idx];
-	if (!mphy)
-		return -EINVAL;
-
-	phy = (struct mt7996_phy *)mphy->priv;
-	if (!phy)
-		return -EINVAL;
+	phy = dev->radio_phy[radio_idx];
 
 	if (!(*storage & RESERVED_SET) && tb[MTK_VENDOR_ATTR_CSI_CTRL_DUMP_NUM]) {
 		*storage = nla_get_u16(tb[MTK_VENDOR_ATTR_CSI_CTRL_DUMP_NUM]);
