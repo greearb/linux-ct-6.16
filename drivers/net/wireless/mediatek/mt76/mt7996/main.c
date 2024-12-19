@@ -682,6 +682,7 @@ static int mt7996_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 	int err = 0;
 	unsigned long add;
 	unsigned int link_id;
+	u8 pn[6] = {};
 
 	if (key->link_id >= 0) {
 		add = BIT(key->link_id);
@@ -719,6 +720,9 @@ static int mt7996_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 			if (key->keyidx == 6 || key->keyidx == 7) {
 				wcid_keyidx = &msta_link->wcid.hw_key_idx2;
 				key->flags |= IEEE80211_KEY_FLAG_GENERATE_MMIE;
+				err = mt7996_mcu_get_pn(dev, mconf, msta_link, pn);
+				if (err)
+					goto out;
 				break;
 			}
 			fallthrough;
@@ -729,6 +733,7 @@ static int mt7996_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 			return -EOPNOTSUPP;
 		}
 
+		/* Todo: remove me after fix set dtim period to fw */
 		if (cmd == SET_KEY && !sta && !mconf->mt76.cipher) {
 			mconf->mt76.cipher = mt76_connac_mcu_get_cipher(key->cipher);
 			mt7996_mcu_add_bss_info(mconf->phy, vif, conf, &mconf->mt76, msta_link, true);
@@ -744,12 +749,9 @@ static int mt7996_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 
 		mt76_wcid_key_setup(&dev->mt76, &msta_link->wcid, key);
 
-		if (key->keyidx == 6 || key->keyidx == 7)
-			err = mt7996_mcu_bcn_prot_enable(dev, mconf, msta_link, key);
-		else
-			err = mt7996_mcu_add_key(&dev->mt76, mconf, key,
-						 MCU_WMWA_UNI_CMD(STA_REC_UPDATE),
-						 &msta_link->wcid, cmd);
+		err = mt7996_mcu_add_key(&dev->mt76, mconf, key,
+					 MCU_WMWA_UNI_CMD(STA_REC_UPDATE),
+					 &msta_link->wcid, cmd, pn);
 	}
 out:
 	mutex_unlock(&dev->mt76.mutex);
