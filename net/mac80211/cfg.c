@@ -1234,7 +1234,7 @@ ieee80211_assign_beacon(struct ieee80211_sub_if_data *sdata,
 			ieee80211_copy_rnr_beacon(pos, new->rnr_ies, rnr);
 		}
 		/* update bssid_indicator */
-		sdata->vif.bss_conf.bssid_indicator = *(bssid_indicator);
+		link_conf->bssid_indicator = *(bssid_indicator);
 	}
 
 	if (csa) {
