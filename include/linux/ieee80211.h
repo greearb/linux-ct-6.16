@@ -3431,7 +3431,7 @@ ieee80211_bandwidth_indication_size_ok(const u8 *data, u8 len)
 #define WLAN_CAPABILITY_PRIVACY		(1<<4)
 #define WLAN_CAPABILITY_SHORT_PREAMBLE	(1<<5)
 #define WLAN_CAPABILITY_PBCC		(1<<6)
-#define WLAN_CAPABILITY_CHANNEL_AGILITY	(1<<7)
+#define WLAN_CAPABILITY_NON_TX_BSSID_CU	(1<<7)
 
 /* 802.11h */
 #define WLAN_CAPABILITY_SPECTRUM_MGMT	(1<<8)
