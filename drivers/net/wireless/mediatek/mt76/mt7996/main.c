@@ -20,6 +20,10 @@ MODULE_PARM_DESC(debug_lvl,
 		 "0x00040	block-ack and aggregation related\n"
 		 "0x00080	verbose rx path\n"
 		 "0x00100	Last n messages to MCU when something goes wrong\n"
+		 "0x00200       MLD related debugging\n"
+		 "0x00400       STA related debugging\n"
+		 "0x00800       BSS related debugging\n"
+		 "0x01000       DEV related debugging\n"
 		 "0xffffffff	any/all\n"
 	);
 
@@ -402,6 +406,11 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 		link->mbssid_idx = link_conf->bssid_index;
 	}
 
+	mt76_dbg(&dev->mt76, MT76_DBG_BSS,
+		 "%s: band=%u, bss_idx=%u, link_id=%u, wcid=%u\n",
+		 __func__, phy->mt76->band_idx, mlink->idx,
+		 link_id, msta_link->wcid.idx);
+
 	return 0;
 error:
 	mt7996_vif_link_remove(mphy, vif, link_conf, mlink);
@@ -692,6 +701,15 @@ static int mt7996_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 		else
 			add = vif->valid_links ?: BIT(0);
 	}
+
+	if (sta)
+		mt76_dbg(&dev->mt76, MT76_DBG_STA,
+			 "%s: keyidx=%d, link_bitmap=0x%lx (STA %pM)\n",
+			 __func__, key->keyidx, add, sta->addr);
+	else
+		mt76_dbg(&dev->mt76, MT76_DBG_BSS,
+			 "%s: keyidx=%d, link_bitmap=0x%lx\n",
+			 __func__, key->keyidx, add);
 
 	mutex_lock(&dev->mt76.mutex);
 
@@ -1653,10 +1671,16 @@ static void mt7996_tx(struct ieee80211_hw *hw,
 					rcu_dereference(sta->link[link_id]);
 
 				if (!link_sta) {
+					mtk_dbg(&dev->mt76, TX,
+						"%s, request TX on invalid link_id=%u, use primary link (id=%u) instead.\n",
+						__func__, link_id, msta->deflink_id);
 					link_id = msta->deflink_id;
 					link_sta = rcu_dereference(sta->link[link_id]);
 
 					if (!link_sta) {
+						mtk_dbg(&dev->mt76, TX,
+							"%s, primary link became invalid, give up the TX\n",
+							__func__);
 						goto unlock;
 					}
 				}
@@ -2956,11 +2980,8 @@ mt7996_net_fill_forward_path(struct ieee80211_hw *hw,
 	struct mt7996_sta_link *msta_link;
 	struct mt7996_vif_link *link;
 	struct mt76_vif_link *mlink;
-<<<<<<<
 	struct mt7996_phy *phy;
-=======
 	u8 dscp = path->mtk_wdma.tid >> 2;
->>>>>>>
 
 	mlink = rcu_dereference(mvif->mt76.link[msta->deflink_id]);
 	if (!mlink)
@@ -3014,6 +3035,10 @@ mt7996_change_vif_links(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	unsigned long rem = old_links & ~new_links & ~vif->dormant_links;
 	unsigned long add = new_links & ~old_links;
 	int link_id, ret = 0;
+
+	mt76_dbg(&dev->mt76, MT76_DBG_MLD,
+		 "%s: old=0x%x, new=0x%x, dormant=0x%x\n",
+		 __func__, old_links, new_links, vif->dormant_links);
 
 	if (old_links == new_links)
 		return 0;
