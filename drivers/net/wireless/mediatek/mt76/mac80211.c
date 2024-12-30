@@ -329,6 +329,11 @@ mt76_init_sband(struct mt76_phy *phy, struct mt76_sband *msband,
 	sband->bitrates = rates;
 	sband->n_bitrates = n_rates;
 
+	/* init parking channel */
+	cfg80211_chandef_create(&phy->chandef, &sband->channels[0],
+				NL80211_CHAN_HT20);
+	phy->main_chandef = phy->chandef;
+
 	if (!ht)
 		return 0;
 

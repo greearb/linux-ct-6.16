@@ -3493,19 +3493,19 @@ void mt7996_mac_twt_teardown_flow(struct mt7996_dev *dev,
 
 static void mt7996_scan_rx(struct mt7996_phy *phy)
 {
-        struct mt76_dev *dev = &phy->dev->mt76;
-        struct ieee80211_vif *vif = dev->scan.vif;
-        struct mt7996_vif *mvif;
+	struct mt76_dev *dev = &phy->dev->mt76;
+	struct ieee80211_vif *vif = dev->scan.vif;
+	struct mt7996_vif *mvif;
 
         if (!vif || !test_bit(MT76_SCANNING, &phy->mt76->state))
                 return;
 
-        if (test_and_clear_bit(MT76_SCANNING_WAIT_BEACON, &phy->mt76->state)) {
-                mvif = (struct mt7996_vif *)vif->drv_priv;
-                set_bit(MT76_SCANNING_BEACON_DONE, &phy->mt76->state);
-                cancel_delayed_work(&dev->scan_work);
-                ieee80211_queue_delayed_work(phy->mt76->hw, &dev->scan_work, 0);
-        }
+	if (test_and_clear_bit(MT76_SCANNING_WAIT_BEACON, &phy->mt76->state)) {
+		mvif = (struct mt7996_vif *)vif->drv_priv;
+		set_bit(MT76_SCANNING_BEACON_DONE, &phy->mt76->state);
+		cancel_delayed_work(&dev->scan_work);
+		ieee80211_queue_delayed_work(phy->mt76->hw, &dev->scan_work, 0);
+	}
 }
 
 static int
@@ -3556,10 +3556,7 @@ mt7996_beacon_mon_send_probe(struct mt7996_phy *phy, struct mt7996_vif *mvif,
 	if (ieee80211_vif_is_mld(vif))
 		info->control.flags |= u32_encode_bits(link_id, IEEE80211_TX_CTRL_MLO_LINK);
 
-	if (phy->mt76->chanctx)
-		band = phy->mt76->chanctx->chandef.chan->band;
-	else
-		band = phy->mt76->chandef.chan->band;
+	band = phy->mt76->main_chandef.chan->band;
 
 	skb_set_queue_mapping(skb, IEEE80211_AC_VO);
 	if (!ieee80211_tx_prepare_skb(hw, vif, skb, band, NULL)) {

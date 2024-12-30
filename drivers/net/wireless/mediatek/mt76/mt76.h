@@ -1261,6 +1261,8 @@ enum MTK_DEUBG {
 	MT76_DBG_STA	 	= 0x00000400, /* STA related, upstream format */
 	MT76_DBG_BSS	 	= 0x00000800, /* BSS related, upstream format */
 	MT76_DBG_DEV	 	= 0x00001000, /* DEV related, upstream format */
+	MT76_DBG_SCAN	 	= 0x00002000, /* Scan related, upstream format */
+	MT76_DBG_CHAN	 	= 0x00004000, /* Channel related, upstream format */
 	MTK_DEBUG_ANY		= 0xffffffff
 };
 
@@ -1369,12 +1371,22 @@ struct mt76_ethtool_worker_info {
 	bool has_eht;
 };
 
+enum mt76_chanctx_state {
+	MT76_CHANCTX_STATE_UNSPEC,
+	MT76_CHANCTX_STATE_ADD,
+	MT76_CHANCTX_STATE_CHANGE,
+	MT76_CHANCTX_STATE_SWITCH,
+};
+
 struct mt76_chanctx {
 	struct mt76_phy *phy;
 	struct cfg80211_chan_def chandef;
 
 	bool assigned;
 	u8 nbss_assigned;
+	enum mt76_chanctx_state state;
+	bool has_ap:1;
+	bool has_sta:1;
 };
 
 #define CCK_RATE(_idx, _rate) {					\

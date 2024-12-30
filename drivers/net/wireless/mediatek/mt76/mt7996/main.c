@@ -24,6 +24,8 @@ MODULE_PARM_DESC(debug_lvl,
 		 "0x00400       STA related debugging\n"
 		 "0x00800       BSS related debugging\n"
 		 "0x01000       DEV related debugging\n"
+		 "0x02000       Scan related debugging\n"
+		 "0x04000       Channel related debugging\n"
 		 "0xffffffff	any/all\n"
 	);
 
@@ -627,8 +629,30 @@ out:
 int mt7996_set_channel(struct mt76_phy *mphy)
 {
 	struct mt7996_phy *phy = mphy->priv;
-	int ret;
+	int ret = 0;
 
+	if (mphy->chanctx && mphy->chanctx->state == MT76_CHANCTX_STATE_ADD) {
+		if (!mt76_testmode_enabled(phy->mt76) /* && !phy->mt76->test.bf_en*/) {
+			ret = mt7996_mcu_edcca_enable(phy, true);
+			if (ret)
+				goto out;
+		}
+
+		ret = mt7996_mcu_set_pp_en(phy, PP_USR_MODE,
+					   mphy->chanctx->chandef.punctured);
+		if (ret)
+			goto out;
+	} else if (mphy->chanctx && mphy->chanctx->state == MT76_CHANCTX_STATE_SWITCH) {
+		if (mphy->chanctx->has_ap && phy->pp_mode == PP_USR_MODE) {
+			ret = mt7996_mcu_set_pp_en(phy, PP_USR_MODE,
+						   mphy->main_chandef.punctured);
+		} else if (mphy->chanctx->has_sta) {
+			u8 omac_idx = get_omac_idx(NL80211_IFTYPE_STATION,
+				      phy->omac_mask);
+			ret = mt7996_mcu_set_pp_sta_dscb(phy, &mphy->main_chandef,
+							 omac_idx);
+		}
+	}
 
 #if 0
 	// TODO:  Re-enable if/when adding dpd code
