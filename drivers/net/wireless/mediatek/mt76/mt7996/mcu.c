@@ -1812,6 +1812,12 @@ mt7996_mcu_bss_basic_tlv(struct sk_buff *skb,
 		return 0;
 
 	memcpy(bss->bssid, link_conf->bssid, ETH_ALEN);
+
+	mt76_dbg(phy->dev, MT76_DBG_BSS,
+		 "%s: band=%d, omac=%d, wmm_idx=%d, bssid=%pM, link=%d, en=%d\n",
+		 __func__, bss->band_idx, bss->omac_idx,
+		 bss->wmm_idx, bss->bssid, link_conf->link_id, enable);
+
 	bss->bcn_interval = cpu_to_le16(link_conf->beacon_int);
 	bss->dtim_period = link_conf->dtim_period;
 	bss->phymode = mt76_connac_get_phy_mode(phy, vif,
@@ -3329,6 +3335,11 @@ mt7996_mcu_sta_mld_setup_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
 
 	vif = container_of((void *)msta->vif, struct ieee80211_vif, drv_priv);
 	mld_setup_link = (struct mld_setup_link *)mld_setup->link_info;
+	mt76_dbg(&dev->mt76, MT76_DBG_STA,
+		 "%s: STA %pM pri_link=%u, pri_wcid=%u, sec_link=%u, sec_wcid=%u\n",
+		 __func__, sta->addr, msta->deflink_id,
+		 le16_to_cpu(mld_setup->primary_id),
+		 msta->sec_link, le16_to_cpu(mld_setup->seconed_id));
 	for_each_set_bit(link_id, &links, IEEE80211_MLD_MAX_NUM_LINKS) {
 		struct mt7996_vif_link *link;
 
@@ -3342,6 +3353,12 @@ mt7996_mcu_sta_mld_setup_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
 
 		mld_setup_link->wcid = cpu_to_le16(msta_link->wcid.idx);
 		mld_setup_link->bss_idx = link->mt76.idx;
+
+		mt76_dbg(&dev->mt76, MT76_DBG_STA,
+			 "%s: link_id(%d) wcid(%d) bss_idx(%d)\n",
+			 __func__, link_id, mld_setup_link->wcid,
+			 mld_setup_link->bss_idx);
+
 		mld_setup_link++;
 	}
 }
@@ -3385,6 +3402,9 @@ int mt7996_mcu_add_sta(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 	/* starec basic */
 	mt76_connac_mcu_sta_basic_tlv(&dev->mt76, skb, vif, link_conf, link_sta,
 				      conn_state, newly);
+	mt76_dbg(&dev->mt76, MT76_DBG_DEV,
+		 "%s: link=%u, wcid=%u, newly=%d, conn_state=%d\n",
+		   __func__, wcid->link_id, wcid->idx, newly, conn_state);
 
 	if (conn_state == CONN_STATE_DISCONNECT)
 		goto out;
@@ -3618,9 +3638,13 @@ int mt7996_mcu_add_dev_info(struct mt7996_phy *phy, struct ieee80211_vif *vif,
 	if (mlink->omac_idx >= REPEATER_BSSID_START)
 		return mt7996_mcu_muar_config(dev, mlink, link_conf->addr, false, enable);
 
-	if (link_conf)
+	if (link_conf) {
 		memcpy(data.tlv.omac_addr, link_conf->addr, ETH_ALEN);
-
+		mt76_dbg(&dev->mt76, MT76_DBG_DEV,
+			 "%s: band=%u, omac=%u, addr=%pM, en=%d\n",
+			 __func__, data.hdr.band_idx, data.hdr.omac_idx,
+			 data.tlv.omac_addr, enable);
+	}
 	return mt76_mcu_send_msg(&dev->mt76, MCU_WMWA_UNI_CMD(DEV_INFO_UPDATE),
 				 &data, sizeof(data), true);
 }
