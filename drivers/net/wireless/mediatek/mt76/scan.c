@@ -7,26 +7,31 @@
 static void mt76_scan_complete(struct mt76_dev *dev, bool abort)
 {
 	struct mt76_phy *phy = dev->scan.phy;
+	struct ieee80211_vif *vif = dev->scan.vif;
 	struct cfg80211_scan_info info = {
 		.aborted = abort,
 	};
 
-	if (!phy)
+	if (!phy || !vif)
 		return;
 
-	clear_bit(MT76_SCANNING, &phy->state);
+	if (ieee80211_vif_is_mld(vif))
+		if (dev->scan.mlink == (struct mt76_vif_link *)vif->drv_priv)
+			dev->drv->vif_link_remove(phy, vif, NULL, dev->scan.mlink);
 
-	if (dev->scan.chan && phy->main_chandef.chan)
-		mt76_set_channel(phy, &phy->main_chandef, false);
-	mt76_put_vif_phy_link(phy, dev->scan.vif, dev->scan.mlink);
-	memset(&dev->scan, 0, sizeof(dev->scan));
 	ieee80211_scan_completed(phy->hw, &info);
+	memset(&dev->scan, 0, sizeof(dev->scan));
+	clear_bit(MT76_SCANNING, &phy->state);
+	clear_bit(MT76_SCANNING_WAIT_BEACON, &phy->state);
+	clear_bit(MT76_SCANNING_BEACON_DONE, &phy->state);
 }
 
 void mt76_abort_scan(struct mt76_dev *dev)
 {
 	cancel_delayed_work_sync(&dev->scan_work);
+	mutex_lock(&dev->mutex);
 	mt76_scan_complete(dev, true);
+	mutex_unlock(&dev->mutex);
 }
 
 static void
@@ -95,8 +100,29 @@ void mt76_scan_work(struct work_struct *work)
 	int duration = HZ / 9; /* ~110 ms */
 	int i;
 
+	clear_bit(MT76_SCANNING_WAIT_BEACON, &phy->state);
+
 	if (dev->scan.chan_idx >= req->n_channels) {
+		mutex_lock(&dev->mutex);
 		mt76_scan_complete(dev, false);
+		mutex_unlock(&dev->mutex);
+
+		mt76_set_channel(phy, &phy->main_chandef, false);
+
+		return;
+	}
+
+	/* move to active scan for the current scanning channel */
+	if (test_and_clear_bit(MT76_SCANNING_BEACON_DONE, &phy->state)) {
+		local_bh_disable();
+		for (i = 0; i < req->n_ssids; i++)
+			mt76_scan_send_probe(dev, &req->ssids[i]);
+		local_bh_enable();
+		ieee80211_queue_delayed_work(phy->hw, &dev->scan_work, HZ / 16);
+		mt76_dbg(dev, MT76_DBG_SCAN,
+			 "%s: move to active scan on channel %d\n",
+			 __func__, phy->chanctx ? phy->chanctx->chandef.center_freq1 :
+						  phy->chandef.center_freq1);
 		return;
 	}
 
@@ -121,9 +147,6 @@ void mt76_scan_work(struct work_struct *work)
 	local_bh_enable();
 
 out:
-	if (!duration)
-		return;
-
 	if (dev->scan.chan)
 		duration = max_t(int, duration,
 			         msecs_to_jiffies(req->duration +
@@ -137,7 +160,8 @@ int mt76_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 {
 	struct mt76_phy *phy = hw->priv;
 	struct mt76_dev *dev = phy->dev;
-	struct mt76_vif_link *mlink;
+	struct mt76_vif_link *mlink = (struct mt76_vif_link *)vif->drv_priv;
+	struct mt76_vif_data *mvif = mlink->mvif;
 	int ret = 0;
 
 	if (hw->wiphy->n_radio > 1) {
@@ -146,6 +170,9 @@ int mt76_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			return -EINVAL;
 	}
 
+	mt76_dbg(dev, MT76_DBG_CHAN, "%s: trigger scan on mt76 band %u\n",
+		 __func__, phy->band_idx);
+
 	mutex_lock(&dev->mutex);
 
 	if (dev->scan.req || phy->roc_vif) {
@@ -153,10 +180,81 @@ int mt76_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		goto out;
 	}
 
-	mlink = mt76_get_vif_phy_link(phy, vif);
-	if (IS_ERR(mlink)) {
-		ret = PTR_ERR(mlink);
-		goto out;
+	if (!ieee80211_vif_is_mld(vif)) {
+		mlink = mt76_vif_link(dev, vif, 0);
+
+		if (mlink && mlink->band_idx != phy->band_idx) {
+			dev->drv->vif_link_remove(phy, vif, NULL, mlink);
+			mlink = NULL;
+		}
+
+		if (!mlink) {
+			mlink = (struct mt76_vif_link *)vif->drv_priv;
+			ret = dev->drv->vif_link_add(phy, vif, &vif->bss_conf, NULL);
+			if (ret)
+				goto out;
+		}
+	} else {
+		struct ieee80211_bss_conf *link_conf;
+		unsigned long valid_links = vif->valid_links;
+		unsigned int link_id;
+		bool found = false;
+
+		for_each_set_bit(link_id, &valid_links,
+				 IEEE80211_MLD_MAX_NUM_LINKS) {
+			mlink = mt76_vif_link(dev, vif, link_id);
+			if (mlink && mlink->band_idx == phy->band_idx) {
+				found = true;
+				break;
+			}
+
+			link_conf = link_conf_dereference_protected(vif, link_id);
+			if (link_conf && !mlink) {
+				/* The link is added in mac80211, but not yet
+				 * initialized and assigned to a chanctx.
+				 * Here we use the default link to perform scan.
+				 */
+				mlink = (struct mt76_vif_link *)vif->drv_priv;
+				memcpy(&vif->bss_conf, link_conf, sizeof(struct ieee80211_bss_conf));
+				ret = dev->drv->vif_link_add(phy, vif, &vif->bss_conf, NULL);
+				if (ret)
+					goto out;
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			if (vif->type != NL80211_IFTYPE_STATION) {
+				/* Only allowed STA MLD to scan full-band when
+				 * there is no valid link on the band.
+				 * (For example, when connecting by 2 links
+				 * (2+5 GHz), an AP MLD is not allowed to scan
+				 * full-band (2+5+6 GHz), while a STA MLD is.)
+				 */
+				mt76_scan_complete(dev, 0);
+				goto out;
+			}
+
+			/* Try to find an empty link, which is later used to scan. */
+			for (link_id = 0;
+			     link_id < IEEE80211_MLD_MAX_NUM_LINKS;
+			     link_id++) {
+				if (!rcu_access_pointer(mvif->link[link_id]))
+					break;
+			}
+
+			if (link_id == IEEE80211_MLD_MAX_NUM_LINKS) {
+				ret = -ENOLINK;
+				goto out;
+			}
+
+			vif->bss_conf.link_id = link_id;
+			mlink = (struct mt76_vif_link *)vif->drv_priv;
+			ret = dev->drv->vif_link_add(phy, vif, &vif->bss_conf, NULL);
+			if (ret)
+				goto out;
+		}
 	}
 
 	memset(&dev->scan, 0, sizeof(dev->scan));
@@ -164,6 +262,7 @@ int mt76_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	dev->scan.vif = vif;
 	dev->scan.phy = phy;
 	dev->scan.mlink = mlink;
+	set_bit(MT76_SCANNING, &phy->state);
 	ieee80211_queue_delayed_work(dev->phy.hw, &dev->scan_work, 0);
 
 out:
