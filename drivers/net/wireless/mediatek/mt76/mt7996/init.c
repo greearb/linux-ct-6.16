@@ -94,13 +94,17 @@ static const u8 mt7996_if_types_ext_capa_sta[] = {
 	[7] = WLAN_EXT_CAPA8_OPMODE_NOTIF,
 };
 
+#define MT7996_NEG_TTLM_SUPPORT FIELD_PREP_CONST( \
+		IEEE80211_MLD_CAP_OP_TID_TO_LINK_MAP_NEG_SUPP, \
+		IEEE80211_MLD_CAP_OP_TID_TO_LINK_MAP_NEG_SUPP_DIFF)
+
 static const struct wiphy_iftype_ext_capab mt7996_iftypes_ext_capa[] = {
 	{
 		.iftype = NL80211_IFTYPE_STATION,
 		.extended_capabilities = mt7996_if_types_ext_capa_sta,
 		.extended_capabilities_mask = mt7996_if_types_ext_capa_sta,
 		.extended_capabilities_len = sizeof(mt7996_if_types_ext_capa_sta),
-		.mld_capa_and_ops = 2,
+		.mld_capa_and_ops = 2 | MT7996_NEG_TTLM_SUPPORT,
 	},
 	{
 		.iftype = NL80211_IFTYPE_AP,
@@ -108,7 +112,7 @@ static const struct wiphy_iftype_ext_capab mt7996_iftypes_ext_capa[] = {
 		.extended_capabilities_mask = mt7996_if_types_ext_capa_ap,
 		.extended_capabilities_len = sizeof(mt7996_if_types_ext_capa_ap),
 		.eml_capabilities = IEEE80211_EML_CAP_EMLSR_SUPP,
-		.mld_capa_and_ops = 2,
+		.mld_capa_and_ops = 2 | MT7996_NEG_TTLM_SUPPORT,
 		/* the max number of simultaneous links is defined as the
 		 * maximum number of affiliated APs minus 1.
 		 * mt7996 could have 3 links in an MLD AP, so currently
