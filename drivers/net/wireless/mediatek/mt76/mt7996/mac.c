@@ -908,6 +908,30 @@ mt7996_mac_write_txwi_8023(struct mt7996_dev *dev, __le32 *txwi,
 		txwi[3] |= cpu_to_le32(MT_TXD3_HW_AMSDU);
 }
 
+static bool mt7996_is_skb_altx(struct ieee80211_mgmt *mgmt)
+{
+	__le16 fc = mgmt->frame_control;
+
+	if (ieee80211_is_deauth(fc)) {
+		/* In WPA3 cert TC-4.8.1, the deauth must be transmitted without
+		 * considering PSM bit
+		 */
+		return true;
+	}
+
+	if (ieee80211_is_action(fc) &&
+	    mgmt->u.action.category == WLAN_CATEGORY_PROTECTED_EHT &&
+	    (mgmt->u.action.u.ttlm_req.action_code ==
+	    WLAN_PROTECTED_EHT_ACTION_TTLM_REQ ||
+	    mgmt->u.action.u.ttlm_req.action_code ==
+	    WLAN_PROTECTED_EHT_ACTION_TTLM_RES ||
+	    mgmt->u.action.u.ttlm_req.action_code ==
+	    WLAN_PROTECTED_EHT_ACTION_TTLM_TEARDOWN))
+		return true;
+
+	return false;
+}
+
 static void
 mt7996_mac_write_txwi_80211(struct mt7996_dev *dev, __le32 *txwi,
 			    struct sk_buff *skb,
@@ -923,6 +947,11 @@ mt7996_mac_write_txwi_80211(struct mt7996_dev *dev, __le32 *txwi,
 	u16 seqno = le16_to_cpu(sc);
 	u8 fc_type, fc_stype;
 	u32 val;
+
+	if (mt7996_is_skb_altx(mgmt)) {
+		txwi[0] &= ~cpu_to_le32(MT_TXD0_Q_IDX);
+		txwi[0] |= cpu_to_le32(FIELD_PREP(MT_TXD0_Q_IDX, MT_LMAC_ALTX0));
+	}
 
 	if (ieee80211_is_action(fc) &&
 	    mgmt->u.action.category == WLAN_CATEGORY_BACK &&
