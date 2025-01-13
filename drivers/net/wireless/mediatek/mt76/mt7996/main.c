@@ -3184,6 +3184,19 @@ mt7996_set_ttlm(struct ieee80211_hw *hw, struct ieee80211_vif *vif)
 }
 
 static int
+mt7996_set_sta_ttlm(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+		    struct ieee80211_sta *sta, struct ieee80211_neg_ttlm *neg_ttlm)
+{
+	struct mt7996_dev *dev = mt7996_hw_dev(hw);
+	int ret;
+
+	mutex_lock(&dev->mt76.mutex);
+	ret = mt7996_mcu_peer_mld_ttlm_req(dev, vif, sta, neg_ttlm);
+	mutex_unlock(&dev->mt76.mutex);
+	return ret;
+}
+
+static int
 mt7996_set_attlm(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		 u16 disabled_links, u16 switch_time, u32 duration)
 {
@@ -3363,6 +3376,7 @@ const struct ieee80211_ops mt7996_ops = {
 	.change_sta_links = mt7996_mac_sta_change_links,
 	.set_qos_map = mt7996_set_qos_map,
 	.set_attlm = mt7996_set_attlm,
+	.set_sta_ttlm = mt7996_set_sta_ttlm,
 	.can_neg_ttlm = mt7996_can_neg_ttlm,
 	.set_ttlm = mt7996_set_ttlm,
 };
