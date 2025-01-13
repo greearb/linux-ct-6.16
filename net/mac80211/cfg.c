@@ -5367,6 +5367,30 @@ static int ieee80211_set_hw_timestamp(struct wiphy *wiphy,
 
 	return local->ops->set_hw_timestamp(&local->hw, &sdata->vif, hwts);
 }
+static int ieee80211_set_sta_ttlm(struct wiphy *wiphy, struct net_device *dev,
+				  u8 *mac, struct cfg80211_ttlm_params *params)
+{
+	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+	struct ieee80211_local *local = sdata->local;
+	struct ieee80211_neg_ttlm neg_ttlm;
+	struct sta_info *sta;
+
+	lockdep_assert_wiphy(sdata->local->hw.wiphy);
+
+	sta = sta_info_get_bss(sdata, mac);
+	if (!sta)
+		return -ENOENT;
+
+	if (!params->is_teardown) {
+		memcpy(neg_ttlm.downlink, params->dlink, sizeof(neg_ttlm.downlink));
+		memcpy(neg_ttlm.uplink, params->ulink, sizeof(neg_ttlm.uplink));
+	} else {
+		memset(neg_ttlm.downlink, 0xff, sizeof(neg_ttlm.downlink));
+		memset(neg_ttlm.uplink, 0xff, sizeof(neg_ttlm.uplink));
+	}
+
+	return drv_set_sta_ttlm(local, sdata, &sta->sta, &neg_ttlm);
+}
 
 static int
 ieee80211_set_attlm(struct wiphy *wiphy, struct net_device *dev,
@@ -5560,6 +5584,7 @@ const struct cfg80211_ops mac80211_config_ops = {
 	.mod_link_station = ieee80211_mod_link_station,
 	.del_link_station = ieee80211_del_link_station,
 	.set_hw_timestamp = ieee80211_set_hw_timestamp,
+	.set_sta_ttlm = ieee80211_set_sta_ttlm,
 	.set_attlm = ieee80211_set_attlm,
 	.set_ttlm = ieee80211_set_ttlm,
 	.get_radio_mask = ieee80211_get_radio_mask,

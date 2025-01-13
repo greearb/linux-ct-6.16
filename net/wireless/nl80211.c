@@ -16909,6 +16909,41 @@ static int nl80211_set_hw_timestamp(struct sk_buff *skb,
 }
 
 static int
+nl80211_set_sta_ttlm(struct sk_buff *skb, struct genl_info *info)
+{
+	struct cfg80211_ttlm_params params = {};
+	struct cfg80211_registered_device *rdev = info->user_ptr[0];
+	struct net_device *dev = info->user_ptr[1];
+	struct wireless_dev *wdev = dev->ieee80211_ptr;
+	u8 *mac_addr = NULL;
+
+	if (wdev->iftype != NL80211_IFTYPE_AP)
+		return -EOPNOTSUPP;
+
+	if (!info->attrs[NL80211_ATTR_MAC])
+		return -EINVAL;
+
+	mac_addr = nla_data(info->attrs[NL80211_ATTR_MAC]);
+
+	if (info->attrs[NL80211_ATTR_MLO_TTLM_DLINK] &&
+	    info->attrs[NL80211_ATTR_MLO_TTLM_ULINK]) {
+		nla_memcpy(params.dlink,
+			   info->attrs[NL80211_ATTR_MLO_TTLM_DLINK],
+			   sizeof(params.dlink));
+		nla_memcpy(params.ulink,
+			   info->attrs[NL80211_ATTR_MLO_TTLM_ULINK],
+			   sizeof(params.ulink));
+	} else if (!info->attrs[NL80211_ATTR_MLO_TTLM_DLINK] &&
+		   !info->attrs[NL80211_ATTR_MLO_TTLM_ULINK]) {
+		params.is_teardown = true;
+	} else {
+		return -EINVAL;
+	}
+
+	return rdev_set_sta_ttlm(rdev, dev, mac_addr, &params);
+}
+
+static int
 nl80211_set_attlm(struct sk_buff *skb, struct genl_info *info)
 {
 	struct cfg80211_registered_device *rdev = info->user_ptr[0];
@@ -18229,6 +18264,12 @@ static const struct genl_small_ops nl80211_small_ops[] = {
 	{
 		.cmd = NL80211_CMD_SET_HW_TIMESTAMP,
 		.doit = nl80211_set_hw_timestamp,
+		.flags = GENL_UNS_ADMIN_PERM,
+		.internal_flags = IFLAGS(NL80211_FLAG_NEED_NETDEV_UP),
+	},
+	{
+		.cmd = NL80211_CMD_SET_STA_TTLM,
+		.doit = nl80211_set_sta_ttlm,
 		.flags = GENL_UNS_ADMIN_PERM,
 		.internal_flags = IFLAGS(NL80211_FLAG_NEED_NETDEV_UP),
 	},

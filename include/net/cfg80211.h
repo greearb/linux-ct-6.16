@@ -4640,6 +4640,7 @@ struct mgmt_frame_regs {
  * @del_link_station: Remove a link of a station.
  *
  * @set_hw_timestamp: Enable/disable HW timestamping of TM/FTM frames.
+ * @set_sta_ttlm: For AP MLD to set a specific non-AP MLD's TID to link mapping
  * @set_attlm: For AP MLD to to set advertised TID to link mapping
  * @set_ttlm: set the TID to link mapping.
  * @set_epcs: Enable/Disable EPCS for station mode.
@@ -5015,6 +5016,8 @@ struct cfg80211_ops {
 				    struct link_station_del_parameters *params);
 	int	(*set_hw_timestamp)(struct wiphy *wiphy, struct net_device *dev,
 				    struct cfg80211_set_hw_timestamp *hwts);
+	int	(*set_sta_ttlm)(struct wiphy *wiphy, struct net_device *dev,
+				u8 *mac, struct cfg80211_ttlm_params *params);
 	int	(*set_attlm)(struct wiphy *wiphy, struct net_device *dev,
 			     u16 disabled_links, u16 switch_time, u32 duration);
 	int	(*set_ttlm)(struct wiphy *wiphy, struct net_device *dev,

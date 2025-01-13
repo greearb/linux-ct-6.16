@@ -3326,6 +3326,35 @@ DEFINE_EVENT(local_sdata_evt, drv_set_qos_map,
 		 struct ieee80211_sub_if_data *sdata),
 	TP_ARGS(local, sdata)
 );
+
+TRACE_EVENT(drv_set_sta_ttlm,
+	TP_PROTO(struct ieee80211_local *local,
+		 struct ieee80211_sub_if_data *sdata,
+		 struct ieee80211_sta *sta,
+		 struct ieee80211_neg_ttlm *neg_ttlm),
+
+	TP_ARGS(local, sdata, sta, neg_ttlm),
+
+	TP_STRUCT__entry(LOCAL_ENTRY
+			 VIF_ENTRY
+			 STA_ENTRY
+			 __array(u16, downlink, sizeof(u16) * 8)
+			 __array(u16, uplink, sizeof(u16) * 8)
+	),
+
+	TP_fast_assign(LOCAL_ASSIGN;
+		       VIF_ASSIGN;
+		       STA_ASSIGN;
+		       memcpy(__entry->downlink, neg_ttlm->downlink,
+			      sizeof(neg_ttlm->downlink));
+		       memcpy(__entry->uplink, neg_ttlm->uplink,
+			      sizeof(neg_ttlm->uplink));
+	),
+
+	TP_printk(LOCAL_PR_FMT  VIF_PR_FMT STA_PR_FMT,
+		  LOCAL_PR_ARG, VIF_PR_ARG, STA_PR_ARG
+	)
+);
 #endif /* !__MAC80211_DRIVER_TRACE || TRACE_HEADER_MULTI_READ */
 
 #undef TRACE_INCLUDE_PATH
