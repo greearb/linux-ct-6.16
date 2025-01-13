@@ -997,11 +997,6 @@ mt7996_vif_cfg_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		}
 	}
 
-	// TODO:  Will not compile, some later patch removes it anyway.
-	//if ((changed & BSS_CHANGED_MLD_VALID_LINKS) &&
-	//    (changed & (BSS_CHANGED_MLD_ADV_TTLM | BSS_CHANGED_MLD_NEG_TTLM)))
-	//	mt7996_mcu_peer_mld_ttlm_req(dev, vif, changed);
-
 	mutex_unlock(&dev->mt76.mutex);
 }
 
@@ -3150,6 +3145,45 @@ out:
 }
 
 static int
+mt7996_set_ttlm(struct ieee80211_hw *hw, struct ieee80211_vif *vif)
+{
+	struct ieee80211_neg_ttlm merged_ttlm;
+	struct mt7996_dev *dev = mt7996_hw_dev(hw);
+	struct ieee80211_sta *sta;
+	int tid, ret;
+	u16 map = vif->valid_links;
+
+	/* TODO check the intersection between Adv-TTLM and Neg-TTLM */
+	if (vif->type != NL80211_IFTYPE_STATION ||
+	    (vif->adv_ttlm.active && vif->neg_ttlm.valid))
+		return -EOPNOTSUPP;
+
+	if (vif->adv_ttlm.active)
+		map &= vif->adv_ttlm.map;
+
+	sta = ieee80211_find_sta(vif, vif->cfg.ap_addr);
+	if (!sta)
+		return -EINVAL;
+
+	if (vif->neg_ttlm.valid) {
+		memcpy(merged_ttlm.downlink, vif->neg_ttlm.downlink,
+		       sizeof(merged_ttlm.downlink));
+		memcpy(merged_ttlm.uplink, vif->neg_ttlm.uplink,
+		       sizeof(merged_ttlm.uplink));
+	} else {
+		for (tid = 0; tid < IEEE80211_TTLM_NUM_TIDS; tid++) {
+			merged_ttlm.downlink[tid] = map;
+			merged_ttlm.uplink[tid] = map;
+		}
+	}
+
+	mutex_lock(&dev->mt76.mutex);
+	ret = mt7996_mcu_peer_mld_ttlm_req(dev, vif, sta, &merged_ttlm);
+	mutex_unlock(&dev->mt76.mutex);
+	return ret;
+}
+
+static int
 mt7996_set_attlm(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		 u16 disabled_links, u16 switch_time, u32 duration)
 {
@@ -3160,6 +3194,17 @@ mt7996_set_attlm(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	ret = mt7996_mcu_mld_set_attlm(dev, vif, disabled_links, switch_time, duration);
 	mutex_unlock(&dev->mt76.mutex);
 	return ret;
+}
+
+static enum ieee80211_neg_ttlm_res
+mt7996_can_neg_ttlm(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+		    struct ieee80211_neg_ttlm *neg_ttlm)
+{
+	/* TODO check intersection between adv-TTLM and neg-TTLM
+	 * For now, we reject all possible overlapping cases of Adv-TTLM and
+	 * Neg-TTLM
+	 */
+	return vif->adv_ttlm.active ? NEG_TTLM_RES_REJECT : NEG_TTLM_RES_ACCEPT;
 }
 
 static void
@@ -3318,4 +3363,6 @@ const struct ieee80211_ops mt7996_ops = {
 	.change_sta_links = mt7996_mac_sta_change_links,
 	.set_qos_map = mt7996_set_qos_map,
 	.set_attlm = mt7996_set_attlm,
+	.can_neg_ttlm = mt7996_can_neg_ttlm,
+	.set_ttlm = mt7996_set_ttlm,
 };
