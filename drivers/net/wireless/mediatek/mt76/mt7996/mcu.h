@@ -1635,6 +1635,22 @@ struct fixed_rate_table_ctrl {
 	u8 _rsv2;
 } __packed;
 
+#define EPCS_MAX_WMM_PARAMS	16
+#define EPCS_CTRL_WMM_FLAG_VALID	BIT(0)
+
+enum {
+	UNI_CMD_EPCS_CTRL = 1,
+};
+
+enum {
+	UNI_EPCS_CTRL_ENABLE = 1,
+	UNI_EPCS_CTRL_SET_WMM_PARAMS,
+	UNI_EPCS_CTRL_SET_WMM_IDX,
+	UNI_EPCS_CTRL_GET_WMM_PARAMS,
+	UNI_EPCS_CTRL_GET_STA,
+	UNI_EPCS_CTRL_RESET_STA
+};
+
 enum {
 	UNI_CMD_MURU_DBG_INFO = 0x18,
 };

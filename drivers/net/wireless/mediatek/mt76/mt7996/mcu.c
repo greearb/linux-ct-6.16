@@ -7700,6 +7700,67 @@ int mt7996_mcu_set_eml_omn(struct ieee80211_vif *vif,
 			MCU_WMWA_UNI_CMD(STA_REC_UPDATE), true);
 }
 
+int mt7996_mcu_epcs_ctrl(u32 cmd, struct mt7996_dev *dev,
+			 struct ieee80211_sta *sta, u8 link_id, bool enable,
+			 u16 wmm_idx, struct mt7996_wmm_params *params)
+{
+	struct {
+		u8 rsv1[4];
+
+		__le16 tag;
+		__le16 len;
+		__le32 cmd;
+
+		__le16 wlan_idx;
+		__le16 wmm_idx;
+		u8 enable;
+		u8 rsv2[3];
+		struct {
+			struct {
+				__le16 txop_limit;
+				u8 ecwmin;
+				u8 ecwmax;
+				u8 aifsn;
+				u8 rsv[3];
+				u8 mu_ecwmin;
+				u8 mu_ecwmax;
+				u8 mu_aifsn;
+				u8 mu_timer;
+			} params[IEEE80211_NUM_ACS];
+			__le16 flags;
+			u8 rsv[2];
+		} wmm;
+	} req = {
+		.tag = cpu_to_le16(UNI_CMD_EPCS_CTRL),
+		.len = cpu_to_le16(sizeof(req) - 4),
+		.cmd = cpu_to_le32(cmd),
+		.wmm_idx = cpu_to_le16(wmm_idx),
+		.enable = enable,
+		.wmm.flags = enable ? cpu_to_le16(EPCS_CTRL_WMM_FLAG_VALID) : 0,
+	};
+	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
+	struct mt7996_sta_link *msta_link;
+	int i;
+
+	msta_link = mt76_dereference(msta->link[link_id], &dev->mt76);
+	if (!msta_link)
+		return -EINVAL;
+	req.wlan_idx = cpu_to_le16(msta_link->wcid.idx);
+
+	for (i = IEEE80211_AC_VO; i < IEEE80211_NUM_ACS; ++i) {
+		u8 usr_ac = mt76_ac_to_hwq(i),
+		   lmac_ac = mt76_connac_lmac_mapping(i);
+
+		req.wmm.params[lmac_ac].txop_limit = cpu_to_le16(params[usr_ac].txop_limit);
+		req.wmm.params[lmac_ac].ecwmin = params[usr_ac].ecwmin;
+		req.wmm.params[lmac_ac].ecwmax = params[usr_ac].ecwmax;
+		req.wmm.params[lmac_ac].aifsn = params[usr_ac].aifsn;
+	}
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(EPCS), &req,
+				 sizeof(req), false);
+}
+
 int mt7996_mcu_muru_dbg_info(struct mt7996_dev *dev, u16 item, u8 val)
 {
 	struct {

@@ -478,6 +478,14 @@ struct mt7996_eml_omn {
 	} u;
 } __packed;
 
+struct mt7996_wmm_params {
+	int ecwmin;
+	int ecwmax;
+	int aifsn;
+	int txop_limit;
+	int acm;
+};
+
 struct mt7996_wed_rro_addr {
 	u32 head_low;
 	u32 head_high : 4;
@@ -1161,6 +1169,9 @@ int mt7996_mcu_set_pp_alg_ctrl(struct mt7996_phy *phy, u8 action);
 int mt7996_mcu_set_eml_omn(struct ieee80211_vif *vif, u8 link_id,
 			   struct ieee80211_sta *sta, struct mt7996_dev *dev,
 			   struct mt7996_eml_omn *eml_omn);
+int mt7996_mcu_epcs_ctrl(u32 cmd, struct mt7996_dev *dev,
+			 struct ieee80211_sta *sta, u8 link_id, bool enable,
+			 u16 wmm_idx, struct mt7996_wmm_params *params);
 int mt7996_mcu_get_tsf_offset(struct mt7996_phy *phy, struct mt7996_vif *mvif,
 			      int rpting_link_id, int rpted_link_id);
 #ifdef CONFIG_MAC80211_DEBUGFS
