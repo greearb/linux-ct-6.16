@@ -3036,6 +3036,28 @@ TRACE_EVENT(rdev_set_hw_timestamp,
 		  __entry->enable)
 );
 
+TRACE_EVENT(rdev_set_sta_ttlm,
+	TP_PROTO(struct wiphy *wiphy, struct net_device *netdev, u8 *mac,
+		 struct cfg80211_ttlm_params *params),
+	TP_ARGS(wiphy, netdev, mac, params),
+	TP_STRUCT__entry(
+		WIPHY_ENTRY
+		NETDEV_ENTRY
+		MAC_ENTRY(mac)
+		__array(u8, dlink, sizeof(u16) * 8)
+		__array(u8, ulink, sizeof(u16) * 8)
+	),
+	TP_fast_assign(
+		WIPHY_ASSIGN;
+		NETDEV_ASSIGN;
+		MAC_ASSIGN(mac, mac);
+		memcpy(__entry->dlink, params->dlink, sizeof(params->dlink));
+		memcpy(__entry->ulink, params->ulink, sizeof(params->ulink));
+	),
+	TP_printk(WIPHY_PR_FMT ", " NETDEV_PR_FMT ", sta: %pM",
+		  WIPHY_PR_ARG, NETDEV_PR_ARG, __entry->mac)
+);
+
 TRACE_EVENT(rdev_set_attlm,
 	TP_PROTO(struct wiphy *wiphy, struct net_device *netdev,
 		 u16 disabled_links, u16 switch_time, u32 duration),

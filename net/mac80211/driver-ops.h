@@ -1783,4 +1783,20 @@ static inline int drv_set_qos_map(struct ieee80211_local *local,
 	return ret;
 }
 
+static inline int drv_set_sta_ttlm(struct ieee80211_local *local,
+				   struct ieee80211_sub_if_data *sdata,
+				   struct ieee80211_sta *sta,
+				   struct ieee80211_neg_ttlm *neg_ttlm)
+{
+	int ret = -EOPNOTSUPP;
+
+	trace_drv_set_sta_ttlm(local, sdata, sta, neg_ttlm);
+	if (local->ops->set_sta_ttlm)
+		ret = local->ops->set_sta_ttlm(&local->hw, &sdata->vif,
+					       sta, neg_ttlm);
+	trace_drv_return_int(local, ret);
+
+	return ret;
+}
+
 #endif /* __MAC80211_DRIVER_OPS */
