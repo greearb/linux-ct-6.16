@@ -167,6 +167,12 @@ int iwl_acpi_get_dsm(struct iwl_fw_runtime *fwrt,
 	u64 tmp;
 	int ret;
 
+	if (iwlwifi_mod_params.dsm_override[func] > 0) {
+		*value = iwlwifi_mod_params.dsm_override[func];
+		IWL_DEBUG_RADIO(fwrt, "Loaded DSM func %d from mod param: %d\n", func, *value);
+		return 0;
+	}
+
 	BUILD_BUG_ON(ARRAY_SIZE(acpi_dsm_size) != DSM_FUNC_NUM_FUNCS);
 
 	if (WARN_ON(func >= ARRAY_SIZE(acpi_dsm_size)))
@@ -999,7 +1005,7 @@ int iwl_acpi_get_wbem(struct iwl_fw_runtime *fwrt, u32 *value)
 
 	if (iwlwifi_mod_params.wbem_override) {
 		*value = iwlwifi_mod_params.wbem_override & IWL_ACPI_WBEM_REV0_MASK;
-		IWL_DEBUG_RADIO(fwrt, "Loaded WBEM config from mod param\n");
+		IWL_DEBUG_RADIO(fwrt, "Loaded WBEM config from mod param: %d\n", *value);
 		return 0;
 	}
 
