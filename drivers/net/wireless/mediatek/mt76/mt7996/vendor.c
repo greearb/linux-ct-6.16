@@ -316,6 +316,9 @@ mt7996_vendor_smesh_ctrl(struct mt7996_phy *phy, u8 write,
 #define UNI_CMD_SMESH_PARAM  0
 	struct mt7996_dev *dev = phy->dev;
 	struct smesh_param {
+		u8 band;
+		u8 _rsv[3];
+
 		__le16 tag;
 		__le16 length;
 
@@ -327,6 +330,8 @@ mt7996_vendor_smesh_ctrl(struct mt7996_phy *phy, u8 write,
 		bool ctrl;
 		u8 padding[2];
 	} req = {
+		.band = phy->mt76->band_idx,
+
 		.tag = cpu_to_le16(UNI_CMD_SMESH_PARAM),
 		.length = cpu_to_le16(sizeof(req) - 4),
 
@@ -339,21 +344,22 @@ mt7996_vendor_smesh_ctrl(struct mt7996_phy *phy, u8 write,
 	};
 	struct smesh_param *res;
 	struct sk_buff *skb;
-	int ret = 0;
+	int ret;
+
+	if (write)
+		return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(CFG_SMESH),
+					 &req, sizeof(req), true);
 
 	if (!value)
 		return -EINVAL;
 
-	ret = mt76_mcu_send_and_get_msg(&dev->mt76, MCU_WM_UNI_CMD(CFG_SMESH),
-					&req, sizeof(req), !write, &skb);
-
-	if (ret || write)
+	ret = mt76_mcu_send_and_get_msg(&dev->mt76, MCU_WM_UNI_CMD_QUERY(CFG_SMESH),
+					&req, sizeof(req), true, &skb);
+	if (ret)
 		return ret;
 
 	res = (struct smesh_param *) skb->data;
-
 	*value = res->enable;
-
 	dev_kfree_skb(skb);
 
 	return 0;
@@ -365,6 +371,9 @@ mt7996_vendor_amnt_muar(struct mt7996_phy *phy, u8 muar_idx, u8 *addr)
 #define UNI_CMD_MUAR_ENTRY  2
 	struct mt7996_dev *dev = phy->dev;
 	struct muar_entry {
+		u8 band;
+		u8 rsv[3];
+
 		__le16 tag;
 		__le16 length;
 
@@ -375,11 +384,13 @@ mt7996_vendor_amnt_muar(struct mt7996_phy *phy, u8 muar_idx, u8 *addr)
 		u8 mac_addr[6];
 		u8 padding[2];
 	} __packed req = {
+		.band = phy->mt76->band_idx,
+
 		.tag = cpu_to_le16(UNI_CMD_MUAR_ENTRY),
 		.length = cpu_to_le16(sizeof(req) - 4),
 
 		.smesh = true,
-		.hw_bss_index = phy != &dev->phy,
+		.hw_bss_index = 0,
 		.muar_idx = muar_idx,
 		.entry_add = 1,
 	};
@@ -422,35 +433,29 @@ mt7996_vendor_amnt_set_addr(struct mt7996_phy *phy, u8 index, u8 *addr)
 
 	spin_lock_bh(&phy->amnt_lock);
 	entry = &amnt_ctrl->entry[index];
-	if (!is_zero_ether_addr(addr)) {
-		if (entry->enable == false) {
-			for (i = 0; i < MT7996_AIR_MONITOR_MAX_GROUP; i++) {
-				group = &(amnt_ctrl->group[i]);
-				if (group->used[0] == false)
-					j = 0;
-				else if (group->used[1] == false)
-					j = 1;
-				else
-					continue;
 
-				group->enable = true;
-				group->used[j] = true;
-				entry->enable = true;
-				entry->group_idx = i;
-				entry->group_used_idx = j;
-				entry->muar_idx = 32 + 4 * i + 2 * j;
-				break;
-			}
-		}
-	} else {
+	if (is_zero_ether_addr(addr)) {
 		group = &(amnt_ctrl->group[entry->group_idx]);
-
 		group->used[entry->group_used_idx] = false;
-		if (group->used[0] == false && group->used[1] == false)
-			group->enable = false;
-
 		entry->enable = false;
+	} else if (!entry->enable) {
+		for (i = 0; i < MT7996_AIR_MONITOR_MAX_GROUP; i++) {
+			group = &(amnt_ctrl->group[i]);
+			if (!group->used[0])
+				j = 0;
+			else if (!group->used[1])
+				j = 1;
+			else
+				continue;
+
+			group->used[j] = entry->enable = true;
+			entry->group_idx = i;
+			entry->group_used_idx = j;
+			entry->muar_idx = 32 + 4 * i + 2 * j;
+			break;
+		}
 	}
+
 	ether_addr_copy(entry->addr, addr);
 	amnt_ctrl->enable &= ~(1 << entry->group_idx);
 	amnt_ctrl->enable |= entry->enable << entry->group_idx;
@@ -465,49 +470,49 @@ mt7996_vendor_amnt_set_addr(struct mt7996_phy *phy, u8 index, u8 *addr)
 
 static int
 mt7996_vendor_amnt_ctrl(struct wiphy *wiphy, struct wireless_dev *wdev,
-                        const void *data, int data_len)
+			const void *data, int data_len)
 {
-        struct ieee80211_vif *vif = wdev_to_ieee80211_vif(wdev);
-        struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
-        struct mt7996_vif_link *mconf;
-        struct mt7996_phy *phy;
-        struct nlattr *tb1[NUM_MTK_VENDOR_ATTRS_AMNT_CTRL];
-        struct nlattr *tb2[NUM_MTK_VENDOR_ATTRS_AMNT_SET];
-        u8 index = 0, link_id = 0;
-        u8 mac_addr[ETH_ALEN];
-        int err;
+	struct ieee80211_vif *vif = wdev_to_ieee80211_vif(wdev);
+	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
+	struct mt7996_vif_link *mconf;
+	struct mt7996_phy *phy;
+	struct nlattr *tb1[NUM_MTK_VENDOR_ATTRS_AMNT_CTRL];
+	struct nlattr *tb2[NUM_MTK_VENDOR_ATTRS_AMNT_SET];
+	u8 index = 0, link_id = 0;
+	u8 mac_addr[ETH_ALEN];
+	int err;
 
-        err = nla_parse(tb1, MTK_VENDOR_ATTR_AMNT_CTRL_MAX, data, data_len,
-                        amnt_ctrl_policy, NULL);
-        if (err)
-                return err;
+	err = nla_parse(tb1, MTK_VENDOR_ATTR_AMNT_CTRL_MAX, data, data_len,
+			amnt_ctrl_policy, NULL);
+	if (err)
+		return err;
 
-        if (ieee80211_vif_is_mld(vif) && tb1[MTK_VENDOR_ATTR_AMNT_CTRL_LINK_ID]) {
-                link_id = nla_get_u8(tb1[MTK_VENDOR_ATTR_AMNT_CTRL_LINK_ID]);
+	if (ieee80211_vif_is_mld(vif) && tb1[MTK_VENDOR_ATTR_AMNT_CTRL_LINK_ID]) {
+		link_id = nla_get_u8(tb1[MTK_VENDOR_ATTR_AMNT_CTRL_LINK_ID]);
 
-                if (link_id >= IEEE80211_LINK_UNSPECIFIED)
-                        return -EINVAL;
-        }
+		if (link_id >= IEEE80211_LINK_UNSPECIFIED)
+			return -EINVAL;
+	}
 
-        rcu_read_lock();
-        mconf = (struct mt7996_vif_link *)rcu_dereference(mvif->mt76.link[link_id]);
-        phy = mconf ? mconf->phy : NULL;
-        rcu_read_unlock();
+	rcu_read_lock();
+	mconf = (struct mt7996_vif_link *)rcu_dereference(mvif->mt76.link[link_id]);
+	phy = mconf ? mconf->phy : NULL;
+	rcu_read_unlock();
 
-        if (!phy || !tb1[MTK_VENDOR_ATTR_AMNT_CTRL_SET])
-                return -EINVAL;
+	if (!phy || !tb1[MTK_VENDOR_ATTR_AMNT_CTRL_SET])
+		return -EINVAL;
 
-        err = nla_parse_nested(tb2, MTK_VENDOR_ATTR_AMNT_SET_MAX,
-                tb1[MTK_VENDOR_ATTR_AMNT_CTRL_SET], amnt_set_policy, NULL);
+	err = nla_parse_nested(tb2, MTK_VENDOR_ATTR_AMNT_SET_MAX,
+		tb1[MTK_VENDOR_ATTR_AMNT_CTRL_SET], amnt_set_policy, NULL);
 
-        if (!tb2[MTK_VENDOR_ATTR_AMNT_SET_INDEX] ||
-                !tb2[MTK_VENDOR_ATTR_AMNT_SET_MACADDR])
-                return -EINVAL;
+	if (!tb2[MTK_VENDOR_ATTR_AMNT_SET_INDEX] ||
+		!tb2[MTK_VENDOR_ATTR_AMNT_SET_MACADDR])
+		return -EINVAL;
 
-        index = nla_get_u8(tb2[MTK_VENDOR_ATTR_AMNT_SET_INDEX]);
-        memcpy(mac_addr, nla_data(tb2[MTK_VENDOR_ATTR_AMNT_SET_MACADDR]), ETH_ALEN);
+	index = nla_get_u8(tb2[MTK_VENDOR_ATTR_AMNT_SET_INDEX]);
+	memcpy(mac_addr, nla_data(tb2[MTK_VENDOR_ATTR_AMNT_SET_MACADDR]), ETH_ALEN);
 
-        return mt7996_vendor_amnt_set_addr(phy, index, mac_addr);
+	return mt7996_vendor_amnt_set_addr(phy, index, mac_addr);
 }
 
 int mt7996_vendor_amnt_sta_remove(struct mt7996_phy *phy,
@@ -525,7 +530,6 @@ int mt7996_vendor_amnt_sta_remove(struct mt7996_phy *phy,
 	return 0;
 }
 
-#if 0
 static int
 mt7996_amnt_dump(struct mt7996_phy *phy, struct sk_buff *skb,
 		 u8 amnt_idx, int *attrtype)
@@ -534,9 +538,12 @@ mt7996_amnt_dump(struct mt7996_phy *phy, struct sk_buff *skb,
 	struct mt7996_amnt_data data;
 	u32 last_seen = 0;
 
+	if (amnt_idx >= MT7996_AIR_MONITOR_MAX_ENTRY)
+		return 0;
+
 	spin_lock_bh(&phy->amnt_lock);
 	entry = &phy->amnt_ctrl.entry[amnt_idx];
-	if (entry->enable == 0) {
+	if (!entry->enable) {
 		spin_unlock_bh(&phy->amnt_lock);
 		return 0;
 	}
@@ -556,22 +563,21 @@ mt7996_amnt_dump(struct mt7996_phy *phy, struct sk_buff *skb,
 
 	return 1;
 }
-#endif
 
 static int
 mt7996_vendor_amnt_ctrl_dump(struct wiphy *wiphy, struct wireless_dev *wdev,
 			     struct sk_buff *skb, const void *data, int data_len,
 			     unsigned long *storage)
 {
-#if 0
-	// BUGGGY, won't compile yet. --Ben
-	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
-	struct mt7996_phy *phy = &dev->phy;
+	struct ieee80211_vif *vif = wdev_to_ieee80211_vif(wdev);
+	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
+	struct mt7996_vif_link *mconf;
+	struct mt7996_phy *phy;
 	struct nlattr *tb1[NUM_MTK_VENDOR_ATTRS_AMNT_CTRL];
 	struct nlattr *tb2[NUM_MTK_VENDOR_ATTRS_AMNT_DUMP];
 	void *a, *b;
 	int err = 0, attrtype = 0, i, len = 0;
-	u8 amnt_idx;
+	u8 amnt_idx, link_id = 0;
 
 	if (*storage == 1)
 		return -ENOENT;
@@ -582,7 +588,19 @@ mt7996_vendor_amnt_ctrl_dump(struct wiphy *wiphy, struct wireless_dev *wdev,
 	if (err)
 		return err;
 
-	if (!tb1[MTK_VENDOR_ATTR_AMNT_CTRL_DUMP])
+	if (ieee80211_vif_is_mld(vif) && tb1[MTK_VENDOR_ATTR_AMNT_CTRL_LINK_ID]) {
+		link_id = nla_get_u8(tb1[MTK_VENDOR_ATTR_AMNT_CTRL_LINK_ID]);
+
+		if (link_id >= IEEE80211_LINK_UNSPECIFIED)
+			return -EINVAL;
+	}
+
+	rcu_read_lock();
+	mconf = (struct mt7996_vif_link *)rcu_dereference(mvif->mt76.link[link_id]);
+	phy = mconf ? mconf->phy : NULL;
+	rcu_read_unlock();
+
+	if (!phy || !tb1[MTK_VENDOR_ATTR_AMNT_CTRL_DUMP])
 		return -EINVAL;
 
 	err = nla_parse_nested(tb2, MTK_VENDOR_ATTR_AMNT_DUMP_MAX,
@@ -613,8 +631,6 @@ mt7996_vendor_amnt_ctrl_dump(struct wiphy *wiphy, struct wireless_dev *wdev,
 	nla_nest_end(skb, a);
 
 	return len + 1;
-#endif
-	return -EINVAL;
 }
 
 static int
