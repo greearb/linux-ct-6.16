@@ -521,7 +521,6 @@ struct mt7996_wed_rro_session_id {
 #define MT7996_AIR_MONITOR_MAX_GROUP	(MT7996_AIR_MONITOR_MAX_ENTRY >> 1)
 
 struct mt7996_air_monitor_group {
-	bool enable;
 	bool used[2];
 };
 
