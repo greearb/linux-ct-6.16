@@ -3693,13 +3693,25 @@ static int ieee80211_set_bitrate_mask(struct wiphy *wiphy,
 	return 0;
 }
 
-static bool ieee80211_radar_detection_busy(struct ieee80211_local *local,
-					   struct cfg80211_chan_def *chandef)
+bool ieee80211_scanning_busy(struct ieee80211_local *local,
+			     struct cfg80211_chan_def *chandef)
 {
-	/* TODO:  Pulling this method in so we can compile, in mtk owrt
-	 * tree (and here too) it is fixed in a subsequent patch.
-	 */
-	return false;
+	struct cfg80211_scan_request *scan_req;
+	struct wiphy *wiphy = local->hw.wiphy;
+	u32 mask;
+
+	if (list_empty(&local->roc_list) && !local->scanning)
+		return false;
+
+	if (!wiphy->n_radio)
+		return true;
+
+	mask = ieee80211_offchannel_radio_mask(local);
+	scan_req = wiphy_dereference(wiphy, local->scan_req);
+	if (scan_req)
+		mask |= ieee80211_scan_req_radio_mask(local, scan_req);
+
+	return mask & ieee80211_chandef_radio_mask(local, chandef);
 }
 
 static int ieee80211_start_radar_detection(struct wiphy *wiphy,
@@ -3715,7 +3727,7 @@ static int ieee80211_start_radar_detection(struct wiphy *wiphy,
 
 	lockdep_assert_wiphy(local->hw.wiphy);
 
-	if (!list_empty(&local->roc_list) || local->scanning) {
+	if (ieee80211_scanning_busy(local, chandef)) {
 		sdata_info(sdata, "start-radar failed, roc-list-empty: %d  scanning: %ld\n",
 			   list_empty(&local->roc_list), local->scanning);
 		return -EBUSY;
@@ -3978,7 +3990,7 @@ static int ieee80211_start_radar_detection_post_csa(struct wiphy *wiphy,
 	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_link_data *link;
 
-	if (ieee80211_radar_detection_busy(local, chandef))
+	if (ieee80211_scanning_busy(local, chandef))
 		return -EBUSY;
 
 	link = sdata_dereference(sdata->link[link_id], sdata);
@@ -4262,7 +4274,7 @@ __ieee80211_channel_switch(struct wiphy *wiphy, struct net_device *dev,
 
 	lockdep_assert_wiphy(local->hw.wiphy);
 
-	if (!list_empty(&local->roc_list) || local->scanning)
+	if (ieee80211_scanning_busy(local, &params->chandef))
 		return -EBUSY;
 
 	if (WARN_ON(link_id >= IEEE80211_MLD_MAX_NUM_LINKS))

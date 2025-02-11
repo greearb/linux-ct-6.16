@@ -605,36 +605,83 @@ static int ieee80211_start_sw_scan(struct ieee80211_local *local,
 	return 0;
 }
 
-static bool __ieee80211_can_leave_ch(struct ieee80211_sub_if_data *sdata)
+u32 ieee80211_scan_req_radio_mask(struct ieee80211_local *local,
+				  struct cfg80211_scan_request *req)
+{
+	const struct wiphy_radio *radio;
+	u32 mask = 0;
+	int i, r;
+
+	for (r = 0; r < local->hw.wiphy->n_radio; r++) {
+		radio = &local->hw.wiphy->radio[r];
+
+		for (i = 0; i < req->n_channels; i++) {
+			struct cfg80211_chan_def chandef = {};
+
+			chandef.chan = req->channels[i];
+			cfg80211_chandef_create(&chandef, req->channels[i],
+						NL80211_CHAN_NO_HT);
+			if (!cfg80211_radio_chandef_valid(radio, &chandef))
+				continue;
+
+			mask |= BIT(r);
+			break;
+		}
+	}
+
+	return mask;
+}
+
+bool ieee80211_can_leave_ch(struct ieee80211_sub_if_data *sdata,
+			    u32 radio_mask)
 {
 	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_sub_if_data *sdata_iter;
+	struct wiphy *wiphy = local->hw.wiphy;
+	struct ieee80211_chanctx_conf *conf;
+	struct ieee80211_link_data *link;
 	unsigned int link_id;
 
 	lockdep_assert_wiphy(local->hw.wiphy);
 
-	if (!ieee80211_is_radar_required(local))
+	if (!ieee80211_is_radar_required(local, radio_mask))
 		return true;
 
 	if (!regulatory_pre_cac_allowed(local->hw.wiphy))
 		return false;
 
 	list_for_each_entry(sdata_iter, &local->interfaces, list) {
-		for_each_valid_link(&sdata_iter->wdev, link_id)
-			if (sdata_iter->wdev.links[link_id].cac_started)
+		for_each_valid_link(&sdata_iter->wdev, link_id) {
+			if (!sdata_iter->wdev.links[link_id].cac_started)
+				continue;
+
+			if (!wiphy->n_radio)
 				return false;
+
+			link = sdata_dereference(sdata->link[link_id], sdata);
+			if (!link)
+				continue;
+
+			conf = wiphy_dereference(wiphy, link->conf->chanctx_conf);
+			if (!conf)
+				continue;
+
+			if (conf->radio_idx >= 0 &&
+			    (radio_mask & BIT(conf->radio_idx)))
+				return false;
+		}
 	}
 
 	return true;
 }
 
 static bool ieee80211_can_scan(struct ieee80211_local *local,
-			       struct ieee80211_sub_if_data *sdata)
+			       struct ieee80211_sub_if_data *sdata,
+			       u32 radio_mask)
 {
-	if (!__ieee80211_can_leave_ch(sdata))
-		return false;
-
-	if (!list_empty(&local->roc_list))
+	if (!list_empty(&local->roc_list) &&
+	    (!local->hw.wiphy->n_radio ||
+	     (radio_mask & ieee80211_offchannel_radio_mask(local))))
 		return false;
 
 	if (sdata->vif.type == NL80211_IFTYPE_STATION &&
@@ -646,15 +693,22 @@ static bool ieee80211_can_scan(struct ieee80211_local *local,
 
 void ieee80211_run_deferred_scan(struct ieee80211_local *local)
 {
+	struct ieee80211_sub_if_data *sdata;
+	struct cfg80211_scan_request *req;
+	u32 radio_mask;
+
 	lockdep_assert_wiphy(local->hw.wiphy);
 
-	if (!local->scan_req || local->scanning)
+	req = wiphy_dereference(local->hw.wiphy, local->scan_req);
+	if (!req || local->scanning)
 		return;
 
-	if (!ieee80211_can_scan(local,
-				rcu_dereference_protected(
-					local->scan_sdata,
-					lockdep_is_held(&local->hw.wiphy->mtx))))
+	radio_mask = ieee80211_scan_req_radio_mask(local, req);
+	sdata = wiphy_dereference(local->hw.wiphy, local->scan_sdata);
+	if (!ieee80211_can_leave_ch(sdata, radio_mask))
+		return;
+
+	if (!ieee80211_can_scan(local, sdata, radio_mask))
 		return;
 
 	wiphy_delayed_work_queue(local->hw.wiphy, &local->scan_work,
@@ -750,6 +804,7 @@ static int __ieee80211_start_scan(struct ieee80211_sub_if_data *sdata,
 {
 	struct ieee80211_local *local = sdata->local;
 	bool hw_scan = local->ops->hw_scan;
+	u32 radio_mask;
 	int rc;
 
 	lockdep_assert_wiphy(local->hw.wiphy);
@@ -767,10 +822,11 @@ static int __ieee80211_start_scan(struct ieee80211_sub_if_data *sdata,
 		return -EINVAL;
 	}
 
-	if (!__ieee80211_can_leave_ch(sdata))
+	radio_mask = ieee80211_scan_req_radio_mask(local, req);
+	if (!ieee80211_can_leave_ch(sdata, radio_mask))
 		return -EBUSY;
 
-	if (!ieee80211_can_scan(local, sdata)) {
+	if (!ieee80211_can_scan(local, sdata, radio_mask)) {
 		/* wait for the work to finish/time out */
 		rcu_assign_pointer(local->scan_req, req);
 		rcu_assign_pointer(local->scan_sdata, sdata);

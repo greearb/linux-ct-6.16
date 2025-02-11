@@ -3012,6 +3012,9 @@ bool cfg80211_radio_chandef_valid(const struct wiphy_radio *radio,
 {
 	u32 freq, width;
 
+	if (!cfg80211_chandef_valid(chandef))
+		return false;
+
 	freq = ieee80211_chandef_to_khz(chandef);
 	width = cfg80211_chandef_get_width(chandef);
 	if (!ieee80211_radio_freq_range_valid(radio, freq, width))
