@@ -654,10 +654,11 @@ ieee80211_find_chanctx(struct ieee80211_local *local,
 	return NULL;
 }
 
-bool ieee80211_is_radar_required(struct ieee80211_local *local, u32 radio_mask)
+u32 ieee80211_is_radar_required(struct ieee80211_local *local, u32 radio_mask)
 {
 	struct ieee80211_chanctx_conf *conf;
 	struct ieee80211_link_data *link;
+	u32 radar_mask = 0;
 
 	lockdep_assert_wiphy(local->hw.wiphy);
 
@@ -665,17 +666,17 @@ bool ieee80211_is_radar_required(struct ieee80211_local *local, u32 radio_mask)
 		if (!link->radar_required)
 			continue;
 		if (!local->hw.wiphy->n_radio)
-			return true;
+			return ~0;
 
 		conf = wiphy_dereference(local->hw.wiphy, link->conf->chanctx_conf);
 		if (!conf)
 			continue;
 
 		if (conf->radio_idx >= 0 && (radio_mask & BIT(conf->radio_idx)))
-			return true;
+			radar_mask |= BIT(conf->radio_idx);
 	}
 
-	return false;
+	return radar_mask;
 }
 
 static bool

@@ -632,8 +632,32 @@ u32 ieee80211_scan_req_radio_mask(struct ieee80211_local *local,
 	return mask;
 }
 
-bool ieee80211_can_leave_ch(struct ieee80211_sub_if_data *sdata,
-			    u32 radio_mask)
+static void ieee80211_scan_req_update(struct ieee80211_local *local,
+				      struct cfg80211_scan_request *req,
+				      u32 allowed_radios)
+{
+	int i, n_channels = 0;
+
+	for (i = 0; i < req->n_channels; i++) {
+		struct cfg80211_chan_def chandef = {};
+
+		cfg80211_chandef_create(&chandef, req->channels[i],
+					NL80211_CHAN_NO_HT);
+		if (!(ieee80211_chandef_radio_mask(local, &chandef) &
+		      allowed_radios))
+			continue;
+
+		req->channels[n_channels] = req->channels[i];
+		n_channels++;
+	}
+
+	memset(req->channels + n_channels, 0,
+	       sizeof(*req->channels) * ( req->n_channels - n_channels));
+	req->n_channels = n_channels;
+}
+
+u32 ieee80211_can_leave_ch(struct ieee80211_sub_if_data *sdata,
+			   u32 radio_mask)
 {
 	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_sub_if_data *sdata_iter;
@@ -641,14 +665,13 @@ bool ieee80211_can_leave_ch(struct ieee80211_sub_if_data *sdata,
 	struct ieee80211_chanctx_conf *conf;
 	struct ieee80211_link_data *link;
 	unsigned int link_id;
+	u32 radar_mask, mask = radio_mask;
 
 	lockdep_assert_wiphy(local->hw.wiphy);
 
-	if (!ieee80211_is_radar_required(local, radio_mask))
-		return true;
-
-	if (!regulatory_pre_cac_allowed(local->hw.wiphy))
-		return false;
+	radar_mask = ieee80211_is_radar_required(local, radio_mask);
+	if (radar_mask && !regulatory_pre_cac_allowed(local->hw.wiphy))
+		return radio_mask & ~radar_mask;
 
 	list_for_each_entry(sdata_iter, &local->interfaces, list) {
 		for_each_valid_link(&sdata_iter->wdev, link_id) {
@@ -668,11 +691,11 @@ bool ieee80211_can_leave_ch(struct ieee80211_sub_if_data *sdata,
 
 			if (conf->radio_idx >= 0 &&
 			    (radio_mask & BIT(conf->radio_idx)))
-				return false;
+				mask &= ~BIT(conf->radio_idx);
 		}
 	}
 
-	return true;
+	return mask;
 }
 
 static bool ieee80211_can_scan(struct ieee80211_local *local,
@@ -695,7 +718,7 @@ void ieee80211_run_deferred_scan(struct ieee80211_local *local)
 {
 	struct ieee80211_sub_if_data *sdata;
 	struct cfg80211_scan_request *req;
-	u32 radio_mask;
+	u32 radio_mask, allowed_radios;
 
 	lockdep_assert_wiphy(local->hw.wiphy);
 
@@ -705,8 +728,11 @@ void ieee80211_run_deferred_scan(struct ieee80211_local *local)
 
 	radio_mask = ieee80211_scan_req_radio_mask(local, req);
 	sdata = wiphy_dereference(local->hw.wiphy, local->scan_sdata);
-	if (!ieee80211_can_leave_ch(sdata, radio_mask))
+	allowed_radios = ieee80211_can_leave_ch(sdata, radio_mask);
+	if (!allowed_radios)
 		return;
+	if (allowed_radios != radio_mask)
+		ieee80211_scan_req_update(local, req, allowed_radios);
 
 	if (!ieee80211_can_scan(local, sdata, radio_mask))
 		return;
@@ -804,7 +830,7 @@ static int __ieee80211_start_scan(struct ieee80211_sub_if_data *sdata,
 {
 	struct ieee80211_local *local = sdata->local;
 	bool hw_scan = local->ops->hw_scan;
-	u32 radio_mask;
+	u32 radio_mask, allowed_radios;
 	int rc;
 
 	lockdep_assert_wiphy(local->hw.wiphy);
@@ -823,8 +849,11 @@ static int __ieee80211_start_scan(struct ieee80211_sub_if_data *sdata,
 	}
 
 	radio_mask = ieee80211_scan_req_radio_mask(local, req);
-	if (!ieee80211_can_leave_ch(sdata, radio_mask))
+	allowed_radios = ieee80211_can_leave_ch(sdata, radio_mask);
+	if (!allowed_radios)
 		return -EBUSY;
+	if (allowed_radios != radio_mask)
+		ieee80211_scan_req_update(local, req, allowed_radios);
 
 	if (!ieee80211_can_scan(local, sdata, radio_mask)) {
 		/* wait for the work to finish/time out */
