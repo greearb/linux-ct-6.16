@@ -407,6 +407,57 @@ dfs_available_reset(void *data, u64 val)
 DEFINE_DEBUGFS_ATTRIBUTE(dfs_available_reset_ops, NULL,
 			 dfs_available_reset, "0x%08llx\n");
 
+static ssize_t scan_dfs_relax_write(struct file *file,
+				    const char __user *user_buf,
+				    size_t count, loff_t *ppos)
+{
+	struct wiphy *wiphy = file->private_data;
+	char buf[16];
+
+	if (count >= sizeof(buf))
+		return -EINVAL;
+
+	if (copy_from_user(buf, user_buf, count))
+		return -EFAULT;
+
+	if (count && buf[count - 1] == '\n')
+		buf[count - 1] = '\0';
+	else
+		buf[count] = '\0';
+
+	if (kstrtobool(buf, &wiphy->dfs_relax))
+		return -EINVAL;
+
+	return count;
+}
+
+static ssize_t scan_dfs_relax_read(struct file *file, char __user *user_buf,
+				   size_t count, loff_t *ppos)
+{
+	struct wiphy *wiphy = file->private_data;
+	unsigned int r, offset, buf_size = PAGE_SIZE;
+	char *buf;
+
+	buf = kzalloc(buf_size, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	offset = scnprintf(buf, buf_size, "dfs relax: %u\n", wiphy->dfs_relax);
+
+	r = simple_read_from_buffer(user_buf, count, ppos, buf, offset);
+
+	kfree(buf);
+
+	return r;
+}
+
+static const struct file_operations scan_dfs_relax_ops = {
+	.write = scan_dfs_relax_write,
+	.read = scan_dfs_relax_read,
+	.open = simple_open,
+	.llseek = default_llseek,
+};
+
 #define DEBUGFS_ADD(name, chmod)						\
 	debugfs_create_file(#name, chmod, phyd, &rdev->wiphy, &name## _ops)
 
@@ -423,6 +474,7 @@ void cfg80211_debugfs_rdev_add(struct cfg80211_registered_device *rdev)
 	DEBUGFS_ADD(dfs_skip_nop, 0600);
 	DEBUGFS_ADD(dfs_skip_cac, 0600);
 	DEBUGFS_ADD(dfs_available_reset, 0600);
+	DEBUGFS_ADD(scan_dfs_relax, 0644);
 }
 
 struct debugfs_read_work {

@@ -3029,21 +3029,24 @@ bool cfg80211_radio_chandef_valid(const struct wiphy_radio *radio,
 EXPORT_SYMBOL(cfg80211_radio_chandef_valid);
 
 bool cfg80211_wdev_channel_allowed(struct wireless_dev *wdev,
-				   struct ieee80211_channel *chan)
+				   struct ieee80211_channel *chan,
+				   u32 radio_mask)
 {
 	struct wiphy *wiphy = wdev->wiphy;
 	const struct wiphy_radio *radio;
 	struct cfg80211_chan_def chandef;
-	u32 radio_mask;
+	u32 mask = radio_mask & wdev->radio_mask;
 	int i;
 
-	radio_mask = wdev->radio_mask;
-	if (!wiphy->n_radio || radio_mask == BIT(wiphy->n_radio) - 1)
+	if (!radio_mask)
+		mask = wdev->radio_mask;
+
+	if (!wiphy->n_radio || mask == BIT(wiphy->n_radio) - 1)
 		return true;
 
 	cfg80211_chandef_create(&chandef, chan, NL80211_CHAN_HT20);
 	for (i = 0; i < wiphy->n_radio; i++) {
-		if (!(radio_mask & BIT(i)))
+		if (!(mask & BIT(i)))
 			continue;
 
 		radio = &wiphy->radio[i];

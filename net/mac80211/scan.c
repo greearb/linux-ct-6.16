@@ -670,7 +670,8 @@ u32 ieee80211_can_leave_ch(struct ieee80211_sub_if_data *sdata,
 	lockdep_assert_wiphy(local->hw.wiphy);
 
 	radar_mask = ieee80211_is_radar_required(local, radio_mask);
-	if (radar_mask && !regulatory_pre_cac_allowed(local->hw.wiphy))
+	if (radar_mask && !regulatory_pre_cac_allowed(local->hw.wiphy) &&
+	    !wiphy->dfs_relax)
 		return radio_mask & ~radar_mask;
 
 	list_for_each_entry(sdata_iter, &local->interfaces, list) {
@@ -1347,7 +1348,7 @@ int ieee80211_request_ibss_scan(struct ieee80211_sub_if_data *sdata,
 				if (tmp_ch->flags & (IEEE80211_CHAN_NO_IR |
 						     IEEE80211_CHAN_DISABLED) ||
 				    !cfg80211_wdev_channel_allowed(&sdata->wdev,
-								   tmp_ch))
+								   tmp_ch, 0))
 					continue;
 
 				local->int_scan_req->channels[n_ch] = tmp_ch;
@@ -1364,7 +1365,7 @@ int ieee80211_request_ibss_scan(struct ieee80211_sub_if_data *sdata,
 			if (channels[i]->flags & (IEEE80211_CHAN_NO_IR |
 						  IEEE80211_CHAN_DISABLED) ||
 			    !cfg80211_wdev_channel_allowed(&sdata->wdev,
-							   channels[i]))
+							   channels[i], 0))
 				continue;
 
 			local->int_scan_req->channels[n_ch] = channels[i];
