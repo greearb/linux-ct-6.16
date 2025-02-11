@@ -990,7 +990,7 @@ static int cfg80211_scan_6ghz(struct cfg80211_registered_device *rdev)
 			ieee80211_get_channel(&rdev->wiphy, ap->center_freq);
 
 		if (!chan || chan->flags & IEEE80211_CHAN_DISABLED ||
-		    !cfg80211_wdev_channel_allowed(rdev_req->wdev, chan))
+		    !cfg80211_wdev_channel_allowed(rdev_req->wdev, chan, 0))
 			continue;
 
 		for (i = 0; i < rdev_req->n_channels; i++) {
@@ -3579,7 +3579,7 @@ int cfg80211_wext_siwscan(struct net_device *dev,
 			/* ignore disabled channels */
 			chan = &wiphy->bands[band]->channels[j];
 			if (chan->flags & IEEE80211_CHAN_DISABLED ||
-			    !cfg80211_wdev_channel_allowed(creq->wdev, chan))
+			    !cfg80211_wdev_channel_allowed(creq->wdev, chan, 0))
 				continue;
 
 			/* If we have a wireless request structure and the
