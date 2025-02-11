@@ -2002,8 +2002,8 @@ u32 ieee80211_scan_req_radio_mask(struct ieee80211_local *local,
 				  struct cfg80211_scan_request *req);
 bool ieee80211_scanning_busy(struct ieee80211_local *local,
 			     struct cfg80211_chan_def *chandef);
-bool ieee80211_can_leave_ch(struct ieee80211_sub_if_data *sdata,
-			    u32 radio_mask);
+u32 ieee80211_can_leave_ch(struct ieee80211_sub_if_data *sdata,
+			   u32 radio_mask);
 void ieee80211_scan_work(struct wiphy *wiphy, struct wiphy_work *work);
 int ieee80211_request_ibss_scan(struct ieee80211_sub_if_data *sdata,
 				const u8 *ssid, u8 ssid_len,
@@ -2773,7 +2773,7 @@ void ieee80211_recalc_chanctx_min_def(struct ieee80211_local *local,
 				      struct ieee80211_chanctx *ctx,
 				      struct ieee80211_link_data *rsvd_for,
 				      bool check_reserved);
-bool ieee80211_is_radar_required(struct ieee80211_local *local, u32 radio_mask);
+u32 ieee80211_is_radar_required(struct ieee80211_local *local, u32 radio_mask);
 
 void ieee80211_dfs_cac_timer_work(struct wiphy *wiphy, struct wiphy_work *work);
 void ieee80211_dfs_cac_cancel(struct ieee80211_local *local,
