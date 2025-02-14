@@ -734,6 +734,23 @@ ieee80211_handle_teardown_ttlm_status(struct ieee80211_sub_if_data *sdata,
 			 &sdata->u.mgd.teardown_ttlm_work);
 }
 
+static void
+ieee80211_handle_4addr_nullfunc_status(struct ieee80211_sub_if_data *sdata,
+				       bool acked)
+{
+	if (!sdata || !ieee80211_sdata_running(sdata))
+		return;
+
+	if (!acked)
+		return;
+
+	if (sdata->vif.type != NL80211_IFTYPE_STATION)
+		return;
+
+	wiphy_delayed_work_cancel(sdata->local->hw.wiphy,
+				  &sdata->u.mgd.send_4addr_nullfunc_work);
+}
+
 static void ieee80211_report_used_skb(struct ieee80211_local *local,
 				      struct sk_buff *skb, bool dropped,
 				      ktime_t ack_hwtstamp)
@@ -813,6 +830,9 @@ static void ieee80211_report_used_skb(struct ieee80211_local *local,
 			break;
 		case IEEE80211_STATUS_TYPE_NEG_TTLM:
 			ieee80211_handle_teardown_ttlm_status(sdata, acked);
+			break;
+		case IEEE80211_STATUS_4ADDR_NULLFUNC:
+			ieee80211_handle_4addr_nullfunc_status(sdata, acked);
 			break;
 		}
 		rcu_read_unlock();
