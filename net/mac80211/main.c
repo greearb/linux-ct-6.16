@@ -501,6 +501,8 @@ static void ieee80211_restart_work(struct work_struct *work)
 				ieee80211_sta_connection_lost(sdata,
 							      WLAN_REASON_UNSPECIFIED,
 							      false);
+			wiphy_delayed_work_cancel(local->hw.wiphy,
+				&sdata->u.mgd.send_4addr_nullfunc_work);
 		}
 		wiphy_delayed_work_flush(local->hw.wiphy,
 					 &sdata->dec_tailroom_needed_wk);

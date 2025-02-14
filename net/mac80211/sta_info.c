@@ -1564,6 +1564,9 @@ static void __sta_info_destroy_part2(struct sta_info *sta, bool recalc)
 		WARN_ON_ONCE(ret);
 	}
 
+	if (sdata->vif.type == NL80211_IFTYPE_STATION && sdata->u.mgd.use_4addr)
+		wiphy_delayed_work_cancel(local->hw.wiphy,
+					  &sdata->u.mgd.send_4addr_nullfunc_work);
 	/* now keys can no longer be reached */
 	ieee80211_free_sta_keys(local, sta);
 

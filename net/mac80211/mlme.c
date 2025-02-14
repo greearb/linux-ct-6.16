@@ -2369,11 +2369,27 @@ void ieee80211_send_nullfunc(struct ieee80211_local *local,
 void ieee80211_send_4addr_nullfunc(struct ieee80211_local *local,
 				   struct ieee80211_sub_if_data *sdata)
 {
-	struct sk_buff *skb;
+	wiphy_delayed_work_queue(local->hw.wiphy,
+				 &sdata->u.mgd.send_4addr_nullfunc_work, 0);
+}
+
+void __ieee80211_send_4addr_nullfunc(struct wiphy *wiphy,
+				     struct wiphy_work *work)
+{
+	struct ieee80211_sub_if_data *sdata;
 	struct ieee80211_hdr *nullfunc;
+	struct ieee80211_local *local;
+	struct sk_buff *skb;
 	__le16 fc;
 
+	sdata = container_of(work, struct ieee80211_sub_if_data,
+			     u.mgd.send_4addr_nullfunc_work.work);
+	local = sdata->local;
+
 	if (WARN_ON(sdata->vif.type != NL80211_IFTYPE_STATION))
+		return;
+
+	if (!sdata->u.mgd.associated)
 		return;
 
 	skb = dev_alloc_skb(local->hw.extra_tx_headroom + 30);
@@ -2397,9 +2413,15 @@ void ieee80211_send_4addr_nullfunc(struct ieee80211_local *local,
 		memcpy(nullfunc->addr3, sdata->deflink.u.mgd.bssid, ETH_ALEN);
 	}
 
+	IEEE80211_SKB_CB(skb)->flags |= IEEE80211_TX_CTL_REQ_TX_STATUS;
 	IEEE80211_SKB_CB(skb)->flags |= IEEE80211_TX_INTFL_DONT_ENCRYPT;
 	IEEE80211_SKB_CB(skb)->flags |= IEEE80211_TX_CTL_USE_MINRATE;
+	IEEE80211_SKB_CB(skb)->status_data |= IEEE80211_STATUS_4ADDR_NULLFUNC;
+	sta_dbg(sdata, "Send 4addr nullfunc\n");
 	ieee80211_tx_skb(sdata, skb);
+
+	wiphy_delayed_work_queue(local->hw.wiphy,
+				 &sdata->u.mgd.send_4addr_nullfunc_work, HZ);
 }
 
 /* spectrum management related things */
@@ -8779,6 +8801,8 @@ void ieee80211_sta_setup_sdata(struct ieee80211_sub_if_data *sdata)
 				ieee80211_neg_ttlm_timeout_work);
 	wiphy_work_init(&ifmgd->teardown_ttlm_work,
 			ieee80211_teardown_ttlm_work);
+	wiphy_delayed_work_init(&ifmgd->send_4addr_nullfunc_work,
+				__ieee80211_send_4addr_nullfunc);
 
 	ifmgd->flags = 0;
 	ifmgd->powersave = sdata->wdev.ps;
@@ -10092,6 +10116,8 @@ void ieee80211_mgd_stop(struct ieee80211_sub_if_data *sdata)
 			  &ifmgd->beacon_connection_loss_work);
 	wiphy_work_cancel(sdata->local->hw.wiphy,
 			  &ifmgd->csa_connection_drop_work);
+	wiphy_delayed_work_cancel(sdata->local->hw.wiphy,
+				  &ifmgd->send_4addr_nullfunc_work);
 	wiphy_delayed_work_cancel(sdata->local->hw.wiphy,
 				  &ifmgd->tdls_peer_del_work);
 

@@ -91,6 +91,7 @@ enum ieee80211_status_data {
 	IEEE80211_STATUS_TYPE_INVALID	= 0,
 	IEEE80211_STATUS_TYPE_SMPS	= 1,
 	IEEE80211_STATUS_TYPE_NEG_TTLM	= 2,
+	IEEE80211_STATUS_4ADDR_NULLFUNC	= 3,
 	IEEE80211_STATUS_SUBDATA_MASK	= 0x1ff0,
 };
 
@@ -525,6 +526,7 @@ struct ieee80211_if_managed {
 	unsigned int uapsd_max_sp_len;
 
 	u8 use_4addr;
+	struct wiphy_delayed_work send_4addr_nullfunc_work;
 
 	/*
 	 * State variables for keeping track of RSSI of the AP currently
@@ -2464,6 +2466,7 @@ void ieee80211_dynamic_ps_timer(struct timer_list *t);
 void ieee80211_send_nullfunc(struct ieee80211_local *local,
 			     struct ieee80211_sub_if_data *sdata,
 			     bool powersave);
+void __ieee80211_send_4addr_nullfunc(struct wiphy *wiphy, struct wiphy_work *work);
 void ieee80211_send_4addr_nullfunc(struct ieee80211_local *local,
 				   struct ieee80211_sub_if_data *sdata);
 void ieee80211_sta_tx_notify(struct ieee80211_sub_if_data *sdata,
