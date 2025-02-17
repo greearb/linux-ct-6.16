@@ -555,10 +555,10 @@ struct mt7996_phy {
 		u32 *reg_backup;
 
 		s32 last_freq_offset;
-		u8 last_rcpi[4];
-		s8 last_rssi[4];
-		s8 last_ib_rssi[4];
-		s8 last_wb_rssi[4];
+		u8 last_rcpi[5];
+		s8 last_rssi[5];
+		s8 last_ib_rssi[5];
+		s8 last_wb_rssi[5];
 		u8 last_snr;
 
 		u8 spe_idx;
