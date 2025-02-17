@@ -3490,30 +3490,30 @@ mt7996_mcu_sta_key_tlv(struct mt76_dev *dev,
 		       u8 *pn)
 {
 	struct sta_rec_sec_uni *sec;
+	struct sec_key_uni *sec_key;
 	struct tlv *tlv;
 
 	tlv = mt76_connac_mcu_add_tlv(skb, STA_REC_KEY_V2, sizeof(*sec));
 	sec = (struct sta_rec_sec_uni *)tlv;
 	sec->add = cmd;
+	sec->n_cipher = 1;
+	sec_key = &sec->key[0];
+	sec_key->wlan_idx = cpu_to_le16(wcid->idx);
+	sec_key->key_id = key->keyidx;
 
 	if (cmd == SET_KEY) {
-		struct sec_key_uni *sec_key;
 		u8 cipher;
 
 		cipher = mt76_connac_mcu_get_cipher(key->cipher);
 		if (cipher == MCU_CIPHER_NONE)
 			return -EOPNOTSUPP;
 
-		sec_key = &sec->key[0];
-		sec_key->wlan_idx = cpu_to_le16(wcid->idx);
 		sec_key->mgmt_prot = 0;
 		sec_key->cipher_id = cipher;
 		sec_key->cipher_len = sizeof(*sec_key);
-		sec_key->key_id = key->keyidx;
 		sec_key->key_len = key->keylen;
 		sec_key->need_resp = 0;
 		memcpy(sec_key->key, key->key, key->keylen);
-		/* Todo: move the BCN protection logic into mt76_connac_mcu_get_cipher() */
 		if (sec_key->key_id == 6 || sec_key->key_id == 7) {
 			switch (key->cipher) {
 			case WLAN_CIPHER_SUITE_AES_CMAC:
@@ -3539,10 +3539,10 @@ mt7996_mcu_sta_key_tlv(struct mt76_dev *dev,
 			memcpy(sec_key->key + 16, key->key + 24, 8);
 			memcpy(sec_key->key + 24, key->key + 16, 8);
 		}
-
-		sec->n_cipher = 1;
 	} else {
-		sec->n_cipher = 0;
+		/* connac3 fw use set key action to apply removing bigtk and other
+		 * group keys should just use set key to overwrite the old ones. */
+		sec->add = SET_KEY;
 	}
 
 	return 0;

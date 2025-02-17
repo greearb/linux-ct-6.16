@@ -723,6 +723,9 @@ static int mt7996_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 	unsigned int link_id;
 	u8 pn[6] = {};
 
+	if (cmd != SET_KEY && cmd != DISABLE_KEY)
+		return -EINVAL;
+
 	if (key->link_id >= 0) {
 		add = BIT(key->link_id);
 	} else {
@@ -747,10 +750,11 @@ static int mt7996_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 		conf = link_conf_dereference_protected(vif, link_id);
 		mconf = mt7996_vif_link(dev, vif, link_id);
 		msta_link = mt76_dereference(msta->link[link_id], &dev->mt76);
-		wcid_keyidx = &msta_link->wcid.hw_key_idx;
 
-		if (!conf || !mconf || !msta_link)
+		if ((cmd == SET_KEY && !conf) || !mconf || !msta_link)
 			continue;
+
+		wcid_keyidx = &msta_link->wcid.hw_key_idx;
 
 		/* fall back to sw encryption for unsupported ciphers */
 		switch (key->cipher) {
@@ -781,7 +785,7 @@ static int mt7996_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 			return -EOPNOTSUPP;
 		}
 
-		/* Todo: remove me after fix set dtim period to fw */
+		/* Necessary for fw cipher check */
 		if (cmd == SET_KEY && !sta && !mconf->mt76.cipher) {
 			mconf->mt76.cipher = mt76_connac_mcu_get_cipher(key->cipher);
 			mt7996_mcu_add_bss_info(mconf->phy, vif, conf, &mconf->mt76, msta_link, true);
@@ -789,11 +793,13 @@ static int mt7996_set_key(struct ieee80211_hw *hw, enum set_key_cmd cmd,
 
 		if (cmd == SET_KEY) {
 			*wcid_keyidx = idx;
-		} else {
-			if (idx == *wcid_keyidx)
-				*wcid_keyidx = -1;
-			goto out;
+		} else if (idx == *wcid_keyidx) {
+			*wcid_keyidx = -1;
 		}
+
+		/* To remove BIGTK independently, FW needs an extra inband command */
+		if (cmd == DISABLE_KEY && !(idx == 6 || idx == 7))
+			goto out;
 
 		mt76_wcid_key_setup(&dev->mt76, &msta_link->wcid, key);
 
