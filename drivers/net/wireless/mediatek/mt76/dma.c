@@ -461,7 +461,9 @@ mt76_dma_get_buf(struct mt76_dev *dev, struct mt76_queue *q, int idx,
 		u32 token = FIELD_GET(MT_DMA_CTL_TOKEN, buf1);
 		struct mt76_txwi_cache *t;
 
-		if (*more) {
+		t = mt76_rx_token_find(dev, token);
+
+		if (*more && (!t || t->dma_addr != le32_to_cpu(desc->buf0))) {
 			spin_lock_bh(&dev->rx_token_lock);
 
 			idr_for_each_entry(&dev->rx_token, t, id) {
