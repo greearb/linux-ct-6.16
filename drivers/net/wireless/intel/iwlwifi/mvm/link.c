@@ -530,6 +530,7 @@ iwl_mvm_get_chan_load(struct iwl_mvm *mvm,
 		iwl_mvm_vif_from_mac80211(link_conf->vif)->link[link_conf->link_id];
 	const struct element *bss_load_elem;
 	const struct ieee80211_bss_load_elem *bss_load;
+	enum nl80211_band band = link_conf->chanreq.oper.chan->band;
 	const struct cfg80211_bss_ies *ies;
 	unsigned int chan_load;
 	u32 chan_load_by_us;
@@ -549,11 +550,33 @@ iwl_mvm_get_chan_load(struct iwl_mvm *mvm,
 	else
 		bss_load_elem = NULL;
 
-	/* If there isn't BSS Load element, get it from our phy-ctx stats */
+	/* If there isn't BSS Load element, get it from our phy-ctx stats
+	 * or get defaults for the respective band
+	 */
 	if (!bss_load_elem ||
 	    bss_load_elem->datalen != sizeof(*bss_load)) {
-		chan_load = NORMALIZE_PERCENT_TO_255(mvm_link->phy_ctxt->channel_load);
-		load_from = "phy_ctx";
+		if (mvm_link) {
+			chan_load = NORMALIZE_PERCENT_TO_255(mvm_link->phy_ctxt->channel_load);
+			load_from = "phy_ctx";
+		} else {
+			rcu_read_unlock();
+			switch (band) {
+			case NL80211_BAND_2GHZ:
+				chan_load = DEFAULT_CHAN_LOAD_LB;
+				break;
+			case NL80211_BAND_5GHZ:
+				chan_load = DEFAULT_CHAN_LOAD_HB;
+				break;
+			case NL80211_BAND_6GHZ:
+				chan_load = DEFAULT_CHAN_LOAD_UHB;
+				break;
+			default:
+				chan_load = 0;
+				break;
+			}
+			/* The defaults are given in percentage */
+			chan_load = NORMALIZE_PERCENT_TO_255(chan_load);
+		}
 	} else {
 		bss_load = (const void *)bss_load_elem->data;
 		/* Channel util is in range 0-255 */
