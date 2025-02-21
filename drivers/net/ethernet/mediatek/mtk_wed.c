@@ -1976,6 +1976,12 @@ mtk_wed_ppe_check(struct mtk_wed_device *dev, struct sk_buff *skb,
 }
 
 static void
+mtk_wed_ppe_drop(struct mtk_wed_device *dev, bool enable)
+{
+	mtk_ppe_drop_config(dev->hw->eth, enable ? 0x2300 : 0x0);
+}
+
+static void
 mtk_wed_configure_irq(struct mtk_wed_device *dev, u32 irq_mask)
 {
 	u32 wdma_mask = FIELD_PREP(MTK_WDMA_INT_MASK_RX_DONE, GENMASK(1, 0));
@@ -2776,6 +2782,7 @@ void mtk_wed_add_hw(struct device_node *np, struct mtk_eth *eth,
 		.detach = mtk_wed_detach,
 		.ppe_check = mtk_wed_ppe_check,
 		.setup_tc = mtk_wed_setup_tc,
+		.ppe_drop = mtk_wed_ppe_drop,
 		.start_hw_rro = mtk_wed_start_hw_rro,
 		.rro_rx_ring_setup = mtk_wed_rro_rx_ring_setup,
 		.msdu_pg_rx_ring_setup = mtk_wed_msdu_pg_rx_ring_setup,
