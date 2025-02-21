@@ -204,6 +204,7 @@ struct mtk_wed_ops {
 	void (*detach)(struct mtk_wed_device *dev);
 	void (*ppe_check)(struct mtk_wed_device *dev, struct sk_buff *skb,
 			  u32 reason, u32 hash);
+	void (*ppe_drop)(struct mtk_wed_device *dev, bool enable);
 
 	void (*stop)(struct mtk_wed_device *dev);
 	void (*start)(struct mtk_wed_device *dev, u32 irq_mask);
@@ -289,6 +290,8 @@ static inline bool mtk_wed_is_amsdu_supported(struct mtk_wed_device *dev)
 	(_dev)->ops->rx_ring_setup(_dev, _ring, _regs, _reset)
 #define mtk_wed_device_ppe_check(_dev, _skb, _reason, _hash) \
 	(_dev)->ops->ppe_check(_dev, _skb, _reason, _hash)
+#define mtk_wed_device_ppe_drop(_dev, _enable) \
+	(_dev)->ops->ppe_drop(_dev, _enable)
 #define mtk_wed_device_update_msg(_dev, _id, _msg, _len) \
 	(_dev)->ops->msg_update(_dev, _id, _msg, _len)
 #define mtk_wed_device_stop(_dev) (_dev)->ops->stop(_dev)
@@ -319,6 +322,7 @@ static inline bool mtk_wed_device_active(struct mtk_wed_device *dev)
 #define mtk_wed_device_irq_set_mask(_dev, _mask) do {} while (0)
 #define mtk_wed_device_rx_ring_setup(_dev, _ring, _regs, _reset) -ENODEV
 #define mtk_wed_device_ppe_check(_dev, _skb, _reason, _hash)  do {} while (0)
+#define mtk_wed_device_ppe_drop(_dev, _enable)  do {} while (0)
 #define mtk_wed_device_update_msg(_dev, _id, _msg, _len) -ENODEV
 #define mtk_wed_device_stop(_dev) do {} while (0)
 #define mtk_wed_device_dma_reset(_dev) do {} while (0)

@@ -1505,6 +1505,18 @@ void mtk_w32(struct mtk_eth *eth, u32 val, unsigned reg);
 u32 mtk_r32(struct mtk_eth *eth, unsigned reg);
 u32 mtk_m32(struct mtk_eth *eth, u32 mask, u32 set, unsigned int reg);
 
+static inline void mtk_ppe_drop_config(struct mtk_eth *eth, u32 config)
+{
+	if (MTK_HAS_CAPS(eth->soc->caps, MTK_NETSYS_V1))
+		return;
+
+	mtk_w32(eth, config, PSE_PPE_DROP(0));
+	if (MTK_HAS_CAPS(eth->soc->caps, MTK_RSTCTRL_PPE1))
+		mtk_w32(eth, config, PSE_PPE_DROP(1));
+	if (MTK_HAS_CAPS(eth->soc->caps, MTK_RSTCTRL_PPE2))
+		mtk_w32(eth, config, PSE_PPE_DROP(2));
+}
+
 int mtk_gmac_sgmii_path_setup(struct mtk_eth *eth, int mac_id);
 int mtk_gmac_2p5gphy_path_setup(struct mtk_eth *eth, int mac_id);
 int mtk_gmac_gephy_path_setup(struct mtk_eth *eth, int mac_id);
