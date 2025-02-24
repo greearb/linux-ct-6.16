@@ -652,6 +652,12 @@ int mt7996_set_channel(struct mt76_phy *mphy)
 			ret = mt7996_mcu_set_pp_sta_dscb(phy, &mphy->main_chandef,
 							 omac_idx);
 		}
+		if (ret)
+			goto out;
+
+		ret = mt7996_mcu_set_txpower_sku(phy);
+		if (ret)
+			goto out;
 	}
 
 #if 0
