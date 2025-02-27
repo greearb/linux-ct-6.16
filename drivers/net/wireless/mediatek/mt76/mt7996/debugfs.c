@@ -258,11 +258,11 @@ mt7996_radar_trigger(void *data, u64 val)
 {
 #define RADAR_MAIN_CHAIN	1
 #define RADAR_BACKGROUND	2
-	struct mt7996_dev *dev = data;
-	struct mt7996_phy *phy = mt7996_band_phy(dev, NL80211_BAND_5GHZ);
+	struct mt7996_phy *phy = data;
+	struct mt7996_dev *dev = phy->dev;
 	int rdd_idx;
 
-	if (!phy || !val || val > RADAR_BACKGROUND)
+	if (!val || val > RADAR_BACKGROUND)
 		return -EINVAL;
 
 	if (val == RADAR_BACKGROUND && !dev->rdd2_phy) {
@@ -2327,7 +2327,7 @@ int mt7996_init_debugfs(struct mt7996_dev *dev)
 	debugfs_create_file("pp_alg", 0200, dir, phy, &mt7996_pp_alg_fops);
 
 	debugfs_create_u32("dfs_hw_pattern", 0400, dir, &dev->hw_pattern);
-	debugfs_create_file("radar_trigger", 0200, dir, dev,
+	debugfs_create_file("radar_trigger", 0200, dir, phy,
 			    &fops_radar_trigger);
 	debugfs_create_devm_seqfile(dev->mt76.dev, "rdd_monitor", dir,
 				    mt7996_rdd_monitor);
