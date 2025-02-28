@@ -559,7 +559,6 @@ iwl_mvm_get_chan_load(struct iwl_mvm *mvm,
 			chan_load = NORMALIZE_PERCENT_TO_255(mvm_link->phy_ctxt->channel_load);
 			load_from = "phy_ctx";
 		} else {
-			rcu_read_unlock();
 			switch (band) {
 			case NL80211_BAND_2GHZ:
 				chan_load = DEFAULT_CHAN_LOAD_LB;
