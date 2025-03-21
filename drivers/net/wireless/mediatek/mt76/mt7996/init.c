@@ -8,14 +8,25 @@
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
 #include <linux/thermal.h>
+#include <linux/module.h>
 #include "mt7996.h"
 #include "mac.h"
 #include "mcu.h"
 #include "coredump.h"
 #include "eeprom.h"
 
-#define MT76_DRIVER_VERSION "6.14.0-ct"
+#define MT76_DRIVER_VERSION "6.15.0-ct"
 extern u32 debug_lvl; /* module param */
+
+static int lp_ctrl = 0x3f;
+module_param(lp_ctrl, int, 0644);
+MODULE_PARM_DESC(lp_ctrl, "Low power control."
+			  "Bit0: PCIe L1ss."
+			  "Bit1: Tx Power Boost (PB-TPO)."
+			  "Bit2: Tx Power Reduction (LP-TPO)."
+			  "Bit3: Tx Antenna Reduction (MinTx-TPO)."
+			  "Bit4: Ultra Save."
+			  "Bit5: PST.");
 
 static const struct ieee80211_iface_limit if_limits_global = {
 	.max = MT7996_MAX_INTERFACES * MT7996_MAX_RADIOS,
@@ -853,6 +864,60 @@ mt7996_unregister_phy(struct mt7996_phy *phy)
 		mt7996_unregister_thermal(phy);
 }
 
+void mt7996_set_pcie_l1ss(struct mt7996_dev *dev, bool en)
+{
+	u8 val = en ? 0x1 : 0xf;
+
+#ifdef CONFIG_MTK_DEBUG
+	dev->dbg.lp.pcie_l1ss_enable = en;
+#endif
+
+	mt76_rmw(dev, MT_PCIE_MAC_LOW_POWER,
+		 MT_PCIE_MAC_LOW_POWER_DISABLE_MASK,
+		 u32_encode_bits(val, MT_PCIE_MAC_LOW_POWER_DISABLE_MASK));
+	if (dev->hif2)
+		mt76_rmw(dev, MT_PCIE1_MAC_LOW_POWER,
+			 MT_PCIE_MAC_LOW_POWER_DISABLE_MASK,
+			 u32_encode_bits(val, MT_PCIE_MAC_LOW_POWER_DISABLE_MASK));
+}
+
+static void mt7996_low_power_config(struct mt7996_dev *dev)
+{
+#define MT7996_ULTRA_SAVE_CONFIG_ALL		2
+#define MT7996_ULTRA_SAVE_CONFIG_FEATURES	1
+#define MT7996_ULTRA_SAVE_1RPD			4
+#define MT7996_ULTRA_SAVE_DISABLE		0
+	bool pb_en = false; // TODO someday: (lp_ctrl & BIT(LOW_POWER_TX_TPO_POWER_BOOST)) && dev->pwr_boost_cap;
+	bool lp_en = lp_ctrl & BIT(LOW_POWER_TX_TPO_POWER_REDUCE);
+	bool min_tx_en = lp_ctrl & BIT(LOW_POWER_TX_TPO_ANTENNA_REDUCE);
+	bool tpo_en = pb_en || lp_en || min_tx_en;
+	u8 arg[4];
+
+	if (!is_mt7990(&dev->mt76))
+		return;
+
+	/* Tx Power Optimization */
+	mt7996_mcu_set_tpo(dev, MT7996_LP_TPO_ALL, tpo_en);
+	mt7996_mcu_set_tpo(dev, MT7996_LP_TPO_PB, pb_en ? 7 : 0);
+	mt7996_mcu_set_tpo(dev, MT7996_LP_TPO_LP, lp_en ? 7 : 0);
+	mt7996_mcu_set_tpo(dev, MT7996_LP_TPO_MIN_TX, min_tx_en ? 7 : 0);
+
+	/* Ultra save */
+	memset(arg, 0, sizeof(arg));
+	arg[0] = MT7996_ULTRA_SAVE_CONFIG_ALL;
+	arg[1] = !!(lp_ctrl & BIT(LOW_POWER_RX_ULTRA_SAVE));
+	mt7996_mcu_set_lp_option(dev, arg);
+	/* Disable 1-Rx Packet Detection by default */
+	memset(arg, 0, sizeof(arg));
+	arg[0] = MT7996_ULTRA_SAVE_CONFIG_FEATURES;
+	arg[1] = MT7996_ULTRA_SAVE_1RPD;
+	arg[2] = MT7996_ULTRA_SAVE_DISABLE;
+	mt7996_mcu_set_lp_option(dev, arg);
+
+	/* Power Saving Transceiver */
+	mt7996_mcu_set_pst(dev, 0xff, 0, !!(lp_ctrl & BIT(LOW_POWER_TX_PST)));
+}
+
 static void mt7996_init_work(struct work_struct *work)
 {
 	struct mt7996_dev *dev = container_of(work, struct mt7996_dev,
@@ -861,6 +926,10 @@ static void mt7996_init_work(struct work_struct *work)
 	mt7996_mcu_set_eeprom(dev);
 	mt7996_mac_init(dev);
 	mt7996_txbf_init(dev);
+
+	mt7996_low_power_config(dev);
+	mt7996_set_pcie_l1ss(dev,
+		is_mt7990(&dev->mt76) && (lp_ctrl & BIT(LOW_POWER_PCIE_L1SS)));
 }
 
 void mt7996_wfsys_reset(struct mt7996_dev *dev)

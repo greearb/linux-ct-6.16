@@ -326,6 +326,18 @@ enum vow_drr_ctrl_id {
 	VOW_DRR_CTRL_STA_PAUSE = 0x30
 };
 
+enum {
+	LOW_POWER_PCIE_L1SS,
+	LOW_POWER_TX_TPO_POWER_BOOST,		/* PB-TPO */
+	LOW_POWER_TX_TPO_POWER_REDUCE,		/* LP-TPO */
+	LOW_POWER_TX_TPO_ANTENNA_REDUCE,	/* Min Tx TPO */
+	LOW_POWER_RX_ULTRA_SAVE,
+	LOW_POWER_TX_PST,
+};
+#define LOW_POWER_TPO (LOW_POWER_TX_TPO_POWER_BOOST | \
+		       LOW_POWER_TX_TPO_POWER_REDUCE | \
+		       LOW_POWER_TX_TPO_ANTENNA_REDUCE)
+
 struct mt7996_vow_ctrl {
 	bool atf_enable;
 	bool watf_enable;
@@ -831,6 +843,20 @@ struct mt7996_dev {
 		u32 rxd_read_cnt;
 		u32 txd_read_cnt;
 		u32 fid_idx;
+		struct {
+			bool pcie_l1ss_enable:1;
+			bool ultra_save:1;
+			bool one_rpd:1;
+			bool mmps:1;
+			bool mdpc:1;
+			bool dcm:1;
+			bool alpl:1;
+			u8 tpo;
+			u8 pb_tpo;
+			u8 lp_tpo;
+			u8 min_tx_tpo;
+			u8 pst;
+		} lp;
 	} dbg;
 
 	const struct mt7996_dbg_reg_desc *dbg_reg;
@@ -1235,6 +1261,7 @@ mt7996_vow_should_enable(struct mt7996_dev *dev)
 	       mtk_wed_device_active(&dev->mt76.mmio.wed);
 }
 
+void mt7996_set_pcie_l1ss(struct mt7996_dev *dev, bool en);
 void mt7996_mac_init(struct mt7996_dev *dev);
 u32 mt7996_mac_wtbl_lmac_addr(struct mt7996_dev *dev, u16 wcid, u8 dw);
 bool mt7996_mac_wtbl_update(struct mt7996_dev *dev, int idx, u32 mask);
@@ -1376,6 +1403,9 @@ int mt7996_mcu_set_mru_probe_en(struct mt7996_phy *phy);
 // TODO:  Control is in vendor.c, consider adding debugfs control.
 int mt7996_mcu_edcca_enable(struct mt7996_phy *phy, bool enable);
 int mt7996_mcu_edcca_threshold_ctrl(struct mt7996_phy *phy, u8 *value, bool set);
+int mt7996_mcu_set_tpo(struct mt7996_dev *dev, u8 type, u8 val);
+int mt7996_mcu_set_lp_option(struct mt7996_dev *dev, u8 *arg);
+int mt7996_mcu_set_pst(struct mt7996_dev *dev, u32 band, u32 cmd, u32 val);
 
 enum edcca_bw_id {
 	EDCCA_BW_20 = 0,

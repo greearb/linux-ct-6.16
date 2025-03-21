@@ -1095,6 +1095,10 @@ enum {
 	UNI_RA_FIXED_RATE = 0xf,
 };
 
+enum {
+	UNI_MURU_PST_LOW_POWER = 0x6e,
+};
+
 #define MT7996_HDR_TRANS_MAX_SIZE	(sizeof(struct hdr_trans_en) +	 \
 					 sizeof(struct hdr_trans_vlan) + \
 					 sizeof(struct hdr_trans_blacklist))
@@ -1276,6 +1280,7 @@ enum {
 
 enum {
 	UNI_POWER_OFF,
+	UNI_POWER_LOW_POWER = 0x6,
 };
 
 enum {
@@ -1669,6 +1674,17 @@ enum {
 	UNI_CMD_SCS_SEND_DATA,
 	UNI_CMD_SCS_SET_PD_THR_RANGE = 2,
 	UNI_CMD_SCS_ENABLE,
+};
+
+enum {
+	UNI_CMD_TPO_CTRL,
+};
+
+enum {
+	MT7996_LP_TPO_ALL,
+	MT7996_LP_TPO_PB,
+	MT7996_LP_TPO_LP,
+	MT7996_LP_TPO_MIN_TX,
 };
 
 #define MT7996_PATCH_SEC		GENMASK(31, 24)
