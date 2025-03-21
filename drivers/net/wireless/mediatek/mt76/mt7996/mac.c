@@ -1789,7 +1789,10 @@ mt7996_mac_tx_free(struct mt7996_dev *dev, void *data, int len)
 
 			idx = FIELD_GET(MT_TXFREE_INFO_WLAN_ID, info);
 			wcid = mt76_wcid_ptr(dev, idx);
-			sta = wcid_to_sta(wcid);
+			if (wcid)
+				sta = wcid_to_sta(wcid);
+			else
+				sta = NULL;
 
 			mtk_dbg(mdev, TXV, "mt7996-mac-tx-free, new wcid pair, idx: %d sta: %p wcid: %p\n",
 				idx, sta, wcid);
@@ -2149,6 +2152,12 @@ void mt7996_queue_rx_skb(struct mt76_dev *mdev, enum mt76_rxq_id q,
 	__le32 *rxd = (__le32 *)skb->data;
 	__le32 *end = (__le32 *)&skb->data[skb->len];
 	enum rx_pkt_type type;
+	int len;
+
+	/* drop the skb when rxd is corrupted */
+	len = le32_get_bits(rxd[0], MT_RXD0_LENGTH);
+	if (unlikely(len != skb->len))
+		goto drop;
 
 	type = le32_get_bits(rxd[0], MT_RXD0_PKT_TYPE);
 	if (type != PKT_TYPE_NORMAL) {
@@ -2190,9 +2199,13 @@ void mt7996_queue_rx_skb(struct mt76_dev *mdev, enum mt76_rxq_id q,
 		fallthrough;
 	default:
 		mtk_dbg(mdev, MSG, "mt7996-mac-queue-rx-skb, unhandled type: %d\n", type);
-		dev_kfree_skb(skb);
-		break;
+		goto drop;
 	}
+
+	return;
+
+drop:
+	dev_kfree_skb(skb);
 }
 
 void mt7996_mac_cca_stats_reset(struct mt7996_phy *phy)
