@@ -1344,6 +1344,7 @@ enum {
 	MCU_UNI_CMD_MLD = 0x82,
 	MCU_UNI_CMD_PEER_MLD = 0x83,
 	MCU_UNI_CMD_SDO = 0x88,
+	MCU_UNI_CMD_TPO = 0x8b,
 };
 
 enum {

@@ -8933,6 +8933,137 @@ int mt7996_mcu_set_mru_probe_en(struct mt7996_phy *phy)
 				 &req, sizeof(req), false);
 }
 
+int mt7996_mcu_set_tpo(struct mt7996_dev *dev, u8 type, u8 val)
+{
+	struct {
+		u8 __rsv[4];
+
+		__le16 tag;
+		__le16 len;
+
+		u8 type;
+		u8 val;
+		u8 __rsv2[2];
+	} __packed req = {
+		.tag = cpu_to_le16(UNI_CMD_TPO_CTRL),
+		.len = cpu_to_le16(sizeof(req) - 4),
+
+		.type = type,
+		.val = val,
+	};
+
+#ifdef CONFIG_MTK_DEBUG
+	switch (type) {
+	case MT7996_LP_TPO_ALL:
+		dev->dbg.lp.tpo = val;
+		break;
+	case MT7996_LP_TPO_PB:
+		dev->dbg.lp.pb_tpo = val;
+		break;
+	case MT7996_LP_TPO_LP:
+		dev->dbg.lp.lp_tpo = val;
+		break;
+	case MT7996_LP_TPO_MIN_TX:
+		dev->dbg.lp.min_tx_tpo = val;
+		break;
+	default:
+		break;
+	}
+#endif
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(TPO),
+				 &req, sizeof(req), true);
+}
+
+int mt7996_mcu_set_lp_option(struct mt7996_dev *dev, u8 *arg)
+{
+	struct {
+		u8 __rsv[4];
+
+		__le16 tag;
+		__le16 len;
+
+		u8 arg[4];
+	} __packed req = {
+		.tag = cpu_to_le16(UNI_POWER_LOW_POWER),
+		.len = cpu_to_le16(sizeof(req) - 4),
+	};
+
+	memcpy(&req.arg, arg, sizeof(req.arg));
+
+#ifdef CONFIG_MTK_DEBUG
+#define ULTRA_SAVE_FEATURE	1
+#define ULTRA_SAVE_FEATURE_ALL	2
+#define ULTRA_SAVE_FEATURE_DCM	3
+#define ULTRA_SAVE_FEATURE_1RPD	4
+#define ULTRA_SAVE_FEATURE_MMPS	5
+#define ULTRA_SAVE_FEATURE_MDPC	6
+	if (arg[0] == ULTRA_SAVE_FEATURE_ALL) {
+		dev->dbg.lp.ultra_save = !!arg[1];
+		dev->dbg.lp.one_rpd = !!arg[1];
+		dev->dbg.lp.mmps = !!arg[1];
+		dev->dbg.lp.mdpc = !!arg[1];
+		dev->dbg.lp.dcm = !!arg[1];
+		dev->dbg.lp.alpl = !!arg[1];
+	} else if (arg[0] == ULTRA_SAVE_FEATURE) {
+		switch (arg[1]) {
+		case ULTRA_SAVE_FEATURE_DCM:
+			dev->dbg.lp.dcm = !!arg[2];
+			break;
+		case ULTRA_SAVE_FEATURE_1RPD:
+			dev->dbg.lp.one_rpd = !!arg[2];
+			break;
+		case ULTRA_SAVE_FEATURE_MMPS:
+			dev->dbg.lp.mmps = !!arg[2];
+			break;
+		case ULTRA_SAVE_FEATURE_MDPC:
+			dev->dbg.lp.mdpc = !!arg[2];
+			break;
+		default:
+			break;
+		}
+	}
+#endif
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(POWER_CTRL), &req,
+				 sizeof(req), false);
+}
+
+int mt7996_mcu_set_pst(struct mt7996_dev *dev, u32 band, u32 cmd, u32 val)
+{
+	struct {
+		u8 __rsv[4];
+
+		__le16 tag;
+		__le16 len;
+
+		__le32 band;
+		__le32 cmd;
+		__le32 val;
+	} __packed req = {
+		.tag = cpu_to_le16(UNI_MURU_PST_LOW_POWER),
+		.len = cpu_to_le16(sizeof(req) - 4),
+
+		.band = cpu_to_le32(band),
+		.cmd = cpu_to_le32(cmd),
+		.val = cpu_to_le32(val),
+	};
+
+#ifdef CONFIG_MTK_DEBUG
+	if (!cmd) {
+		if (band == 0xff) {
+			dev->dbg.lp.pst = val ? GENMASK(2, 0) : 0;
+		} else if (band < __MT_MAX_BAND) {
+			dev->dbg.lp.pst &= ~BIT(band);
+			dev->dbg.lp.pst |= val ? BIT(band) : 0;
+		}
+
+	}
+#endif
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(MURU), &req,
+				 sizeof(req), false);
+}
+
 #ifdef CONFIG_MTK_VENDOR
 void mt7996_set_wireless_vif(void *data, u8 *mac, struct ieee80211_vif *vif)
 {

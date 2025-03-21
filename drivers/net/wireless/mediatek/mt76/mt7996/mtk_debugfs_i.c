@@ -755,6 +755,189 @@ mt7996_rmac_table_show(struct seq_file *s, void *data)
 DEFINE_SHOW_ATTRIBUTE(mt7996_rmac_table);
 
 static int
+mt7996_pcie_l1ss_enable_get(void *data, u64 *val)
+{
+	struct mt7996_dev *dev = data;
+
+	*val = dev->dbg.lp.pcie_l1ss_enable;
+
+	return 0;
+}
+static int
+mt7996_pcie_l1ss_enable_set(void *data, u64 val)
+{
+	struct mt7996_dev *dev = data;
+
+	mt7996_set_pcie_l1ss(dev, !!val);
+
+	return 0;
+}
+DEFINE_DEBUGFS_ATTRIBUTE(fops_pcie_l1ss_enable, mt7996_pcie_l1ss_enable_get,
+			 mt7996_pcie_l1ss_enable_set, "%lld\n");
+
+static ssize_t mt7996_tpt_option_set(struct file *file,
+				     const char __user *user_buf,
+				     size_t count, loff_t *ppos)
+{
+	struct mt7996_dev *dev = file->private_data;
+	int ret = count, mcu_ret;
+	u8 type, val;
+	char *buf;
+
+	buf = kzalloc(count + 1, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	if (copy_from_user(buf, user_buf, count)) {
+		ret = -EFAULT;
+		goto out;
+	}
+
+	if (count && buf[count - 1] == '\n')
+		buf[count - 1] = '\0';
+	else
+		buf[count] = '\0';
+
+	if (sscanf(buf, "%hhu %hhu", &type, &val) != 2 || type > 4 || val > 7) {
+		dev_warn(dev->mt76.dev, "format: type val\n");
+		goto out;
+	}
+
+	mcu_ret = mt7996_mcu_set_tpo(dev, type, val);
+	ret = mcu_ret ? mcu_ret : ret;
+out:
+	kfree(buf);
+	return ret;
+}
+
+static const struct file_operations fops_tpt_option = {
+	.write = mt7996_tpt_option_set,
+	.open = simple_open,
+	.owner = THIS_MODULE,
+	.llseek = default_llseek,
+};
+
+static ssize_t mt7996_lp_option_set(struct file *file,
+				   const char __user *user_buf,
+				   size_t count, loff_t *ppos)
+{
+	struct mt7996_dev *dev = file->private_data;
+	int ret = count, mcu_ret;
+	char *buf;
+	u8 arg[4];
+
+	buf = kzalloc(count + 1, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	if (copy_from_user(buf, user_buf, count)) {
+		ret = -EFAULT;
+		goto out;
+	}
+
+	if (count && buf[count - 1] == '\n')
+		buf[count - 1] = '\0';
+	else
+		buf[count] = '\0';
+
+	if (sscanf(buf, "%hhu %hhu %hhu %hhu",
+		   &arg[0], &arg[1], &arg[2], &arg[3]) != 4) {
+		dev_warn(dev->mt76.dev, "format: arg0 arg1 arg2 arg3\n");
+		goto out;
+	}
+
+	mcu_ret = mt7996_mcu_set_lp_option(dev, arg);
+	ret = mcu_ret ? mcu_ret : ret;
+out:
+	kfree(buf);
+	return ret;
+}
+
+static const struct file_operations fops_lp_option = {
+	.write = mt7996_lp_option_set,
+	.open = simple_open,
+	.owner = THIS_MODULE,
+	.llseek = default_llseek,
+};
+
+static ssize_t mt7996_muru_low_pwr_set(struct file *file,
+				       const char __user *user_buf,
+				       size_t count, loff_t *ppos)
+{
+	struct mt7996_dev *dev = file->private_data;
+	int ret = count, mcu_ret;
+	u32 band, cmd, val;
+	char *buf;
+
+	buf = kzalloc(count + 1, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	if (copy_from_user(buf, user_buf, count)) {
+		ret = -EFAULT;
+		goto out;
+	}
+
+	if (count && buf[count - 1] == '\n')
+		buf[count - 1] = '\0';
+	else
+		buf[count] = '\0';
+
+	if (sscanf(buf, "%u %u %u", &band, &cmd, &val) != 3) {
+		dev_warn(dev->mt76.dev, "format: band command value\n");
+		goto out;
+	}
+
+	mcu_ret = mt7996_mcu_set_pst(dev, band, cmd, val);
+	ret = mcu_ret ? mcu_ret : ret;
+out:
+	kfree(buf);
+	return ret;
+}
+
+static const struct file_operations fops_muru_low_pwr = {
+	.write = mt7996_muru_low_pwr_set,
+	.open = simple_open,
+	.owner = THIS_MODULE,
+	.llseek = default_llseek,
+};
+
+static int
+mt7996_low_power_info_read(struct seq_file *s, void *data)
+{
+	struct mt7996_dev *dev = dev_get_drvdata(s->private);
+
+#define _pr(_str, _cond) seq_printf(s, "%s %s\n", _str, \
+				    dev->dbg.lp._cond ? "enable" : "disable");
+
+	seq_printf(s, "Low Power Info:\n");
+
+	_pr("PCIe ASPM:", pcie_l1ss_enable);
+
+	seq_printf(s, "TPO: %d\n", dev->dbg.lp.tpo);
+	seq_printf(s, "\tPB-TPO: %d\n", dev->dbg.lp.pb_tpo);
+	seq_printf(s, "\tLP-TPO: %d \n", dev->dbg.lp.lp_tpo);
+	seq_printf(s, "\tMinTx-TPO: %d \n", dev->dbg.lp.min_tx_tpo);
+
+	_pr("Ultra Save:", ultra_save);
+	_pr("\t1RPD:", one_rpd);
+	_pr("\tMMPS:", mmps);
+	_pr("\tMDPC:", mdpc);
+	_pr("\tDCM:", dcm);
+	_pr("\tALPL:", alpl);
+
+	seq_printf(s, "PST band 0: %s\n",
+		   dev->dbg.lp.pst & BIT(MT_BAND0) ? "enable" : "disable");
+	seq_printf(s, "PST band 1: %s\n",
+		   dev->dbg.lp.pst & BIT(MT_BAND1) ? "enable" : "disable");
+	seq_printf(s, "PST band 2: %s\n",
+		   dev->dbg.lp.pst & BIT(MT_BAND2) ? "enable" : "disable");
+#undef _pr
+
+	return 0;
+}
+
+static int
 mt7996_agg_table_show(struct seq_file *s, void *data)
 {
 	struct mt7996_phy *phy = s->private;
@@ -1005,6 +1188,18 @@ int mt7996_mtk_init_dev_debugfs_internal(struct mt7996_dev *dev, struct dentry *
 	debugfs_create_file("mlo_agc_tx", 0200, dir, dev, &fops_mlo_agc_tx);
 	debugfs_create_file("mlo_agc_trig", 0200, dir, dev, &fops_mlo_agc_trig);
 
+	if (is_mt7990(&dev->mt76)) {
+		debugfs_create_file("pci_l1ss", 0600, dir, dev,
+				    &fops_pcie_l1ss_enable);
+		debugfs_create_file("tpt_option", 0200, dir, dev,
+				    &fops_tpt_option);
+		debugfs_create_file("lp_option", 0200, dir, dev,
+				    &fops_lp_option);
+		debugfs_create_file("muru_low_pwr", 0200, dir, dev,
+				    &fops_muru_low_pwr);
+		debugfs_create_devm_seqfile(dev->mt76.dev, "low_power_info",
+					    dir, mt7996_low_power_info_read);
+	}
 	return 0;
 }
 
