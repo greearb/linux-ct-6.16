@@ -3055,7 +3055,7 @@ static struct sk_buff *ieee80211_build_hdr(struct ieee80211_sub_if_data *sdata,
 						IEEE80211_TX_CTRL_MLO_LINK);
 
 		if (pre_conf_link_id != link_id &&
-		    link_id != IEEE80211_LINK_UNSPECIFIED) {
+		    pre_conf_link_id != IEEE80211_LINK_UNSPECIFIED) {
 #ifdef CONFIG_MAC80211_VERBOSE_DEBUG
 			net_info_ratelimited("%s: dropped frame to %pM with bad link ID request (%d vs. %d)\n",
 					     sdata->name, hdr.addr1,
