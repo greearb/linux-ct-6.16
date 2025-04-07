@@ -5022,6 +5022,9 @@ static int ieee80211_color_change_finalize(struct ieee80211_link_data *link)
 
 	link->conf->color_change_active = false;
 
+	/* Clear tha map after color change so that colors can be released */
+	link->conf->used_color_bitmap = 0;
+
 	err = ieee80211_set_after_color_change_beacon(link, &changed);
 	if (err) {
 		cfg80211_color_change_aborted_notify(sdata->dev, link->link_id);
@@ -5165,6 +5168,11 @@ ieee80211_color_change(struct wiphy *wiphy, struct net_device *dev,
 	 */
 	if (link_conf->color_change_active || link_conf->csa_active) {
 		err = -EBUSY;
+		goto out;
+	}
+
+	if (BIT_ULL(params->color) & link_conf->used_color_bitmap) {
+		err = -EINVAL;
 		goto out;
 	}
 
