@@ -3535,13 +3535,12 @@ ieee80211_rx_h_mgmt_check(struct ieee80211_rx_data *rx)
 	    rx->skb->len < IEEE80211_MIN_ACTION_SIZE)
 		return RX_DROP_U_RUNT_ACTION;
 
-	if (rx->sdata->vif.type == NL80211_IFTYPE_AP &&
-	    ieee80211_is_beacon(mgmt->frame_control) &&
-	    !(rx->flags & IEEE80211_RX_BEACON_REPORTED)) {
-		int sig = 0;
+	if (rx->sdata->vif.type != NL80211_IFTYPE_AP ||
+	    !ieee80211_is_beacon(mgmt->frame_control))
+		goto skip_beacon_report;
 
-		/* sw bss color collision detection */
-		ieee80211_rx_check_bss_color_collision(rx);
+	if (!(rx->flags & IEEE80211_RX_BEACON_REPORTED)) {
+		int sig = 0;
 
 		if (ieee80211_hw_check(&rx->local->hw, SIGNAL_DBM) &&
 		    !(status->flag & RX_FLAG_NO_SIGNAL_VAL))
@@ -3554,6 +3553,48 @@ ieee80211_rx_h_mgmt_check(struct ieee80211_rx_data *rx)
 		rx->flags |= IEEE80211_RX_BEACON_REPORTED;
 	}
 
+	if (!(rx->flags & IEEE80211_RX_BEACON_COLOR_COLLISION_CHECKED)) {
+		struct ieee80211_sub_if_data *sdata = rx->sdata;
+		struct ieee80211_supported_band *sband;
+
+		/* Make sure that the beacon is handled by the correct link */
+		if (ieee80211_vif_is_mld(&sdata->vif)) {
+			unsigned int link_id;
+			struct ieee80211_link_data *link, *orig_link;
+
+			orig_link = rx->link;
+			rx->link = NULL;
+			for_each_valid_link(&sdata->wdev, link_id) {
+				link = sdata_dereference(sdata->link[link_id], sdata);
+				if (!link)
+					continue;
+
+				sband = ieee80211_get_link_sband(link);
+				if (!sband)
+					continue;
+
+				if (status->band == sband->band) {
+					rx->link = link;
+					break;
+				}
+			}
+
+			if (!rx->link) {
+				rx->link = orig_link;
+				goto skip_beacon_report;
+			}
+		} else {
+			sband = ieee80211_get_link_sband(rx->link);
+			if (!sband || status->band != sband->band)
+				goto skip_beacon_report;
+		}
+
+		/* sw bss color collision detection */
+		ieee80211_rx_check_bss_color_collision(rx);
+		rx->flags |= IEEE80211_RX_BEACON_COLOR_COLLISION_CHECKED;
+	}
+
+skip_beacon_report:
 	return ieee80211_drop_unencrypted_mgmt(rx);
 }
 

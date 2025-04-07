@@ -208,6 +208,7 @@ enum ieee80211_packet_rx_flags {
  */
 enum ieee80211_rx_flags {
 	IEEE80211_RX_BEACON_REPORTED	= BIT(0),
+	IEEE80211_RX_BEACON_COLOR_COLLISION_CHECKED	= BIT(1),
 };
 
 struct ieee80211_rx_data {
