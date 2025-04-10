@@ -343,6 +343,8 @@ struct iwl_mld {
 	u8 mgmt_tx_ant;
 
 	bool fw_rates_ver_3;
+	u8 set_tx_ant;
+	u8 set_rx_ant;
 
 	struct iwl_mld_low_latency low_latency;
 
