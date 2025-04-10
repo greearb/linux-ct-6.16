@@ -1852,7 +1852,6 @@ static void iwl_mvm_rx_tx_cmd_single(struct iwl_mvm *mvm,
 	u8 lq_color;
 	u16 next_reclaimed, seq_ctl;
 	bool is_ndp = false;
-	bool did_once = false;
 	struct ieee80211_link_sta *link_sta;
 	int link_sta_id = -1;
 
