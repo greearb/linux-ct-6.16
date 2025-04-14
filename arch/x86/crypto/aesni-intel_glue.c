@@ -385,7 +385,6 @@ static void ccm_calculate_auth_mac(struct aead_request *req,
 	scatterwalk_start(&walk, src);
 
 	while (len) {
-		u8 *src;
 		int n;
 
 		n = scatterwalk_clamp(&walk, len);
@@ -393,12 +392,11 @@ static void ccm_calculate_auth_mac(struct aead_request *req,
 			scatterwalk_start(&walk, sg_next(walk.sg));
 			n = scatterwalk_clamp(&walk, len);
 		}
-		src = scatterwalk_map(&walk);
-
-		ilen = compute_mac(ctx, mac, src, n, ilen, idata, do_simd);
+		scatterwalk_map(&walk);
+		ilen = compute_mac(ctx, mac, walk.addr, n, ilen, idata, do_simd);
 		len -= n;
 
-		scatterwalk_unmap(src);
+		scatterwalk_unmap(&walk);
 		scatterwalk_advance(&walk, n);
 		scatterwalk_done(&walk, 0, len);
 	}
