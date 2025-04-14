@@ -35,7 +35,6 @@
 #include <linux/jump_label.h>
 #include <linux/workqueue.h>
 #include <linux/spinlock.h>
-#include <linux/static_call.h>
 
 
 #define AESNI_ALIGN	16
@@ -452,7 +451,7 @@ static int aesni_ccm_encrypt(struct aead_request *req)
 			}
 		}
 		if (likely(do_simd))
-			static_call(aesni_ctr_enc_tfm)(ctx, walk.dst.virt.addr,
+			aesni_ctr_enc(ctx, walk.dst.virt.addr,
 						       walk.src.virt.addr, len,
 						       walk.iv);
 
@@ -482,7 +481,7 @@ static int aesni_ccm_encrypt(struct aead_request *req)
 	memset(walk.iv + AES_BLOCK_SIZE - l, 0, l);
 
 	if (likely(do_simd)) {
-		static_call(aesni_ctr_enc_tfm)(ctx, mac, mac, AES_BLOCK_SIZE, walk.iv);
+		aesni_ctr_enc(ctx, mac, mac, AES_BLOCK_SIZE, walk.iv);
 	} else {
 		aes_encrypt(ctx, buf, walk.iv);
 		crypto_xor(mac, buf, AES_BLOCK_SIZE);
@@ -538,7 +537,7 @@ static int aesni_ccm_decrypt(struct aead_request *req)
 		int n;
 
 		if (likely(do_simd))
-			static_call(aesni_ctr_enc_tfm)(ctx, walk.dst.virt.addr,
+			aesni_ctr_enc(ctx, walk.dst.virt.addr,
 						       walk.src.virt.addr, len,
 						       walk.iv);
 
@@ -585,7 +584,7 @@ static int aesni_ccm_decrypt(struct aead_request *req)
 	memset(walk.iv + AES_BLOCK_SIZE - l, 0, l);
 
 	if (likely(do_simd)) {
-		static_call(aesni_ctr_enc_tfm)(ctx, mac, mac, AES_BLOCK_SIZE, walk.iv);
+		aesni_ctr_enc(ctx, mac, mac, AES_BLOCK_SIZE, walk.iv);
 	} else {
 		aes_encrypt(ctx, buf, walk.iv);
 		crypto_xor(mac, buf, AES_BLOCK_SIZE);
