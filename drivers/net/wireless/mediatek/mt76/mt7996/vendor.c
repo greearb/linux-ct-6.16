@@ -61,6 +61,7 @@ amnt_dump_policy[NUM_MTK_VENDOR_ATTRS_AMNT_DUMP] = {
 static struct nla_policy
 bss_color_ctrl_policy[NUM_MTK_VENDOR_ATTRS_BSS_COLOR_CTRL] = {
 	[MTK_VENDOR_ATTR_AVAL_BSS_COLOR_BMP] = { .type = NLA_U64 },
+	[MTK_VENDOR_ATTR_AVAL_BSS_COLOR_LINK_ID] = { .type = NLA_U8 },
 };
 
 static const struct nla_policy
@@ -622,18 +623,43 @@ mt7996_vendor_bss_color_ctrl_dump(struct wiphy *wiphy, struct wireless_dev *wdev
 				  unsigned long *storage)
 {
 	struct ieee80211_vif *vif = wdev_to_ieee80211_vif(wdev);
-	struct ieee80211_bss_conf *bss_conf = &vif->bss_conf;
-	int len = 0;
+	struct ieee80211_bss_conf *bss_conf;
+	struct nlattr *tb[NUM_MTK_VENDOR_ATTRS_BSS_COLOR_CTRL];
+	int len = 0, err;
+	u8 link_id = 0;
 
 	if (*storage == 1)
 		return -ENOENT;
 	*storage = 1;
 
+	err = nla_parse(tb, MTK_VENDOR_ATTR_BSS_COLOR_CTRL_MAX, data, data_len,
+			bss_color_ctrl_policy, NULL);
+
+	if (err)
+		return err;
+
+	if (ieee80211_vif_is_mld(vif) &&
+	    tb[MTK_VENDOR_ATTR_AVAL_BSS_COLOR_LINK_ID]) {
+		link_id = nla_get_u8(tb[MTK_VENDOR_ATTR_AVAL_BSS_COLOR_LINK_ID]);
+		if (link_id >= IEEE80211_LINK_UNSPECIFIED)
+			return -EINVAL;
+	}
+
+	rcu_read_lock();
+	bss_conf = rcu_dereference(vif->link_conf[link_id]);
+	if (!bss_conf) {
+		rcu_read_unlock();
+		return -ENOLINK;
+	}
+
 	if (nla_put_u64_64bit(skb, MTK_VENDOR_ATTR_AVAL_BSS_COLOR_BMP,
-			      ~bss_conf->used_color_bitmap, NL80211_ATTR_PAD))
+			      ~bss_conf->used_color_bitmap, NL80211_ATTR_PAD)) {
+		rcu_read_unlock();
 		return -ENOMEM;
+	}
 	len += 1;
 
+	rcu_read_unlock();
 	return len;
 }
 
