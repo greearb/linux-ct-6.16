@@ -147,6 +147,7 @@ static void iwl_mld_fill_signal(struct iwl_mld *mld,
 				struct ieee80211_rx_status *rx_status,
 				struct iwl_mld_rx_phy_data *phy_data,
 				struct ieee80211_sta *sta,
+				struct ieee80211_link_sta *link_sta,
 				bool is_beacon, bool my_beacon)
 {
 	u32 rate_n_flags = phy_data->rate_n_flags;
@@ -154,6 +155,7 @@ static void iwl_mld_fill_signal(struct iwl_mld *mld,
 	int energy_b = phy_data->energy_b;
 	int max_energy;
 	struct iwl_mld_sta *mld_sta = NULL;
+	struct iwl_mld_link *mld_link = NULL;
 
 	if (sta && !(is_beacon && !my_beacon)) {
 		mld_sta = iwl_mld_sta_from_mac80211(sta);
@@ -194,11 +196,22 @@ static void iwl_mld_fill_signal(struct iwl_mld *mld,
 	rx_status->chain_signal[1] = energy_b;
 
 	if (mld_sta) {
+		if (link_sta) {
+			struct iwl_mld_vif *mld_vif;
+
+			mld_vif = iwl_mld_vif_from_mac80211(mld_sta->vif);
+			mld_link = mld_vif->link[link_sta->link_id];
+		}
 		if (is_beacon) {
-			if (my_beacon)
+			if (my_beacon) {
 				ewma_signal_add(&mld_sta->rx_avg_beacon_signal, -max_energy);
+				if (mld_link)
+					ewma_signal_add(&mld_link->rx_avg_beacon_signal, -max_energy);
+			}
 		} else {
 			ewma_signal_add(&mld_sta->rx_avg_signal, -max_energy);
+			if (mld_link)
+				ewma_signal_add(&mld_link->rx_avg_signal, -max_energy);
 		}
 	}
 }
@@ -1216,7 +1229,8 @@ static void iwl_mld_add_rtap_sniffer_config(struct iwl_mld *mld,
 static void iwl_mld_rx_fill_status(struct iwl_mld *mld, struct sk_buff *skb,
 				   struct iwl_mld_rx_phy_data *phy_data,
 				   struct ieee80211_hdr *hdr,
-				   int queue, struct ieee80211_sta *sta)
+				   int queue, struct ieee80211_sta *sta,
+				   struct ieee80211_link_sta *link_sta)
 {
 	struct ieee80211_rx_status *rx_status = IEEE80211_SKB_RXCB(skb);
 	u32 format = phy_data->rate_n_flags & RATE_MCS_MOD_TYPE_MSK;
@@ -1242,8 +1256,12 @@ static void iwl_mld_rx_fill_status(struct iwl_mld *mld, struct sk_buff *skb,
 	is_beacon = hdr && (ieee80211_is_beacon(hdr->frame_control));
 	if (is_beacon && sta) {
 		/* see if it is beacon destined for us */
-		if (memcmp(sta->addr, hdr->addr2, ETH_ALEN) == 0)
+		if (memcmp(sta->addr, hdr->addr2, ETH_ALEN) == 0) {
 			my_beacon = true;
+		} else if (link_sta) {
+			if (memcmp(link_sta->addr, hdr->addr2, ETH_ALEN) == 0)
+				my_beacon = true;
+		}
 	}
 
 	/* must be before L-SIG data */
@@ -1370,7 +1388,7 @@ static void iwl_mld_rx_fill_status(struct iwl_mld *mld, struct sk_buff *skb,
 	/* Depends on rx_status->nss being configured properly, call this at
 	 * bottom of this method.
 	 */
-	iwl_mld_fill_signal(mld, rx_status, phy_data, sta, is_beacon, my_beacon);
+	iwl_mld_fill_signal(mld, rx_status, phy_data, sta, link_sta, is_beacon, my_beacon);
 }
 
 /* iwl_mld_create_skb adds the rxb to a new skb */
@@ -1561,19 +1579,22 @@ static void iwl_mld_update_last_rx_timestamp(struct iwl_mld *mld, u8 baid)
 
 /* Processes received packets for a station.
  * Sets *drop to true if the packet should be dropped.
+ * Assigns rv_link_sta if found (NULL otherwise)
  * Returns the station if found, or NULL otherwise.
  */
 static struct ieee80211_sta *
 iwl_mld_rx_with_sta(struct iwl_mld *mld, struct ieee80211_hdr *hdr,
 		    struct sk_buff *skb,
 		    const struct iwl_rx_mpdu_desc *mpdu_desc,
-		    const struct iwl_rx_packet *pkt, int queue, bool *drop)
+		    const struct iwl_rx_packet *pkt, int queue, bool *drop,
+		    struct ieee80211_link_sta **rv_link_sta)
 {
 	struct ieee80211_sta *sta = NULL;
-	struct ieee80211_link_sta *link_sta = NULL;
+	struct ieee80211_link_sta *link_sta;
 	struct ieee80211_rx_status *rx_status;
 	u8 baid;
 
+	*rv_link_sta = NULL;
 	if (mpdu_desc->status & cpu_to_le32(IWL_RX_MPDU_STATUS_SRC_STA_FOUND)) {
 		u8 sta_id = le32_get_bits(mpdu_desc->status,
 					  IWL_RX_MPDU_STATUS_STA_ID);
@@ -1584,8 +1605,10 @@ iwl_mld_rx_with_sta(struct iwl_mld *mld, struct ieee80211_hdr *hdr,
 			return NULL;
 
 		link_sta = rcu_dereference(mld->fw_id_to_link_sta[sta_id]);
-		if (!IS_ERR_OR_NULL(link_sta))
+		if (!IS_ERR_OR_NULL(link_sta)) {
 			sta = link_sta->sta;
+			*rv_link_sta = link_sta;
+		}
 	} else if (!is_multicast_ether_addr(hdr->addr2)) {
 		/* Passing NULL is fine since we prevent two stations with the
 		 * same address from being added.
@@ -1873,6 +1896,7 @@ void iwl_mld_rx_mpdu(struct iwl_mld *mld, struct napi_struct *napi,
 	u32 mpdu_len;
 	enum iwl_mld_reorder_result reorder_res;
 	struct ieee80211_rx_status *rx_status;
+	struct ieee80211_link_sta *link_sta;
 
 	if (unlikely(mld->fw_status.in_hw_restart))
 		return;
@@ -1920,7 +1944,7 @@ void iwl_mld_rx_mpdu(struct iwl_mld *mld, struct napi_struct *napi,
 
 	rcu_read_lock();
 
-	sta = iwl_mld_rx_with_sta(mld, hdr, skb, mpdu_desc, pkt, queue, &drop);
+	sta = iwl_mld_rx_with_sta(mld, hdr, skb, mpdu_desc, pkt, queue, &drop, &link_sta);
 	if (drop)
 		goto drop;
 
@@ -1965,7 +1989,7 @@ void iwl_mld_rx_mpdu(struct iwl_mld *mld, struct napi_struct *napi,
 				SCHED_SCAN_PASS_ALL_STATE_FOUND;
 	}
 
-	iwl_mld_rx_fill_status(mld, skb, &phy_data, hdr, queue, sta);
+	iwl_mld_rx_fill_status(mld, skb, &phy_data, hdr, queue, sta, link_sta);
 
 	if (iwl_mld_rx_crypto(mld, sta, hdr, rx_status, mpdu_desc, queue,
 			      le32_to_cpu(pkt->len_n_flags), &crypto_len)) {
@@ -2182,7 +2206,7 @@ void iwl_mld_rx_monitor_no_data(struct iwl_mld *mld, struct napi_struct *napi,
 	rx_status->freq = ieee80211_channel_to_frequency(channel,
 							 rx_status->band);
 
-	iwl_mld_rx_fill_status(mld, skb, &phy_data, NULL, queue, NULL);
+	iwl_mld_rx_fill_status(mld, skb, &phy_data, NULL, queue, NULL, NULL);
 
 	/* No more radiotap info should be added after this point.
 	 * Mark it as mac header for upper layers to know where

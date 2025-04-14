@@ -87,6 +87,14 @@ struct iwl_mld_link {
 	struct ieee80211_key_conf *ap_early_keys[6];
 	bool silent_deactivation;
 	struct iwl_probe_resp_data __rcu *probe_resp_data;
+
+	struct {
+		s8 avg_signal;
+	} beacon_stats;
+
+	/* For received frames, not from firmware. */
+	struct ewma_signal rx_avg_signal;
+	struct ewma_signal rx_avg_beacon_signal;
 };
 
 /* Cleanup function for struct iwl_mld_link, will be called in restart */
