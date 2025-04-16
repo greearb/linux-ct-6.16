@@ -3526,11 +3526,20 @@ mt7996_mcu_sta_key_tlv(struct mt76_dev *dev,
 				sec_key->cipher_id = MCU_CIPHER_BCN_PROT_GMAC_256;
 				break;
 			case WLAN_CIPHER_SUITE_BIP_CMAC_256:
+				if (is_mt7990(dev)) {
+					sec_key->cipher_id = MCU_CIPHER_BCN_PROT_CMAC_256;
+					break;
+				}
+				fallthrough;
 			default:
 				dev_err(dev->dev, "Unsupported BIGTK cipher\n");
 				return -EOPNOTSUPP;
 			}
 			sec_key->bcn_mode = BP_SW_MODE;
+			if (is_mt7990(dev)) {
+				sec_key->bcn_mode = BP_HW_MODE;
+				wcid->hw_bcn_prot = true;
+			}
 			memcpy(sec_key->pn, pn, 6);
 		}
 
@@ -3543,6 +3552,8 @@ mt7996_mcu_sta_key_tlv(struct mt76_dev *dev,
 		/* connac3 fw use set key action to apply removing bigtk and other
 		 * group keys should just use set key to overwrite the old ones. */
 		sec->add = SET_KEY;
+		if (is_mt7990(dev) && (sec_key->key_id == 6 || sec_key->key_id == 7))
+			wcid->hw_bcn_prot = false;
 	}
 
 	return 0;
@@ -4071,10 +4082,14 @@ mt7996_mcu_beacon_cont(struct mt7996_dev *dev,
 		       struct ieee80211_bss_conf *link_conf,
 		       struct sk_buff *rskb, struct sk_buff *skb,
 		       struct bss_bcn_content_tlv *bcn,
-		       struct ieee80211_mutable_offsets *offs)
+		       struct ieee80211_mutable_offsets *offs,
+		       struct mt7996_vif_link *link)
 {
 	struct mt76_wcid *wcid = &dev->mt76.global_wcid;
 	u8 *buf;
+
+	if (link->msta_link.wcid.hw_bcn_prot)
+		wcid = &link->msta_link.wcid;
 
 	bcn->pkt_len = cpu_to_le16(MT_TXD_SIZE + skb->len);
 	bcn->tim_ie_pos = cpu_to_le16(offs->tim_offset);
@@ -4388,7 +4403,7 @@ int mt7996_mcu_add_beacon(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	}
 
 	mt7996_parse_mbssid_elems(link->phy, skb, offs.mbssid_off, mbssid_data);
-	mt7996_mcu_beacon_cont(dev, link_conf, rskb, skb, bcn, &offs);
+	mt7996_mcu_beacon_cont(dev, link_conf, rskb, skb, bcn, &offs, link);
 	if (link_conf->bssid_indicator)
 		mt7996_mcu_beacon_mbss(rskb, skb, bcn, &offs, mbssid_data);
 	mt7996_mcu_beacon_cntdwn(rskb, skb, &offs, link_conf->csa_active);

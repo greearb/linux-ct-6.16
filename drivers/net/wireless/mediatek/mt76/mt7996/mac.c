@@ -961,7 +961,8 @@ mt7996_mac_write_txwi_80211(struct mt7996_dev *dev, __le32 *txwi,
 	    info->flags & IEEE80211_TX_CTL_USE_MINRATE)
 		val |= MT_TXD1_FIXED_RATE;
 
-	if (key && multicast && ieee80211_is_robust_mgmt_frame(skb)) {
+	if ((key && multicast && ieee80211_is_robust_mgmt_frame(skb)) ||
+	    (ieee80211_is_beacon(fc) && wcid->hw_bcn_prot)) {
 		val |= MT_TXD1_BIP;
 		txwi[3] &= ~cpu_to_le32(MT_TXD3_PROTECT_FRAME);
 	}
