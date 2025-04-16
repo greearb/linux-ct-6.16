@@ -1032,7 +1032,7 @@ ieee802_11_parse_elems_full(struct ieee80211_elems_parse_params *params)
 	 * In any case, we only look for one at a time, as encoded by
 	 * the WARN_ON above.
 	 */
-	if (params->bss) {
+	if (params->bss && params->bss->transmitted_bss) {
 		int nontx_len =
 			ieee802_11_find_bssid_profile(params->start,
 						      params->len,
