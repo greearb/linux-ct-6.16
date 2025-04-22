@@ -5828,6 +5828,8 @@ int mt7996_mcu_set_thermal_throttling(struct mt7996_phy *phy, u8 state)
 			return ret;
 	}
 
+	phy->throttle_state = state;
+
 	return 0;
 }
 
