@@ -423,6 +423,10 @@ __ieee80211_set_default_beacon_key(struct ieee80211_link_data *link, int idx)
 
 	rcu_assign_pointer(link->default_beacon_key, key);
 
+	if (key && (key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_MMIE))
+		ieee80211_link_info_change_notify(sdata, link,
+						  BSS_CHANGED_BEACON);
+
 	ieee80211_debugfs_key_update_default(sdata);
 }
 
