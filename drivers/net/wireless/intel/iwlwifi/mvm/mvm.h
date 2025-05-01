@@ -2965,7 +2965,7 @@ int iwl_mvm_mac_ampdu_action(struct ieee80211_hw *hw,
 			     struct ieee80211_vif *vif,
 			     struct ieee80211_ampdu_params *params);
 int iwl_mvm_op_get_antenna(struct ieee80211_hw *hw, u32 *tx_ant, u32 *rx_ant);
-int iwl_mvm_op_set_antenna(struct ieee80211_hw *hw, u32 tx_ant, u32 rx_ant);
+int iwl_mvm_op_set_antenna(struct ieee80211_hw *hw, s8 radio_id, u32 tx_ant, u32 rx_ant);
 int iwl_mvm_get_et_sset_count(struct ieee80211_hw *hw,
 			      struct ieee80211_vif *vif, int sset);
 void iwl_mvm_get_et_stats(struct ieee80211_hw *hw,

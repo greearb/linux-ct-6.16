@@ -99,8 +99,8 @@ mt76x2_flush(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 {
 }
 
-static int mt76x2_set_antenna(struct ieee80211_hw *hw, u32 tx_ant,
-			      u32 rx_ant)
+static int mt76x2_set_antenna(struct ieee80211_hw *hw, s8 radio_id,
+			      u32 tx_ant, u32 rx_ant)
 {
 	struct mt76x02_dev *dev = hw->priv;
 

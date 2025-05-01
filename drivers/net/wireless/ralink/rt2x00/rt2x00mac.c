@@ -740,7 +740,8 @@ void rt2x00mac_flush(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 }
 EXPORT_SYMBOL_GPL(rt2x00mac_flush);
 
-int rt2x00mac_set_antenna(struct ieee80211_hw *hw, u32 tx_ant, u32 rx_ant)
+int rt2x00mac_set_antenna(struct ieee80211_hw *hw, s8 radio_id,
+			  u32 tx_ant, u32 rx_ant)
 {
 	struct rt2x00_dev *rt2x00dev = hw->priv;
 	struct link_ant *ant = &rt2x00dev->link.ant;

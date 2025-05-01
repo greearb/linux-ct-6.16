@@ -1591,7 +1591,7 @@ static int rsi_mac80211_sta_remove(struct ieee80211_hw *hw,
  * Return: 0 on success, Negative error code on failure.
  */
 static int rsi_mac80211_set_antenna(struct ieee80211_hw *hw,
-				    u32 tx_ant, u32 rx_ant)
+				    s8 radio_id, u32 tx_ant, u32 rx_ant)
 {
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
