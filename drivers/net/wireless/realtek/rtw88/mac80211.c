@@ -797,7 +797,7 @@ static int rtw_ops_set_bitrate_mask(struct ieee80211_hw *hw,
 }
 
 static int rtw_ops_set_antenna(struct ieee80211_hw *hw,
-			       u32 tx_antenna,
+			       s8 radio_id, u32 tx_antenna,
 			       u32 rx_antenna)
 {
 	struct rtw_dev *rtwdev = hw->priv;

@@ -4856,7 +4856,7 @@ struct cfg80211_ops {
 						   struct wireless_dev *wdev,
 						   struct mgmt_frame_regs *upd);
 
-	int	(*set_antenna)(struct wiphy *wiphy, u32 tx_ant, u32 rx_ant);
+	int	(*set_antenna)(struct wiphy *wiphy, s8 radio_id, u32 tx_ant, u32 rx_ant);
 	int	(*get_antenna)(struct wiphy *wiphy, u32 *tx_ant, u32 *rx_ant);
 
 	int	(*sched_scan_start)(struct wiphy *wiphy,
@@ -5489,6 +5489,7 @@ struct wiphy_iftype_akm_suites {
  */
 struct wiphy_radio_cfg {
 	u32 rts_threshold;
+	u32 tx_ant;
 };
 
 /**

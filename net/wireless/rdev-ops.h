@@ -858,11 +858,11 @@ rdev_update_mgmt_frame_registrations(struct cfg80211_registered_device *rdev,
 }
 
 static inline int rdev_set_antenna(struct cfg80211_registered_device *rdev,
-				   u32 tx_ant, u32 rx_ant)
+				   s8 radio_id, u32 tx_ant, u32 rx_ant)
 {
 	int ret;
-	trace_rdev_set_antenna(&rdev->wiphy, tx_ant, rx_ant);
-	ret = rdev->ops->set_antenna(&rdev->wiphy, tx_ant, rx_ant);
+	trace_rdev_set_antenna(&rdev->wiphy, radio_id, tx_ant, rx_ant);
+	ret = rdev->ops->set_antenna(&rdev->wiphy, radio_id, tx_ant, rx_ant);
 	trace_rdev_return_int(&rdev->wiphy, ret);
 	return ret;
 }

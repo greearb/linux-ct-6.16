@@ -704,7 +704,7 @@ ath5k_set_coverage_class(struct ieee80211_hw *hw, s16 coverage_class)
 
 
 static int
-ath5k_set_antenna(struct ieee80211_hw *hw, u32 tx_ant, u32 rx_ant)
+ath5k_set_antenna(struct ieee80211_hw *hw, s8 radio_id, u32 tx_ant, u32 rx_ant)
 {
 	struct ath5k_hw *ah = hw->priv;
 

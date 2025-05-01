@@ -2975,7 +2975,8 @@ static int iwl_mld_op_get_antenna(struct ieee80211_hw *hw, u32 *tx_ant, u32 *rx_
 	return 0;
 }
 
-static int iwl_mld_op_set_antenna(struct ieee80211_hw *hw, u32 tx_ant, u32 rx_ant)
+static int iwl_mld_op_set_antenna(struct ieee80211_hw *hw, s8 radio_id,
+				  u32 tx_ant, u32 rx_ant)
 {
 	struct iwl_mld *mld = IWL_MAC80211_GET_MLD(hw);
 
