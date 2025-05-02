@@ -786,12 +786,16 @@ static bool ieee80211_chandef_usable(struct ieee80211_sub_if_data *sdata,
 		return false;
 
 	if (chandef->punctured &&
-	    ieee80211_hw_check(&sdata->local->hw, DISALLOW_PUNCTURING))
+	    ieee80211_hw_check(&sdata->local->hw, DISALLOW_PUNCTURING)) {
+		sdata_info(sdata, "chandef is punctured, HW/regdom disallows.");
 		return false;
+	}
 
 	if (chandef->punctured && chandef->chan->band == NL80211_BAND_5GHZ &&
-	    ieee80211_hw_check(&sdata->local->hw, DISALLOW_PUNCTURING_5GHZ))
+	    ieee80211_hw_check(&sdata->local->hw, DISALLOW_PUNCTURING_5GHZ)) {
+		sdata_info(sdata, "chandef is punctured in 5Ghz, HW disallows 5Ghz puncturing");
 		return false;
+	}
 
 	return true;
 }
