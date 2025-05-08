@@ -3084,7 +3084,8 @@ mt7996_change_vif_links(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
 	struct mt7996_phy *phy = mvif->deflink.phy;
 	struct mt7996_vif_link *mconf;
-	unsigned long rem = old_links & ~new_links & ~vif->dormant_links;
+	unsigned long rem = old_links & ~new_links & ~vif->dormant_links &
+			    mvif->mt76.valid_links;
 	unsigned long add = new_links & ~old_links;
 	int link_id, ret = 0;
 
