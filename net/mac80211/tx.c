@@ -951,6 +951,7 @@ static int ieee80211_fragment(struct ieee80211_tx_data *tx,
 		skb_copy_queue_mapping(tmp, skb);
 		tmp->priority = skb->priority;
 		tmp->dev = skb->dev;
+		tmp->protocol = skb->protocol;
 
 		/* copy header and data */
 		skb_put_data(tmp, skb->data, hdrlen);
