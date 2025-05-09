@@ -7428,7 +7428,8 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_link_data *link,
 	if (!elems)
 		return;
 
-	if (rx_status->flag & RX_FLAG_DECRYPTED &&
+	/* FIXME: temporarily skip SSID check for non-TX BSS */
+	if (rx_status->flag & RX_FLAG_DECRYPTED && !bss_conf->bss->transmitted_bss &&
 	    ieee80211_mgd_ssid_mismatch(sdata, elems)) {
 		sdata_info(sdata, "SSID mismatch for AP %pM, disconnect\n",
 			   sdata->vif.cfg.ap_addr);
