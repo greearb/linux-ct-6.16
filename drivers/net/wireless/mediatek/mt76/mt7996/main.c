@@ -1848,8 +1848,11 @@ mt7996_ampdu_action(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			mtxq->send_bar = false;
 			ret = mt7996_mcu_add_tx_ba(dev, params, link,
 						   msta_link, true);
-			mtk_dbg(&dev->mt76, BA, "ampdu-action, TX_OPERATIONAL, tid: %d ssn: %d ret: %d\n",
-				tid, ssn, ret);
+			if (ret)
+				dev_err(dev->mt76.dev, "TX AGG operation failed\n");
+			else
+				mtk_dbg(&dev->mt76, BA, "ampdu-action, TX_OPERATIONAL, tid: %d ssn: %d ret: %d\n",
+					tid, ssn, ret);
 			break;
 		case IEEE80211_AMPDU_TX_STOP_FLUSH:
 		case IEEE80211_AMPDU_TX_STOP_FLUSH_CONT:
@@ -1876,7 +1879,7 @@ mt7996_ampdu_action(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			break;
 		}
 
-		if (ret)
+		if (ret && ret != IEEE80211_AMPDU_TX_START_IMMEDIATE)
 			break;
 	}
 
