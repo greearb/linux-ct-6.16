@@ -1685,8 +1685,6 @@ int mt7996_register_device(struct mt7996_dev *dev)
 	mt7996_for_each_phy(dev, phy)
 		mt7996_thermal_init(phy);
 
-	ieee80211_queue_work(mt76_hw(dev), &dev->init_work);
-
 	dev->recovery.hw_init_done = true;
 
 	ret = mt7996_init_debugfs(dev);
@@ -1699,7 +1697,9 @@ int mt7996_register_device(struct mt7996_dev *dev)
 			goto error;
 	}
 
-ret = mt7996_coredump_register(dev);
+	ieee80211_queue_work(mt76_hw(dev), &dev->init_work);
+
+	ret = mt7996_coredump_register(dev);
 	if (ret)
 		goto error;
 
