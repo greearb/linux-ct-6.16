@@ -291,7 +291,7 @@ struct mt76_queue_ops {
 
 	void (*kick)(struct mt76_dev *dev, struct mt76_queue *q);
 
-	void (*reset_q)(struct mt76_dev *dev, struct mt76_queue *q);
+	void (*reset_q)(struct mt76_dev *dev, struct mt76_queue *q, bool reset);
 };
 
 enum mt76_phy_type {
@@ -866,6 +866,8 @@ struct mt76_vif_data {
 	struct mt76_phy *roc_phy;
 	u16 valid_links;
 	u8 deflink_id;
+
+	u8 band_to_link[__MT_MAX_BAND];
 };
 
 struct rdd_cmd_msg {
@@ -1347,6 +1349,10 @@ struct mt76_ethtool_worker_info {
 
 struct mt76_chanctx {
 	struct mt76_phy *phy;
+	struct cfg80211_chan_def chandef;
+
+	bool assigned;
+	u8 nbss_assigned;
 };
 
 #define CCK_RATE(_idx, _rate) {					\
@@ -1592,6 +1598,22 @@ static inline int mt76_decr(int val, int size)
 }
 
 u8 mt76_ac_to_hwq(u8 ac);
+
+static inline u8
+mt76_ac_to_tid(u8 ac)
+{
+	static const u8 ac_to_tid[] = {
+		[IEEE80211_AC_BE] = 0,
+		[IEEE80211_AC_BK] = 1,
+		[IEEE80211_AC_VI] = 4,
+		[IEEE80211_AC_VO] = 6
+	};
+
+	if (WARN_ON(ac >= IEEE80211_NUM_ACS))
+		return 0;
+
+	return ac_to_tid[ac];
+}
 
 static inline struct ieee80211_txq *
 mtxq_to_txq(struct mt76_txq *mtxq)
@@ -2057,8 +2079,13 @@ static inline bool mt76_queue_is_wed_rro_ind(struct mt76_queue *q)
 static inline bool mt76_queue_is_wed_rro_data(struct mt76_queue *q)
 {
 	return mt76_queue_is_wed_rro(q) &&
-	       (FIELD_GET(MT_QFLAG_WED_TYPE, q->flags) == MT76_WED_RRO_Q_DATA ||
-		FIELD_GET(MT_QFLAG_WED_TYPE, q->flags) == MT76_WED_RRO_Q_MSDU_PG);
+		(FIELD_GET(MT_QFLAG_WED_TYPE, q->flags) == MT76_WED_RRO_Q_DATA);
+}
+
+static inline bool mt76_queue_is_wed_rro_msdu_pg(struct mt76_queue *q)
+{
+	return mt76_queue_is_wed_rro(q) &&
+	       (FIELD_GET(MT_QFLAG_WED_TYPE, q->flags) == MT76_WED_RRO_Q_MSDU_PG);
 }
 
 static inline bool mt76_queue_is_wed_rx(struct mt76_queue *q)
@@ -2067,7 +2094,8 @@ static inline bool mt76_queue_is_wed_rx(struct mt76_queue *q)
 		return false;
 
 	return FIELD_GET(MT_QFLAG_WED_TYPE, q->flags) == MT76_WED_Q_RX ||
-	       mt76_queue_is_wed_rro_ind(q) || mt76_queue_is_wed_rro_data(q);
+		mt76_queue_is_wed_rro_ind(q) || mt76_queue_is_wed_rro_data(q) ||
+		mt76_queue_is_wed_rro_msdu_pg(q);
 
 }
 

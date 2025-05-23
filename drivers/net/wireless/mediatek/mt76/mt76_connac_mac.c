@@ -297,14 +297,13 @@ u16 mt76_connac2_mac_tx_rate_val(struct mt76_phy *mphy,
 				 struct ieee80211_bss_conf *conf,
 				 bool beacon, bool mcast)
 {
-	struct mt76_vif_link *mvif = mt76_vif_conf_link(mphy->dev, conf->vif, conf);
-	struct cfg80211_chan_def *chandef = mvif->ctx ?
-					    &mvif->ctx->def : &mphy->chandef;
+	struct ieee80211_vif *vif = conf->vif;
+	struct cfg80211_chan_def *chandef = &mphy->chandef;
 	u8 nss = 0, mode = 0, band = chandef->chan->band;
 	int rateidx = 0, mcast_rate;
 	int offset = 0;
 
-	if (!conf)
+	if (!vif)
 		goto legacy;
 
 	if (is_mt7921(mphy->dev)) {

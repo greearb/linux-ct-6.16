@@ -8,12 +8,14 @@
 
 #include <linux/interrupt.h>
 #include <linux/ktime.h>
+#include <linux/pci.h>
 #include "../mt76_connac.h"
 #include "regs.h"
 
 #define MT7996_MAX_RADIOS		3
 #define MT7996_MAX_INTERFACES		19	/* per-band */
 #define MT7996_MAX_WMM_SETS		4
+#define MT7996_MAX_MBSSID               16
 #define MT7996_WTBL_BMC_SIZE		(is_mt7996(&dev->mt76) ? 64 : 32)
 #define MT7996_WTBL_RESERVED		(mt7996_wtbl_size(dev) - 1)
 #define MT7996_WTBL_STA			(MT7996_WTBL_RESERVED - \
@@ -90,6 +92,7 @@
 #define MT7990_ROM_PATCH		"mediatek/mt7996/mt7990_rom_patch.bin"
 
 #define MT7996_HW_TOKEN_SIZE		8192
+#define MT7996_SW_TOKEN_SIZE		15360
 
 #define MT7996_CFEND_RATE_DEFAULT	0x49	/* OFDM 24M */
 #define MT7996_CFEND_RATE_11B		0x03	/* 11B LP, 11M */
@@ -134,6 +137,12 @@
 					 SKB_DATA_ALIGN(sizeof(struct skb_shared_info)))
 #define MT7996_RX_MSDU_PAGE_SIZE	(128 + \
 					 SKB_DATA_ALIGN(sizeof(struct skb_shared_info)))
+
+#define to_rssi(field, rcpi)	((FIELD_GET(field, rcpi) - 220) / 2)
+
+#define MT7996_MAX_BEACON_LOSS		20
+#define MT7996_MAX_PROBE_TIMEOUT	500
+#define MT7996_MAX_PROBE_TRIES		2
 
 struct mt7996_vif;
 struct mt7996_sta;
@@ -199,6 +208,13 @@ enum mt7996_rxq_id {
 	MT7990_RXQ_TXFREE1 = 7,
 };
 
+enum mt7996_sta_chsw_state {
+	MT7996_STA_CHSW_IDLE,
+	MT7996_STA_CHSW_PAUSE_TX,
+	MT7996_STA_CHSW_RESUME_TX,
+	MT7996_STA_CHSW_TIMEOUT,
+};
+
 struct mt7996_twt_flow {
 	struct list_head list;
 	u64 start_tsf;
@@ -226,7 +242,10 @@ struct mt7996_sta_link {
 	u32 airtime_ac[8];
 
 	int ack_signal;
+	s8 chain_ack_signal[IEEE80211_MAX_CHAINS];
 	struct ewma_avg_signal avg_ack_signal;
+
+	s8 chain_ack_snr[IEEE80211_MAX_CHAINS];
 
 	unsigned long changed;
 
@@ -246,6 +265,7 @@ struct mt7996_sta {
 	struct mt7996_sta_link deflink; /* must be first */
 	struct mt7996_sta_link __rcu *link[IEEE80211_MLD_MAX_NUM_LINKS];
 	u8 deflink_id;
+	u8 sec_link;
 
 	struct mt7996_vif *vif;
 };
@@ -258,11 +278,37 @@ struct mt7996_vif_link {
 
 	struct ieee80211_tx_queue_params queue_params[IEEE80211_NUM_ACS];
 	struct cfg80211_bitrate_mask bitrate_mask;
+
+	u8 own_mld_id;
+	u8 bpcc;
+	u8 mbssid_idx;
+
+	s64 tsf_offset[IEEE80211_MLD_MAX_NUM_LINKS];
+
+	/* sta channel switch */
+	struct delayed_work sta_chsw_work;
+	enum mt7996_sta_chsw_state state;
+	enum mt7996_sta_chsw_state next_state;
+	u32 pause_timeout;
 };
 
 struct mt7996_vif {
 	struct mt7996_vif_link deflink; /* must be first */
 	struct mt76_vif_data mt76;
+
+	struct mt7996_sta sta;
+	struct mt7996_dev *dev;
+
+	u8 group_mld_id;
+	u8 mld_remap_id;
+
+	/* for beacon monitoring */
+	struct delayed_work beacon_mon_work;
+	unsigned long beacon_received_time[__MT_MAX_BAND];
+	u16 lost_links;
+	void *probe[__MT_MAX_BAND];
+	unsigned long probe_send_time[__MT_MAX_BAND];
+	int probe_send_count[__MT_MAX_BAND];
 };
 
 /* crash-dump */
@@ -294,6 +340,11 @@ struct mt7996_wed_rro_addr {
 struct mt7996_wed_rro_session_id {
 	struct list_head list;
 	u16 id;
+};
+
+struct mt7996_sta_rc_work_data {
+	unsigned int link_id;
+	u32 changed;
 };
 
 struct mt7996_phy {
@@ -358,6 +409,8 @@ struct mt7996_phy {
 		u8 spe_idx;
 	} test;
 #endif
+	/* Index 0 (TxBSS) is not used */
+        struct mt7996_vif_link __rcu *mbssid_conf[MT7996_MAX_MBSSID];
 };
 
 struct mt7996_dev {
@@ -386,6 +439,8 @@ struct mt7996_dev {
 	u16 chainmask;
 	u8 chainshift[__MT_MAX_BAND];
 	u32 hif_idx;
+	u64 mld_id_mask;
+	u64 mld_remap_id_mask;
 
 	/* Should we enable group-5 rx descriptor logic?  This may decrease RX
 	 * throughput, but will give per skb rx rate information..
@@ -662,7 +717,7 @@ int mt7996_mcu_update_bss_color(struct mt7996_dev *dev,
 				struct mt76_vif_link *mlink,
 				struct cfg80211_he_bss_color *he_bss_color);
 int mt7996_mcu_add_beacon(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
-			  struct ieee80211_bss_conf *link_conf);
+			  struct ieee80211_bss_conf *link_conf, int en);
 int mt7996_mcu_beacon_inband_discov(struct mt7996_dev *dev,
 				    struct ieee80211_bss_conf *link_conf,
 				    struct mt7996_vif_link *link, u32 changed);
@@ -714,10 +769,13 @@ int mt7996_mcu_fw_dbg_ctrl(struct mt7996_dev *dev, u32 module, u8 level);
 int mt7996_mcu_trigger_assert(struct mt7996_dev *dev);
 void mt7996_mcu_rx_event(struct mt7996_dev *dev, struct sk_buff *skb);
 void mt7996_mcu_exit(struct mt7996_dev *dev);
-int mt7996_mcu_get_all_sta_info(struct mt7996_phy *phy, u16 tag);
+int mt7996_mcu_get_per_sta_info(struct mt76_dev *dev, u16 tag,
+	                        u16 sta_num, u16 *sta_list);
+int mt7996_mcu_get_all_sta_info(struct mt76_dev *dev, u16 tag);
 int mt7996_mcu_wed_rro_reset_sessions(struct mt7996_dev *dev, u16 id);
 int mt7996_mcu_set_sniffer_mode(struct mt7996_phy *phy, bool enabled);
 int mt7996_mcu_set_tx_power_ctrl(struct mt7996_phy *phy, u8 power_ctrl_id, u8 data);
+int mt7996_mcu_set_band_confg(struct mt7996_phy *phy, u16 option, bool enable);
 
 static inline u8 mt7996_max_interface_num(struct mt7996_dev *dev)
 {
@@ -804,6 +862,7 @@ void mt7996_queue_rx_skb(struct mt76_dev *mdev, enum mt76_rxq_id q,
 			 struct sk_buff *skb, u32 *info);
 bool mt7996_rx_check(struct mt76_dev *mdev, void *data, int len);
 void mt7996_stats_work(struct work_struct *work);
+void mt7996_beacon_mon_work(struct work_struct *work);
 int mt76_dfs_start_rdd(struct mt7996_dev *dev, bool force);
 int mt7996_dfs_init_radar_detector(struct mt7996_phy *phy);
 void mt7996_set_stream_he_eht_caps(struct mt7996_phy *phy);
@@ -814,7 +873,7 @@ int mt7996_mcu_set_tx_power_ctrl(struct mt7996_phy *phy, u8 power_ctrl_id, u8 da
 int mt7996_mcu_get_tx_power_info(struct mt7996_phy *phy, u8 category, void *event);
 void mt7996_debugfs_rx_fw_monitor(struct mt7996_dev *dev, const void *data, int len);
 bool mt7996_debugfs_rx_log(struct mt7996_dev *dev, const void *data, int len);
-int mt7996_mcu_add_key(struct mt76_dev *dev, struct ieee80211_vif *vif,
+int mt7996_mcu_add_key(struct mt76_dev *dev, struct mt7996_vif_link *mconf,
 		       struct ieee80211_key_conf *key, int mcu_cmd,
 		       struct mt76_wcid *wcid, enum set_key_cmd cmd);
 int mt7996_mcu_bcn_prot_enable(struct mt7996_dev *dev,

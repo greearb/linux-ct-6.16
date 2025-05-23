@@ -670,6 +670,12 @@ void mt76_txq_schedule(struct mt76_phy *phy, enum mt76_txq_id qid)
 		return;
 	}
 
+	if (phy->offchannel) {
+		mtk_dbg(phy->dev, TXV, "%mt76-txq-schedule, phy is offchannel: %d\n",
+			qid);
+		return;
+	}
+
 	local_bh_disable();
 	rcu_read_lock();
 
@@ -779,13 +785,9 @@ static void mt76_txq_schedule_pending(struct mt76_phy *phy)
 
 void mt76_txq_schedule_all(struct mt76_phy *phy)
 {
-	struct mt76_phy *main_phy = &phy->dev->phy;
 	int i;
 
 	mt76_txq_schedule_pending(phy);
-
-	if (phy != main_phy && phy->hw == main_phy->hw)
-		return;
 
 	for (i = 0; i <= MT_TXQ_BK; i++)
 		mt76_txq_schedule(phy, i);
@@ -797,7 +799,6 @@ void mt76_tx_worker_run(struct mt76_dev *dev)
 	struct mt76_phy *phy;
 	int i;
 
-	mt76_txq_schedule_all(&dev->phy);
 	for (i = 0; i < ARRAY_SIZE(dev->phys); i++) {
 		phy = dev->phys[i];
 		if (!phy)
@@ -852,6 +853,9 @@ void mt76_wake_tx_queue(struct ieee80211_hw *hw, struct ieee80211_txq *txq)
 {
 	struct mt76_phy *phy = hw->priv;
 	struct mt76_dev *dev = phy->dev;
+
+	if (!test_bit(MT76_STATE_RUNNING, &phy->state))
+		return;
 
 	mtk_dbg(dev, TXV, "wake txworker, method-ptr: %p", &dev->tx_worker);
 	mt76_worker_schedule(&dev->tx_worker);

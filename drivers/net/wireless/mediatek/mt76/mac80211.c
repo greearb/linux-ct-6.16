@@ -996,6 +996,7 @@ int __mt76_set_channel(struct mt76_phy *phy, struct cfg80211_chan_def *chandef,
 	struct mt76_dev *dev = phy->dev;
 	int timeout = HZ / 5;
 	int ret;
+	unsigned long was_scanning = ieee80211_get_scanning(phy->hw);
 
 	set_bit(MT76_RESET, &phy->state);
 
@@ -1014,7 +1015,7 @@ int __mt76_set_channel(struct mt76_phy *phy, struct cfg80211_chan_def *chandef,
 	if (!offchannel)
 		phy->main_chandef = *chandef;
 
-	if (chandef->chan != phy->main_chandef.chan)
+	if (chandef->chan != phy->main_chandef.chan || was_scanning)
 		memset(phy->chan_state, 0, sizeof(*phy->chan_state));
 
 	ret = dev->drv->set_channel(phy);
@@ -1040,6 +1041,7 @@ int mt76_set_channel(struct mt76_phy *phy, struct cfg80211_chan_def *chandef,
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(mt76_set_channel);
 
 int mt76_update_channel(struct mt76_phy *phy)
 {
@@ -1544,6 +1546,10 @@ mt76_sta_add(struct mt76_phy *phy, struct ieee80211_vif *vif,
 	if (ret)
 		goto out;
 
+	// TODO:  Looks suspect to me, what about mlo HW not configured for MLO?  --Ben
+	if (phy->hw->wiphy->flags & WIPHY_FLAG_SUPPORTS_MLO)
+		goto out;
+
 	for (i = 0; i < ARRAY_SIZE(sta->txq); i++) {
 		struct mt76_txq *mtxq;
 
@@ -1572,11 +1578,14 @@ void __mt76_sta_remove(struct mt76_phy *phy, struct ieee80211_vif *vif,
 	struct mt76_wcid *wcid = (struct mt76_wcid *)sta->drv_priv;
 	int i, idx = wcid->idx;
 
-	for (i = 0; i < ARRAY_SIZE(wcid->aggr); i++)
+	for (i = 0; !sta->valid_links && i < ARRAY_SIZE(wcid->aggr); i++)
 		mt76_rx_aggr_stop(dev, wcid, i);
 
 	if (dev->drv->sta_remove)
 		dev->drv->sta_remove(dev, vif, sta);
+
+	if (sta->valid_links)
+		return;
 
 	mt76_wcid_cleanup(dev, wcid);
 

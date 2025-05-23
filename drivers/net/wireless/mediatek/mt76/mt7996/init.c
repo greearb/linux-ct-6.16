@@ -37,6 +37,7 @@ static const struct ieee80211_iface_combination if_comb_global = {
 			       BIT(NL80211_CHAN_WIDTH_40) |
 			       BIT(NL80211_CHAN_WIDTH_80) |
 			       BIT(NL80211_CHAN_WIDTH_160),
+	.beacon_int_min_gcd = 100,
 };
 
 static const struct ieee80211_iface_limit if_limits[] = {
@@ -64,6 +65,55 @@ static const struct ieee80211_iface_combination if_comb = {
 			       BIT(NL80211_CHAN_WIDTH_80) |
 			       BIT(NL80211_CHAN_WIDTH_160),
 	.beacon_int_min_gcd = 100,
+};
+
+static const struct ieee80211_iface_combination if_comb_7992 = {
+	.limits = if_limits,
+	.n_limits = ARRAY_SIZE(if_limits),
+	.max_interfaces = 16,
+	.num_different_channels = 1,
+	.beacon_int_infra_match = true,
+	.radar_detect_widths = BIT(NL80211_CHAN_WIDTH_20_NOHT) |
+			       BIT(NL80211_CHAN_WIDTH_20) |
+			       BIT(NL80211_CHAN_WIDTH_40) |
+			       BIT(NL80211_CHAN_WIDTH_80) |
+			       BIT(NL80211_CHAN_WIDTH_160),
+	.beacon_int_min_gcd = 100,
+};
+
+static const u8 mt7996_if_types_ext_capa_ap[] = {
+	[0] = WLAN_EXT_CAPA1_EXT_CHANNEL_SWITCHING,
+	[2] = WLAN_EXT_CAPA3_MULTI_BSSID_SUPPORT,
+	[6] = WLAN_EXT_CAPA7_SCS_SUPPORT,
+	[7] = WLAN_EXT_CAPA8_OPMODE_NOTIF,
+};
+
+static const u8 mt7996_if_types_ext_capa_sta[] = {
+	[0] = WLAN_EXT_CAPA1_EXT_CHANNEL_SWITCHING,
+	[2] = WLAN_EXT_CAPA3_MULTI_BSSID_SUPPORT,
+	[7] = WLAN_EXT_CAPA8_OPMODE_NOTIF,
+};
+
+static const struct wiphy_iftype_ext_capab mt7996_iftypes_ext_capa[] = {
+	{
+		.iftype = NL80211_IFTYPE_STATION,
+		.extended_capabilities = mt7996_if_types_ext_capa_sta,
+		.extended_capabilities_mask = mt7996_if_types_ext_capa_sta,
+		.extended_capabilities_len = sizeof(mt7996_if_types_ext_capa_sta),
+		.mld_capa_and_ops = 2,
+	},
+	{
+		.iftype = NL80211_IFTYPE_AP,
+		.extended_capabilities = mt7996_if_types_ext_capa_ap,
+		.extended_capabilities_mask = mt7996_if_types_ext_capa_ap,
+		.extended_capabilities_len = sizeof(mt7996_if_types_ext_capa_ap),
+		.mld_capa_and_ops = 2,
+		/* the max number of simultaneous links is defined as the
+		 * maximum number of affiliated APs minus 1.
+		 * mt7996 could have 3 links in an MLD AP, so currently
+		 * hardcode it to 2.
+		 */
+	},
 };
 
 static ssize_t mt7996_thermal_temp_show(struct device *dev,
@@ -424,7 +474,7 @@ mt7996_init_wiphy_band(struct ieee80211_hw *hw, struct mt7996_phy *phy)
 		freq->start_freq = 5000000;
 		freq->end_freq = 5900000;
 	} else if (phy->mt76->cap.has_6ghz) {
-		freq->start_freq = 5900000;
+		freq->start_freq = 5925000;
 		freq->end_freq = 7200000;
 	} else {
 		return;
@@ -433,8 +483,9 @@ mt7996_init_wiphy_band(struct ieee80211_hw *hw, struct mt7996_phy *phy)
 	dev->radio_phy[n_radios] = phy;
 	radio->freq_range = freq;
 	radio->n_freq_range = 1;
-	radio->iface_combinations = &if_comb;
+	radio->iface_combinations = is_mt7996(&dev->mt76) ? &if_comb : &if_comb_7992;
 	radio->n_iface_combinations = 1;
+	radio->antenna_mask = phy->mt76->chainmask;
 	hw->wiphy->n_radio++;
 
 	wiphy->available_antennas_rx |= phy->mt76->chainmask;
@@ -483,7 +534,7 @@ mt7996_init_wiphy(struct ieee80211_hw *hw, struct mtk_wed_device *wed)
 
 	wiphy->reg_notifier = mt7996_regd_notifier;
 	wiphy->flags |= WIPHY_FLAG_HAS_CHANNEL_SWITCH;
-	wiphy->mbssid_max_interfaces = 16;
+	wiphy->mbssid_max_interfaces = is_mt7996(&dev->mt76) ? 48 : 32;
 
 	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_BSS_COLOR);
 	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_VHT_IBSS);
@@ -513,6 +564,7 @@ mt7996_init_wiphy(struct ieee80211_hw *hw, struct mtk_wed_device *wed)
 	ieee80211_hw_set(hw, SUPPORTS_RX_DECAP_OFFLOAD);
 	ieee80211_hw_set(hw, NO_VIRTUAL_MONITOR);
 	ieee80211_hw_set(hw, SUPPORTS_MULTI_BSSID);
+	ieee80211_hw_set(hw, CONNECTION_MONITOR);
 	ieee80211_hw_set(hw, SPECTRUM_MGMT);
 
 	hw->max_tx_fragments = 4;
@@ -525,6 +577,12 @@ mt7996_init_wiphy(struct ieee80211_hw *hw, struct mtk_wed_device *wed)
 
 	wiphy->max_scan_ssids = 4;
 	wiphy->max_scan_ie_len = IEEE80211_MAX_DATA_LEN;
+
+	/* enable MLO support */
+	wiphy->flags |= WIPHY_FLAG_SUPPORTS_MLO;
+	wiphy->iftype_ext_capab = mt7996_iftypes_ext_capa;
+	wiphy->num_iftype_ext_capab = ARRAY_SIZE(mt7996_iftypes_ext_capa);
+	wiphy->features |= NL80211_FEATURE_AP_MODE_CHAN_WIDTH_CHANGE;
 
 	mt7996_init_wiphy_band(hw, &dev->phy);
 }

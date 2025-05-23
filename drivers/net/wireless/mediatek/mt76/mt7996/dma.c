@@ -13,6 +13,15 @@ int mt7996_init_tx_queues(struct mt7996_phy *phy, int idx, int n_desc,
 	struct mt7996_dev *dev = phy->dev;
 	u32 flags = 0;
 
+	int i;
+
+	if (phy->mt76->band_idx == MT_BAND1 && !dev->hif2 && is_mt7996(&dev->mt76)) {
+		phy->mt76->q_tx[0] = phy->mt76->dev->phys[MT_BAND0]->q_tx[0];
+		for (i = 1; i <= MT_TXQ_PSD; i++)
+			phy->mt76->q_tx[i] = phy->mt76->q_tx[0];
+		return 0;
+	}
+
 	if (mtk_wed_device_active(wed)) {
 		ring_base += MT_TXQ_ID(0) * MT_RING_SIZE;
 		idx -= MT_TXQ_ID(0);
@@ -781,7 +790,7 @@ void mt7996_dma_reset(struct mt7996_dev *dev, bool force)
 	}
 
 	for (i = 0; i < __MT_MCUQ_MAX; i++)
-		mt76_queue_reset(dev, dev->mt76.q_mcu[i]);
+		mt76_queue_reset(dev, dev->mt76.q_mcu[i], true);
 
 	mt76_for_each_q_rx(&dev->mt76, i) {
 		if (mtk_wed_device_active(&dev->mt76.mmio.wed))
@@ -789,7 +798,7 @@ void mt7996_dma_reset(struct mt7996_dev *dev, bool force)
 			    mt76_queue_is_wed_tx_free(&dev->mt76.q_rx[i]))
 				continue;
 
-		mt76_queue_reset(dev, &dev->mt76.q_rx[i]);
+		mt76_queue_reset(dev, &dev->mt76.q_rx[i], true);
 	}
 
 	mt76_tx_status_check(&dev->mt76, true);
