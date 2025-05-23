@@ -218,9 +218,9 @@ void __mt76_dma_queue_reset(struct mt76_dev *dev, struct mt76_queue *q,
 	mt76_dma_sync_idx(dev, q);
 }
 
-void mt76_dma_queue_reset(struct mt76_dev *dev, struct mt76_queue *q)
+void mt76_dma_queue_reset(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
 {
-	__mt76_dma_queue_reset(dev, q, true);
+	__mt76_dma_queue_reset(dev, q, reset);
 }
 
 static int
@@ -457,8 +457,30 @@ mt76_dma_get_buf(struct mt76_dev *dev, struct mt76_queue *q, int idx,
 	mt76_dma_should_drop_buf(drop, ctrl, buf1, desc_info);
 
 	if (mt76_queue_is_wed_rx(q)) {
+		u32 id, find = 0;
 		u32 token = FIELD_GET(MT_DMA_CTL_TOKEN, buf1);
-		struct mt76_txwi_cache *t = mt76_rx_token_release(dev, token);
+		struct mt76_txwi_cache *t;
+
+		if (*more) {
+			spin_lock_bh(&dev->rx_token_lock);
+
+			idr_for_each_entry(&dev->rx_token, t, id) {
+				if (t->dma_addr == le32_to_cpu(desc->buf0)) {
+					find = 1;
+					token = id;
+
+					/* Write correct id back to DMA*/
+					u32p_replace_bits(&buf1, id,
+							  MT_DMA_CTL_TOKEN);
+					WRITE_ONCE(desc->buf1, cpu_to_le32(buf1));
+					break;
+				}
+			}
+
+			spin_unlock_bh(&dev->rx_token_lock);
+			if (!find)
+				return NULL;
+		}
 
 		if (!t)
 			return NULL;
@@ -498,7 +520,8 @@ mt76_dma_dequeue(struct mt76_dev *dev, struct mt76_queue *q, bool flush,
 	if (!q->queued)
 		return NULL;
 
-	if (mt76_queue_is_wed_rro_data(q))
+	if (mt76_queue_is_wed_rro_data(q) ||
+	    mt76_queue_is_wed_rro_msdu_pg(q))
 		return NULL;
 
 	if (!mt76_queue_is_wed_rro_ind(q)) {
@@ -520,11 +543,14 @@ mt76_dma_tx_queue_skb_raw(struct mt76_dev *dev, struct mt76_queue *q,
 {
 	struct mt76_queue_buf buf = {};
 	dma_addr_t addr;
+	int ret = -ENOMEM;
 
 	/* control msg path, not data frames */
 
-	if (test_bit(MT76_MCU_RESET, &dev->phy.state))
+	if (test_bit(MT76_MCU_RESET, &dev->phy.state)) {
+		ret = -EAGAIN;
 		goto error;
+	}
 
 	/* Check for non responsive radios.  Better to just stop sending it messages
 	 * than continuously block the OS (since rtnl and similar are often held while
@@ -562,7 +588,7 @@ mt76_dma_tx_queue_skb_raw(struct mt76_dev *dev, struct mt76_queue *q,
 
 error:
 	dev_kfree_skb(skb);
-	return -ENOMEM;
+	return ret;
 }
 
 static int
@@ -789,7 +815,7 @@ mt76_dma_alloc_queue(struct mt76_dev *dev, struct mt76_queue *q,
 			return 0;
 	}
 
-	mt76_dma_queue_reset(dev, q);
+	mt76_dma_queue_reset(dev, q, true);
 
 	return 0;
 }
@@ -915,7 +941,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
 		if (!data)
 			break;
 
-		if (drop)
+		if (drop || (len == 0))
 			goto free_frag;
 
 		if (q->rx_head)
