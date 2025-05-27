@@ -368,7 +368,7 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	 * interface, since firmware only records BSSID when the entry is new
 	 */
 	if (vif->type != NL80211_IFTYPE_STATION)
-		mt7996_mcu_add_sta(dev, link_conf, NULL, link, msta_link,
+		mt7996_mcu_add_sta(dev, vif, link_conf, NULL, link, msta_link,
 				   CONN_STATE_PORT_SECURE, true);
 	rcu_assign_pointer(dev->mt76.wcid[idx], &msta_link->wcid);
 	rcu_assign_pointer(mvif->mt76.link[link_id], &link->mt76);
@@ -407,7 +407,7 @@ void mt7996_vif_link_remove(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	//	 "%s: band=%u, bss_idx=%u, link_id=%u, wcid=%u\n",
 	//	 __func__, phy->mt76->band_idx, mlink->idx, link_id, idx);
 
-	mt7996_mcu_add_sta(dev, link_conf, NULL, link, NULL,
+	mt7996_mcu_add_sta(dev, vif, link_conf, NULL, link, NULL,
 			   CONN_STATE_DISCONNECT, false);
 	mt7996_mcu_add_bss_info(phy, vif, link_conf, mlink, msta_link, false);
 
@@ -905,7 +905,7 @@ mt7996_vif_cfg_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			mt7996_mcu_add_bss_info(link->phy, vif, link_conf,
 						&link->mt76, &link->msta_link,
 						true);
-			mt7996_mcu_add_sta(dev, link_conf, NULL, link, NULL,
+			mt7996_mcu_add_sta(dev, vif, link_conf, NULL, link, NULL,
 					   CONN_STATE_PORT_SECURE,
 					   !!(changed & BSS_CHANGED_BSSID));
 		}
@@ -942,7 +942,7 @@ mt7996_link_info_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	    (changed & BSS_CHANGED_BEACON_ENABLED && info->enable_beacon)) {
 		mt7996_mcu_add_bss_info(phy, vif, info, &link->mt76,
 					&link->msta_link, true);
-		mt7996_mcu_add_sta(dev, info, NULL, link, &link->msta_link,
+		mt7996_mcu_add_sta(dev, vif, info, NULL, link, &link->msta_link,
 				   CONN_STATE_PORT_SECURE,
 				   !!(changed & BSS_CHANGED_BSSID));
 	}
@@ -1082,7 +1082,7 @@ mt7996_mac_sta_init_link(struct mt7996_dev *dev,
 	rcu_assign_pointer(msta->link[link_id], msta_link);
 
 	mt7996_mac_wtbl_update(dev, idx, MT_WTBL_UPDATE_ADM_COUNT_CLEAR);
-	mt7996_mcu_add_sta(dev, link_conf, link_sta, link, msta_link,
+	mt7996_mcu_add_sta(dev, link_conf->vif, link_conf, link_sta, link, msta_link,
 			   CONN_STATE_DISCONNECT, true);
 
 	rcu_assign_pointer(dev->mt76.wcid[idx], &msta_link->wcid);
@@ -1261,7 +1261,7 @@ mt7996_mac_sta_event(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 
 		switch (ev) {
 		case MT76_STA_EVENT_ASSOC:
-			err = mt7996_mcu_add_sta(dev, link_conf, link_sta,
+			err = mt7996_mcu_add_sta(dev, vif, link_conf, link_sta,
 						 link, msta_link,
 						 CONN_STATE_CONNECT, true);
 			if (err)
@@ -1281,7 +1281,7 @@ mt7996_mac_sta_event(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 			msta_link->wcid.sta = 1;
 			break;
 		case MT76_STA_EVENT_AUTHORIZE:
-			err = mt7996_mcu_add_sta(dev, link_conf, link_sta,
+			err = mt7996_mcu_add_sta(dev, vif, link_conf, link_sta,
 						 link, msta_link,
 						 CONN_STATE_PORT_SECURE, false);
 			if (err)
@@ -1296,7 +1296,7 @@ mt7996_mac_sta_event(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 				mt7996_mcu_teardown_mld_sta(dev, link,
 							    msta_link);
 			else
-				mt7996_mcu_add_sta(dev, link_conf, link_sta,
+				mt7996_mcu_add_sta(dev, vif, link_conf, link_sta,
 						   link, msta_link,
 						   CONN_STATE_DISCONNECT, false);
 			msta_link->wcid.sta_disabled = 1;
