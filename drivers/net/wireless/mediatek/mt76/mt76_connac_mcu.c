@@ -368,11 +368,11 @@ void mt76_connac_mcu_bss_omac_tlv(struct sk_buff *skb,
 EXPORT_SYMBOL_GPL(mt76_connac_mcu_bss_omac_tlv);
 
 void mt76_connac_mcu_sta_basic_tlv(struct mt76_dev *dev, struct sk_buff *skb,
+				   struct ieee80211_vif *vif,
 				   struct ieee80211_bss_conf *link_conf,
 				   struct ieee80211_link_sta *link_sta,
 				   int conn_state, bool newly)
 {
-	struct ieee80211_vif *vif = link_conf->vif;
 	struct sta_rec_basic *basic;
 	struct tlv *tlv;
 	int conn_type;
@@ -1060,7 +1060,7 @@ int mt76_connac_mcu_sta_cmd(struct mt76_phy *phy,
 				    CONN_STATE_DISCONNECT;
 	link_sta = info->sta ? &info->sta->deflink : NULL;
 	if (info->sta || !info->offload_fw)
-		mt76_connac_mcu_sta_basic_tlv(dev, skb, info->link_conf,
+		mt76_connac_mcu_sta_basic_tlv(dev, skb, info->vif, info->link_conf,
 					      link_sta, conn_state,
 					      info->newly);
 	if (info->sta && info->enable)

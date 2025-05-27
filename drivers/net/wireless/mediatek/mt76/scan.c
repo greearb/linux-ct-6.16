@@ -40,6 +40,15 @@ mt76_scan_send_probe(struct mt76_dev *dev, struct cfg80211_ssid *ssid)
 	struct ieee80211_tx_info *info;
 	struct sk_buff *skb;
 
+	if (WARN_ON_ONCE((unsigned long)(mvif) < 4000)) {
+		pr_err("scan-send-probe: mvif: %p\n", mvif);
+		return;
+	}
+	if (WARN_ON_ONCE((unsigned long)(mvif->wcid) < 4000)) {
+		pr_err("scan-send-probe: mvif->wcid: %p\n", mvif->wcid);
+		return;
+	}
+
 	skb = ieee80211_probereq_get(phy->hw, vif->addr, ssid->ssid,
 				     ssid->ssid_len, req->ie_len);
 	if (!skb)
