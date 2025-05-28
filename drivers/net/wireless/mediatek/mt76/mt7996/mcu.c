@@ -3619,6 +3619,7 @@ int mt7996_mcu_init_firmware(struct mt7996_dev *dev)
 int mt7996_mcu_init(struct mt7996_dev *dev)
 {
 	static const struct mt76_mcu_ops mt7996_mcu_ops = {
+		.max_retry = 2,
 		.headroom = sizeof(struct mt76_connac2_mcu_txd), /* reuse */
 		.mcu_skb_send_msg = mt7996_mcu_send_message,
 		.mcu_parse_response = mt7996_mcu_parse_response,
@@ -4788,7 +4789,8 @@ int mt7996_mcu_set_rts_thresh(struct mt7996_phy *phy, u32 val)
 				 &req, sizeof(req), true);
 }
 
-int mt7996_mcu_set_band_config(struct mt7996_phy *phy, u16 option, bool enable)
+#if 0
+static int mt7996_mcu_set_band_config(struct mt7996_phy *phy, u16 option, bool enable)
 {
 	struct {
 		u8 band_idx;
@@ -4808,6 +4810,7 @@ int mt7996_mcu_set_band_config(struct mt7996_phy *phy, u16 option, bool enable)
 	return mt76_mcu_send_msg(&phy->dev->mt76, MCU_WM_UNI_CMD(BAND_CONFIG),
 				 &req, sizeof(req), true);
 }
+#endif
 
 int mt7996_mcu_set_radio_en(struct mt7996_phy *phy, bool enable)
 {
@@ -5533,7 +5536,7 @@ int mt7996_mcu_set_pp_en(struct mt7996_phy *phy, u8 mode, u16 bitmap)
 				 &req, sizeof(req), false);
 }
 
-int mt7996_mcu_set_scs_stats(struct mt7996_phy *phy)
+static int mt7996_mcu_set_scs_stats(struct mt7996_phy *phy)
 {
 	struct mt7996_scs_ctrl ctrl = phy->scs_ctrl;
 	struct {
@@ -5558,7 +5561,7 @@ int mt7996_mcu_set_scs_stats(struct mt7996_phy *phy)
 				 &req, sizeof(req), false);
 }
 
-void mt7996_sta_rssi_work(void *data, struct ieee80211_sta *sta)
+static void mt7996_sta_rssi_work(void *data, struct ieee80211_sta *sta)
 {
 	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
 	struct mt7996_sta_link *msta_link;
