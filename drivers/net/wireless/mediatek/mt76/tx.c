@@ -551,7 +551,7 @@ mt76_txq_send_burst(struct mt76_phy *phy, struct mt76_queue *q,
 	do {
 		if (test_bit(MT76_RESET, &phy->state) || phy->offchannel) {
 			mtk_dbg(dev, TXV, "mt76-txq-send-burst, in reset or offchannel, return 0\n");
-			break;
+			return -EBUSY;
 		}
 
 		if (stop || mt76_txq_stopped(q)) {
@@ -593,15 +593,23 @@ mt76_txq_send_burst(struct mt76_phy *phy, struct mt76_queue *q,
 static int
 mt76_txq_schedule_list(struct mt76_phy *phy, enum mt76_txq_id qid)
 {
+	struct mt76_queue *q = phy->q_tx[qid];
 	struct mt76_dev *dev = phy->dev;
 	struct ieee80211_txq *txq;
 	struct mt76_txq *mtxq;
 	struct mt76_wcid *wcid;
-	struct mt76_queue *q;
 	int ret = 0;
 
 	while (1) {
 		int n_frames = 0;
+
+		if (test_bit(MT76_RESET, &phy->state) || phy->offchannel)
+			return -EBUSY;
+
+		if (dev->queue_ops->tx_cleanup &&
+		    q->queued + 2 * MT_TXQ_FREE_THR >= q->ndesc) {
+			dev->queue_ops->tx_cleanup(dev, q, false);
+		}
 
 		txq = ieee80211_next_txq(phy->hw, qid);
 		if (!txq) {
@@ -615,20 +623,6 @@ mt76_txq_schedule_list(struct mt76_phy *phy, enum mt76_txq_id qid)
 			mtk_dbg(dev, TXV, "mt76-txq-schedule-list, NULL wcid: %p or PS\n",
 				wcid);
 			continue;
-		}
-
-		phy = mt76_dev_phy(dev, wcid->phy_idx);
-		if (test_bit(MT76_RESET, &phy->state) || phy->offchannel)
-			continue;
-
-		q = phy->q_tx[qid];
-
-		mtk_dbg(dev, TXV, "mt76-txq-schedule-list, q->queued: %d q-stopped: %d qid: %d q->ndesc: %d\n",
-			q->queued, mt76_txq_stopped(q), qid, q->ndesc);
-
-		if (dev->queue_ops->tx_cleanup &&
-		    q->queued + 2 * MT_TXQ_FREE_THR >= q->ndesc) {
-			dev->queue_ops->tx_cleanup(dev, q, false);
 		}
 
 		if (mtxq->send_bar && mtxq->aggr) {

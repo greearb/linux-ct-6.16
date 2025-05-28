@@ -803,6 +803,7 @@ void mt7996_mcu_exit(struct mt7996_dev *dev);
 int mt7996_mcu_get_per_sta_info(struct mt76_dev *dev, u16 tag,
 	                        u16 sta_num, u16 *sta_list);
 int mt7996_mcu_get_all_sta_info(struct mt76_dev *dev, u16 tag);
+int mt7996_mcu_get_bss_acq_pkt_cnt(struct mt7996_dev *dev);
 int mt7996_mcu_wed_rro_reset_sessions(struct mt7996_dev *dev, u16 id);
 int mt7996_mcu_set_sniffer_mode(struct mt7996_phy *phy, bool enabled);
 int mt7996_mcu_set_tx_power_ctrl(struct mt7996_phy *phy, u8 power_ctrl_id, u8 data);

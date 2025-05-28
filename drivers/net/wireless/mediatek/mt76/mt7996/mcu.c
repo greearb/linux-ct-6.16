@@ -3524,6 +3524,36 @@ int mt7996_mcu_fw_dbg_ctrl(struct mt7996_dev *dev, u32 module, u8 level)
 				 sizeof(data), false);
 }
 
+static int mt7996_mcu_fw_time_sync(struct mt76_dev *dev)
+{
+	struct {
+		u8 _rsv[4];
+
+		__le16 tag;
+		__le16 len;
+		__le32 sec;
+		__le32 usec;
+	} data = {
+		.tag = cpu_to_le16(UNI_WSYS_CONFIG_FW_TIME_SYNC),
+		.len = cpu_to_le16(sizeof(data) - 4),
+	};
+	struct timespec64 ts;
+	struct tm tm;
+
+	ktime_get_real_ts64(&ts);
+	data.sec = cpu_to_le32((u32)ts.tv_sec);
+	data.usec = cpu_to_le32((u32)(ts.tv_nsec / 1000));
+
+	/* Dump synchronized time for ConsysPlanet to parse. */
+	time64_to_tm(ts.tv_sec, 0, &tm);
+	dev_info(dev->dev, "%ld-%02d-%02d %02d:%02d:%02d.%ld UTC\n",
+	        tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+	        tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec / 1000);
+
+	return mt76_mcu_send_msg(dev, MCU_WM_UNI_CMD(WSYS_CONFIG), &data,
+	                         sizeof(data), true);
+}
+
 static int mt7996_mcu_set_mwds(struct mt7996_dev *dev, bool enabled)
 {
 	struct {
@@ -3621,7 +3651,7 @@ int mt7996_mcu_init_firmware(struct mt7996_dev *dev)
 		return ret;
 
 	return mt7996_mcu_wa_cmd(dev, MCU_WA_PARAM_CMD(SET),
-				 MCU_WA_PARAM_RED, 0, 0);
+				 MCU_WA_PARAM_RED_EN, 0, 0);
 }
 
 int mt7996_mcu_init(struct mt7996_dev *dev)
@@ -5137,6 +5167,33 @@ int mt7996_mcu_get_all_sta_info(struct mt76_dev *dev, u16 tag)
 
 	return mt76_mcu_send_msg(dev, MCU_WM_UNI_CMD(ALL_STA_INFO),
 				 &req, sizeof(req), false);
+}
+
+int mt7996_mcu_get_bss_acq_pkt_cnt(struct mt7996_dev *dev)
+{
+	struct {
+		u8 _rsv[4];
+
+		__le16 tag;
+		__le16 len;
+
+		__le32 bitmap[UNI_CMD_SDO_CFG_BSS_MAP_WORDLEN];
+	} __packed req = {
+		.tag = cpu_to_le16(UNI_CMD_SDO_GET_BSS_ACQ_PKT_NUM),
+		.len = cpu_to_le16(sizeof(req) - 4),
+	};
+	int i = 0;
+
+	if (mt7996_has_wa(dev))
+		return mt7996_mcu_wa_cmd(dev, MCU_WA_PARAM_CMD(QUERY),
+			MCU_WA_PARAM_BSS_ACQ_PKT_CNT,
+			BSS_ACQ_PKT_CNT_BSS_BITMAP_ALL | BSS_ACQ_PKT_CNT_READ_CLR, 0);
+
+	for (i = 0; i < UNI_CMD_SDO_CFG_BSS_MAP_WORDLEN; i++)
+		req.bitmap[i] = cpu_to_le32(~0);
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WA_UNI_CMD(SDO), &req,
+				 sizeof(req), false);
 }
 
 int mt7996_mcu_wed_rro_reset_sessions(struct mt7996_dev *dev, u16 id)
