@@ -95,7 +95,9 @@ int mt7996_run(struct mt7996_phy *phy)
 	ret = mt7996_mcu_set_tx_power_ctrl(phy, UNI_TXPOWER_BACKOFF_POWER_LIMIT_CTRL,
 						phy->sku_path_en);
 #endif
-
+	ret = mt7996_mcu_set_scs(phy, SCS_ENABLE);
+	if (ret)
+		return ret;
 	set_bit(MT76_STATE_RUNNING, &phy->mt76->state);
 
 	ieee80211_queue_delayed_work(dev->mphy.hw, &phy->mt76->mac_work,
@@ -127,6 +129,8 @@ static int mt7996_start(struct ieee80211_hw *hw)
 	}
 	mutex_unlock(&dev->mt76.mutex);
 
+	ieee80211_queue_delayed_work(hw, &dev->scs_work, HZ);
+
 	return ret;
 }
 
@@ -152,6 +156,9 @@ static void mt7996_stop_phy(struct mt7996_phy *phy)
 
 static void mt7996_stop(struct ieee80211_hw *hw, bool suspend)
 {
+	struct mt7996_dev *dev = mt7996_hw_dev(hw);
+
+	cancel_delayed_work_sync(&dev->scs_work);
 }
 
 static inline int get_free_idx(u32 mask, u8 start, u8 end)
