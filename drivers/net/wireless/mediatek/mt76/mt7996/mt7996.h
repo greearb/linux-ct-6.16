@@ -328,6 +328,16 @@ struct mt7996_hif {
 	int irq;
 };
 
+struct mt7996_scs_ctrl {
+	u8 scs_enable;
+	s8 sta_min_rssi;
+};
+
+enum {
+	SCS_DISABLE = 0,
+	SCS_ENABLE,
+};
+
 struct mt7996_wed_rro_addr {
 	u32 head_low;
 	u32 head_high : 4;
@@ -394,6 +404,7 @@ struct mt7996_phy {
 	bool enhanced_sr_enable;
 	u8 pp_mode;
 	u16 punct_bitmap;
+	struct mt7996_scs_ctrl scs_ctrl;
 
 #ifdef CONFIG_NL80211_TESTMODE
 	struct {
@@ -451,6 +462,7 @@ struct mt7996_dev {
 	struct work_struct rc_work;
 	struct work_struct dump_work;
 	struct work_struct reset_work;
+	struct delayed_work scs_work;
 	wait_queue_head_t reset_wait;
 	struct {
 		u32 state;
@@ -776,6 +788,8 @@ int mt7996_mcu_get_all_sta_info(struct mt76_dev *dev, u16 tag);
 int mt7996_mcu_wed_rro_reset_sessions(struct mt7996_dev *dev, u16 id);
 int mt7996_mcu_set_sniffer_mode(struct mt7996_phy *phy, bool enabled);
 int mt7996_mcu_set_tx_power_ctrl(struct mt7996_phy *phy, u8 power_ctrl_id, u8 data);
+int mt7996_mcu_set_scs(struct mt7996_phy *phy, u8 enable);
+void mt7996_mcu_scs_sta_poll(struct work_struct *work);
 int mt7996_mcu_set_band_confg(struct mt7996_phy *phy, u16 option, bool enable);
 
 static inline u8 mt7996_max_interface_num(struct mt7996_dev *dev)
