@@ -2754,6 +2754,10 @@ mt7996_mcu_sta_eht_mld_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
 
 	for (i = 0; i < ARRAY_SIZE(eht_mld->str_cap); i++)
 		eht_mld->str_cap[i] = 0x7;
+	// TODO:  Enable this after pulling in appropriate mac80211 patch.
+	// autobuild/unified/filogic/mac80211/24.10/files/package/kernel/mac80211/patches/subsys/0055-mtk-mac80211-Add-support-for-EMLSR-support.patch
+	// Looks like it would require hostapd patches too, so maybe no so important.
+	//eht_mld->eml_cap = cpu_to_le16(sta->eml_capa);
 }
 
 int mt7996_mcu_add_sta(struct mt7996_dev *dev, struct ieee80211_vif *vif,
