@@ -2182,6 +2182,9 @@ mt7996_debugfs_write_fwlog(struct mt7996_dev *dev, const void *hdr, int hdrlen,
 	unsigned long flags;
 	void *dest;
 
+	if (!dev->relay_fwlog)
+		return;
+
 	spin_lock_irqsave(&lock, flags);
 	dest = relay_reserve(dev->relay_fwlog, hdrlen + len + 4);
 	if (dest) {
