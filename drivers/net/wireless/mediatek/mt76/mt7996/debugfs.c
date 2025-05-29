@@ -2406,4 +2406,70 @@ void mt7996_sta_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	debugfs_create_file("mt76_links_info", 0400, dir, sta,
 			    &mt7996_sta_links_info_fops);
 }
+
+static int
+mt7996_vif_links_info_show(struct seq_file *s, void *data)
+{
+	struct ieee80211_vif *vif = s->private;
+	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
+	struct mt7996_dev *dev = mvif->dev;
+	struct mt7996_vif_link *mconf;
+	struct mt7996_sta_link *msta_link;
+	unsigned long valid_links;
+	u8 link_id, i;
+
+	static const char* width_to_bw[] = {
+		[NL80211_CHAN_WIDTH_40] = "40",
+		[NL80211_CHAN_WIDTH_80] = "80",
+		[NL80211_CHAN_WIDTH_80P80] = "80+80",
+		[NL80211_CHAN_WIDTH_160] = "160",
+		[NL80211_CHAN_WIDTH_5] = "5",
+		[NL80211_CHAN_WIDTH_10] = "10",
+		[NL80211_CHAN_WIDTH_20] = "20",
+		[NL80211_CHAN_WIDTH_20_NOHT] = "20_NOHT",
+		[NL80211_CHAN_WIDTH_320] = "320",
+	};
+
+	seq_printf(s, "master link id = %d\n", mvif->mt76.deflink_id);
+	seq_printf(s, "group mld id = %d\n", mvif->group_mld_id);
+	seq_printf(s, "mld remap id = %d\n", mvif->mld_remap_id);
+
+	seq_printf(s, "valid links = 0x%x\n", vif->valid_links);
+	for (i = 0; i < __MT_MAX_BAND; i++)
+		seq_printf(s, "band%d_link_id = %d\n", i, mvif->mt76.band_to_link[i]);
+
+	mutex_lock(&dev->mt76.mutex);
+	valid_links = vif->valid_links ?: BIT(0);
+	for_each_set_bit(link_id, &valid_links, IEEE80211_MLD_MAX_NUM_LINKS) {
+		mconf = mt7996_vif_link(dev, vif, link_id);
+		msta_link = mt76_dereference(mvif->sta.link[link_id], &dev->mt76);
+
+		if (!mconf || !msta_link)
+			continue;
+
+		seq_printf(s, "- link[%02d]: bss_idx = %d, wcid = %d\n",
+			   msta_link->wcid.link_id, mconf->mt76.idx, msta_link->wcid.idx);
+		seq_printf(s, "            omac_idx = %d, own_mld_id=%d\n",
+			   mconf->mt76.omac_idx, mconf->own_mld_id);
+
+		if (!mconf->phy->mt76->chanctx)
+			continue;
+
+		seq_printf(s, "            band_idx=%d, channel=%d, bw%s\n",
+			   mconf->mt76.band_idx,
+			   mconf->phy->mt76->chanctx->chandef.chan->hw_value,
+			   width_to_bw[mconf->phy->mt76->chanctx->chandef.width]);
+	}
+	mutex_unlock(&dev->mt76.mutex);
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(mt7996_vif_links_info);
+
+void mt7996_vif_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif)
+{
+	debugfs_create_file("mt76_links_info", 0400, vif->debugfs_dir, vif,
+			    &mt7996_vif_links_info_fops);
+}
+
 #endif
