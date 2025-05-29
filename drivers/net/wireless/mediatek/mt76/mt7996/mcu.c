@@ -3650,8 +3650,8 @@ int mt7996_mcu_init_firmware(struct mt7996_dev *dev)
 	if (ret)
 		return ret;
 
-	return mt7996_mcu_wa_cmd(dev, MCU_WA_PARAM_CMD(SET),
-				 MCU_WA_PARAM_RED_EN, 0, 0);
+	return mt7996_mcu_red_config(dev,
+			mtk_wed_device_active(&dev->mt76.mmio.wed));
 }
 
 int mt7996_mcu_init(struct mt7996_dev *dev)
@@ -3682,6 +3682,114 @@ void mt7996_mcu_exit(struct mt7996_dev *dev)
 			MT_TOP_LPCR_HOST_FW_OWN);
 out:
 	skb_queue_purge(&dev->mt76.mcu.res_q);
+}
+
+static int mt7996_mcu_wa_red_config(struct mt7996_dev *dev)
+{
+#define RED_TOKEN_CONFIG	2
+#define RED_TOKEN_SRC_CNT	4
+#define RED_MAX_BAND_CNT	4
+
+	struct mt7996_wa_params {
+		__le32 arg[3];
+	} __packed;
+
+	struct mt7996_red_config_hdr {
+		u8 rsv[4];
+		__le16 tag;
+		__le16 len;
+	} __packed;
+
+	struct mt7996_red_config {
+		u8 mode;
+		u8 version;
+		u8 _rsv[4];
+		__le16 len;
+
+		__le16 tcp_offset;
+		__le16 priority_offset;
+		__le16 token_per_src[RED_TOKEN_SRC_CNT];
+		__le16 token_thr_per_src[RED_TOKEN_SRC_CNT];
+	} __packed;
+	struct mt7996_red_config *req;
+	void *data;
+	int ret, len = sizeof(struct mt7996_red_config);
+	u8 i;
+
+	len += is_mt7990(&dev->mt76) ?
+		sizeof(struct mt7996_red_config_hdr) + 1120 :
+		sizeof(struct mt7996_wa_params) + 604;
+
+	data = kzalloc(len, GFP_KERNEL);
+
+	if (is_mt7990(&dev->mt76)) {
+		struct mt7996_red_config_hdr *hdr = (struct mt7996_red_config_hdr *)data;
+
+		hdr->tag = cpu_to_le16(UNI_CMD_SDO_RED_SETTING);
+		hdr->len = cpu_to_le16(len - 4);
+		req = (struct mt7996_red_config *)(data + sizeof(*hdr));
+		req->len = cpu_to_le16(len - sizeof(*hdr));
+	} else {
+		struct mt7996_wa_params *param = (struct mt7996_wa_params *)data;
+
+		param->arg[0] = cpu_to_le32(MCU_WA_PARAM_RED_CONFIG);
+		req = (struct mt7996_red_config *)(data + sizeof(*param));
+		req->len = cpu_to_le16(len - sizeof(*param));
+	}
+
+	req->mode = RED_TOKEN_CONFIG;
+	req->tcp_offset = cpu_to_le16(200);
+	req->priority_offset = cpu_to_le16(255);
+	for (i = 0; i < RED_TOKEN_SRC_CNT; i++) {
+		req->token_per_src[i] = cpu_to_le16(MT7996_TOKEN_SIZE);
+		req->token_thr_per_src[i] = cpu_to_le16(MT7996_TOKEN_SIZE);
+	}
+
+	req->token_per_src[RED_TOKEN_SRC_CNT - 1] = dev->mt76.token_size;
+
+	if (is_mt7990(&dev->mt76))
+		ret = mt76_mcu_send_msg(&dev->mt76, MCU_WA_UNI_CMD(SDO), data,
+					len, false);
+	else
+		ret = mt76_mcu_send_msg(&dev->mt76, MCU_WA_PARAM_CMD(SET), data,
+					len, false);
+
+	kfree(data);
+
+	return ret;
+}
+
+int mt7996_mcu_red_config(struct mt7996_dev *dev, bool enable)
+{
+#define RED_DISABLE		0
+#define RED_BY_WA_ENABLE	2
+	struct {
+		u8 __rsv1[4];
+
+		__le16 tag;
+		__le16 len;
+		u8 enable;
+		u8 __rsv2[3];
+	} __packed req = {
+		.tag = cpu_to_le16(UNI_VOW_RED_ENABLE),
+		.len = cpu_to_le16(sizeof(req) - 4),
+		.enable = enable ? RED_BY_WA_ENABLE : RED_DISABLE,
+	};
+	int ret;
+
+	ret = mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(VOW), &req,
+				 sizeof(req), true);
+
+	if (ret)
+		return ret;
+
+	ret = mt7996_mcu_wa_cmd(dev, MCU_WA_PARAM_CMD(SET),
+				MCU_WA_PARAM_RED_EN, enable, 0);
+
+	if (ret || !enable)
+		return ret;
+
+	return mt7996_mcu_wa_red_config(dev);
 }
 
 int mt7996_mcu_set_hdr_trans(struct mt7996_dev *dev, bool hdr_trans)
