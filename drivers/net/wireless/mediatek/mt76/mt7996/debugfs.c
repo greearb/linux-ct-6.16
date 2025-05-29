@@ -2472,4 +2472,205 @@ void mt7996_vif_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif)
 			    &mt7996_vif_links_info_fops);
 }
 
+static void
+mt7996_parse_rate(struct rate_info *rate, char *buf, size_t size)
+{
+	u32 bitrate = cfg80211_calculate_bitrate(rate);
+	bool legacy = false;
+	char *pos = buf;
+	enum {
+		GI_0_4,
+		GI_0_8,
+		GI_1_6,
+		GI_3_2
+	} gi = GI_0_8;
+
+	pos += snprintf(pos, size - (pos - buf), "%u.%u Mbit/s",
+			bitrate / 10, bitrate % 10);
+
+	if (rate->flags & RATE_INFO_FLAGS_MCS) {
+		pos += snprintf(pos, size - (pos - buf), " HT");
+
+		if (rate->flags & RATE_INFO_FLAGS_SHORT_GI)
+			gi = GI_0_4;
+	} else if (rate->flags & RATE_INFO_FLAGS_VHT_MCS) {
+		pos += snprintf(pos, size - (pos - buf), " VHT");
+
+		if (rate->flags & RATE_INFO_FLAGS_SHORT_GI)
+			gi = GI_0_4;
+	} else if (rate->flags & RATE_INFO_FLAGS_HE_MCS) {
+		pos += snprintf(pos, size - (pos - buf), " HE");
+
+		if (rate->he_gi == NL80211_RATE_INFO_HE_GI_1_6)
+			gi = GI_1_6;
+		else if (rate->he_gi == NL80211_RATE_INFO_HE_GI_3_2)
+			gi = GI_3_2;
+	} else if (rate->flags & RATE_INFO_FLAGS_EHT_MCS) {
+		pos += snprintf(pos, size - (pos - buf), " EHT");
+
+		if (rate->eht_gi == NL80211_RATE_INFO_EHT_GI_1_6)
+			gi = GI_1_6;
+		else if (rate->eht_gi == NL80211_RATE_INFO_EHT_GI_3_2)
+			gi = GI_3_2;
+	} else {
+		pos += snprintf(pos, size - (pos - buf), " Legacy");
+		legacy = true;
+	}
+
+	switch (rate->bw) {
+	case RATE_INFO_BW_20:
+		pos += snprintf(pos, size - (pos - buf), " 20MHz");
+		break;
+	case RATE_INFO_BW_40:
+		pos += snprintf(pos, size - (pos - buf), " 40MHz");
+		break;
+	case RATE_INFO_BW_80:
+		pos += snprintf(pos, size - (pos - buf), " 80MHz");
+		break;
+	case RATE_INFO_BW_160:
+		pos += snprintf(pos, size - (pos - buf), " 160MHz");
+		break;
+	case RATE_INFO_BW_320:
+		pos += snprintf(pos, size - (pos - buf), " 320MHz");
+		break;
+	case RATE_INFO_BW_HE_RU:
+		if (rate->he_ru_alloc == NL80211_RATE_INFO_HE_RU_ALLOC_106) {
+			pos += snprintf(pos, size - (pos - buf), " 106-tone RU");
+			break;
+		}
+		fallthrough;
+	default:
+		pos += snprintf(pos, size - (pos - buf), " (Unknown BW)");
+	}
+
+	if (!legacy) {
+		pos += snprintf(pos, size - (pos - buf), " MCS %hhu", rate->mcs);
+		pos += snprintf(pos, size - (pos - buf), " NSS %hhu", rate->nss);
+	}
+
+	switch (gi) {
+	case GI_0_4:
+		pos += snprintf(pos, size - (pos - buf), " GI 0.4us");
+		break;
+	case GI_0_8:
+		pos += snprintf(pos, size - (pos - buf), " GI 0.8us");
+		break;
+	case GI_1_6:
+		pos += snprintf(pos, size - (pos - buf), " GI 1.6us");
+		break;
+	default:
+		pos += snprintf(pos, size - (pos - buf), " GI 3.2us");
+		break;
+	}
+}
+
+static int
+mt7996_link_sta_info_show(struct seq_file *file, void *data)
+{
+	struct ieee80211_link_sta *link_sta = file->private;
+	struct mt7996_sta *msta = (struct mt7996_sta *)link_sta->sta->drv_priv;
+	struct mt7996_sta_link *msta_link;
+	struct mt76_sta_stats *stats;
+	struct mt76_wcid *wcid;
+	char buf[100];
+
+	mutex_lock(&msta->vif->dev->mt76.mutex);
+
+	msta_link = mt76_dereference(msta->link[link_sta->link_id], &msta->vif->dev->mt76);
+	if (!msta_link) {
+		mutex_unlock(&msta->vif->dev->mt76.mutex);
+		return -EINVAL;
+	}
+	wcid = &msta_link->wcid;
+	stats = &wcid->stats;
+
+	seq_printf(file, "WCID: %hu\n", wcid->idx);
+	seq_printf(file, "Link ID: %hhu\n", link_sta->link_id);
+	seq_printf(file, "Link Address: %pM\n", link_sta->addr);
+	seq_printf(file, "Status:\n");
+	seq_printf(file, "\tRSSI: %d [%hhd, %hhd, %hhd, %hhd] dBm\n",
+		   msta_link->signal, msta_link->chain_signal[0], msta_link->chain_signal[1],
+		   msta_link->chain_signal[2], msta_link->chain_signal[3]);
+	seq_printf(file, "\tACK RSSI: %d [%hhd, %hhd, %hhd, %hhd] dBm\n",
+		   msta_link->ack_signal, msta_link->chain_ack_signal[0],
+		   msta_link->chain_ack_signal[1], msta_link->chain_ack_signal[2],
+		   msta_link->chain_ack_signal[3]);
+	seq_printf(file, "\tACK SNR: [%hhd, %hhd, %hhd, %hhd] dBm\n",
+		   msta_link->chain_ack_snr[0], msta_link->chain_ack_snr[1],
+		   msta_link->chain_ack_snr[2], msta_link->chain_ack_snr[3]);
+	seq_printf(file, "Rate:\n");
+
+	mt7996_parse_rate(&wcid->rate, buf, sizeof(buf));
+	seq_printf(file, "\tTX: %s\n", buf);
+	mt7996_parse_rate(&wcid->rx_rate, buf, sizeof(buf));
+	seq_printf(file, "\tRX: %s\n", buf);
+
+	seq_printf(file, "Statistics:\n");
+	seq_printf(file, "\tTX:\n");
+	seq_printf(file, "\t\tBytes: %llu\n", stats->tx_bytes);
+	seq_printf(file, "\t\tMPDU Count: %u\n", stats->tx_mpdus);
+	seq_printf(file, "\t\tMPDU Fails: %u (PER: %u.%u%%)\n", stats->tx_failed,
+		   stats->tx_mpdus ? stats->tx_failed * 1000 / stats->tx_mpdus / 10 : 0,
+		   stats->tx_mpdus ? stats->tx_failed * 1000 / stats->tx_mpdus % 10 : 0);
+	seq_printf(file, "\t\tMPDU Retries: %u\n", stats->tx_retries);
+	seq_printf(file, "\t\tAirtime: %llu (unit: 1.024 us)\n", stats->tx_airtime);
+	seq_printf(file, "\tRX:\n");
+	seq_printf(file, "\t\tBytes: %llu\n", stats->rx_bytes);
+	seq_printf(file, "\t\tMPDU Count: %u\n", stats->rx_mpdus);
+	seq_printf(file, "\t\tMPDU FCS Errors: %u (PER: %u.%u%%)\n", stats->rx_fcs_err,
+		   stats->rx_mpdus ? stats->rx_fcs_err * 1000 / stats->rx_mpdus / 10 : 0,
+		   stats->rx_mpdus ? stats->rx_fcs_err * 1000 / stats->rx_mpdus % 10 : 0);
+	seq_printf(file, "\t\tAirtime: %llu (unit: 1.024 us)\n", stats->rx_airtime);
+
+	mutex_unlock(&msta->vif->dev->mt76.mutex);
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(mt7996_link_sta_info);
+
+void mt7996_link_sta_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+				 struct ieee80211_link_sta *link_sta,
+				 struct dentry *dir)
+{
+	debugfs_create_file("link_sta_info", 0400, dir, link_sta,
+			    &mt7996_link_sta_info_fops);
+}
+
+static int
+mt7996_link_info_show(struct seq_file *file, void *data)
+{
+	struct ieee80211_bss_conf *conf = file->private;
+	struct mt7996_vif *mvif = (struct mt7996_vif *)conf->vif->drv_priv;
+	struct mt7996_sta *msta = &mvif->sta;
+	struct mt7996_vif_link *mconf;
+	struct mt7996_sta_link *msta_link;
+	struct mt7996_dev *dev = mvif->dev;
+	struct rate_info *r;
+
+	mutex_lock(&dev->mt76.mutex);
+
+	mconf = mt7996_vif_link(dev, conf->vif, conf->link_id);
+	msta_link = mt76_dereference(msta->link[conf->link_id], &dev->mt76);
+	if (!mconf || !msta_link) {
+		mutex_unlock(&dev->mt76.mutex);
+		return -EINVAL;
+	}
+
+	r = &msta_link->wcid.rate;
+	seq_printf(file, "band mapping=%u\n", mconf->phy->mt76->band_idx);
+	seq_printf(file, "tx rate: flags=0x%x,legacy=%u,mcs=%u,nss=%u,bw=%u,he_gi=%u,he_dcm=%u,he_ru_alloc=%u,eht_gi=%u,eht_ru_alloc=%u\n",
+		   r->flags, r->legacy, r->mcs, r->nss, r->bw, r->he_gi, r->he_dcm, r->he_ru_alloc, r->eht_gi, r->eht_ru_alloc);
+
+	mutex_unlock(&dev->mt76.mutex);
+
+	return 0;
+}
+DEFINE_SHOW_ATTRIBUTE(mt7996_link_info);
+
+void mt7996_link_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+			     struct ieee80211_bss_conf *link_conf, struct dentry *dir)
+{
+	debugfs_create_file("link_info", 0600, dir, link_conf, &mt7996_link_info_fops);
+}
+
 #endif
