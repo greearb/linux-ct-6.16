@@ -1716,6 +1716,112 @@ mt7996_sr_scene_cond_show(struct seq_file *file, void *data)
 }
 DEFINE_SHOW_ATTRIBUTE(mt7996_sr_scene_cond);
 
+static int
+mt7996_vow_info_read(struct seq_file *s, void *data)
+{
+	struct mt7996_dev *dev = dev_get_drvdata(s->private);
+	struct mt7996_vow_ctrl *vow = &dev->vow;
+	int i;
+
+	seq_printf(s, "VoW ATF Configuration:\n");
+	seq_printf(s, "ATF: %s\n", vow->atf_enable ? "enabled" : "disabled");
+	seq_printf(s, "WATF: %s\n", vow->watf_enable ? "enabled" : "disabled");
+	seq_printf(s, "Airtime Quantums (unit: 256 us)\n");
+	for (i = 0; i < VOW_DRR_QUANTUM_NUM; ++i)
+		seq_printf(s, "\tL%d: %hhu\n", i, vow->drr_quantum[i]);
+	seq_printf(s, "Max Airtime Deficit: %hhu (unit: 256 us)\n", vow->max_deficit);
+
+	return 0;
+}
+
+static int
+mt7996_atf_enable_get(void *data, u64 *val)
+{
+	struct mt7996_phy *phy = data;
+
+	*val = phy->dev->vow.atf_enable;
+
+	return 0;
+}
+
+static int
+mt7996_atf_enable_set(void *data, u64 val)
+{
+	struct mt7996_phy *phy = data;
+	struct mt7996_vow_ctrl *vow = &phy->dev->vow;
+	int ret;
+
+	vow->max_deficit = val ? 64 : 1;
+	ret = mt7996_mcu_set_vow_drr_ctrl(phy, NULL, NULL, VOW_DRR_CTRL_AIRTIME_DEFICIT_BOUND);
+	if (ret)
+		return ret;
+
+	vow->atf_enable = !!val;
+	return mt7996_mcu_set_vow_feature_ctrl(phy);
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(fops_atf_enable, mt7996_atf_enable_get,
+	                 mt7996_atf_enable_set, "%llu\n");
+
+static int
+mt7996_red_config_set(void *data, u64 val)
+{
+	struct mt7996_dev *dev = data;
+
+	return mt7996_mcu_red_config(dev, !!val);
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(fops_red_config, NULL,
+			 mt7996_red_config_set, "%lld\n");
+
+static int
+mt7996_airtime_read(struct seq_file *s, void *data)
+{
+	struct mt7996_dev *dev = dev_get_drvdata(s->private);
+	struct mt76_dev *mdev = &dev->mt76;
+	struct mt76_sta_stats *stats;
+	struct ieee80211_sta *sta;
+	struct mt7996_sta_link *msta_link;
+	struct mt76_wcid *wcid;
+	struct mt76_vif_link *vif;
+	u16 i;
+
+	seq_printf(s, "VoW Airtime Information:\n");
+	rcu_read_lock();
+	for (i = 1; i < MT7996_WTBL_STA; ++i) {
+		wcid = rcu_dereference(mdev->wcid[i]);
+		if (!wcid || !wcid->sta)
+			continue;
+
+		msta_link = container_of(wcid, struct mt7996_sta_link, wcid);
+		sta = container_of((void *)msta_link->sta, struct ieee80211_sta, drv_priv);
+		vif = &msta_link->sta->vif->deflink.mt76;
+		stats = &wcid->stats;
+
+		seq_printf(s, "%pM WCID: %hu BandIdx: %hhu OmacIdx: 0x%hhx\t"
+		              "TxAirtime: %llu\tRxAirtime: %llu\n",
+		              sta->addr, i, vif->band_idx, vif->omac_idx,
+		              stats->tx_airtime, stats->rx_airtime);
+
+		stats->tx_airtime = 0;
+		stats->rx_airtime = 0;
+	}
+	rcu_read_unlock();
+
+	return 0;
+}
+
+static int
+mt7996_vow_drr_dbg(void *data, u64 val)
+{
+	struct mt7996_dev *dev = data;
+
+	return mt7996_mcu_set_vow_drr_dbg(dev, (u32)val);
+}
+DEFINE_DEBUGFS_ATTRIBUTE(fops_vow_drr_dbg, NULL,
+			 mt7996_vow_drr_dbg, "%lld\n");
+
+
 int mt7996_init_debugfs(struct mt7996_dev *dev)
 {
 	struct dentry *dir;
@@ -1733,6 +1839,9 @@ int mt7996_init_debugfs(struct mt7996_dev *dev)
 	debugfs_create_file("phy_info", 0400, dir, dev, &mt7996_phy_info_fops);
 	debugfs_create_file("sys_recovery", 0600, dir, phy,
 			    &mt7996_sys_recovery_ops);
+	debugfs_create_file("atf_enable", 0600, dir, phy, &fops_atf_enable);
+	debugfs_create_file("red", 0200, dir, dev, &fops_red_config);
+	debugfs_create_file("vow_drr_dbg", 0200, dir, dev, &fops_vow_drr_dbg);
 	debugfs_create_file("fw_debug_wm", 0600, dir, dev, &fops_fw_debug_wm);
 	debugfs_create_file("fw_debug_wa", 0600, dir, dev, &fops_fw_debug_wa);
 	debugfs_create_file("fw_debug_bin", 0600, dir, dev, &fops_fw_debug_bin);
@@ -1745,6 +1854,11 @@ int mt7996_init_debugfs(struct mt7996_dev *dev)
 	debugfs_create_devm_seqfile(dev->mt76.dev, "twt_stats", dir,
 				    mt7996_twt_stats);
 	debugfs_create_file("rf_regval", 0600, dir, dev, &fops_rf_regval);
+	debugfs_create_devm_seqfile(dev->mt76.dev, "vow_info", dir,
+	                            mt7996_vow_info_read);
+	debugfs_create_devm_seqfile(dev->mt76.dev, "airtime", dir,
+	                            mt7996_airtime_read);
+
 	debugfs_create_u32("ignore_radar", 0600, dir,
 			   &dev->ignore_radar);
 	debugfs_create_file("set_rate_override", 0600, dir,
