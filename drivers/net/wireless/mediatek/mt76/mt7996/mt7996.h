@@ -629,9 +629,11 @@ struct mt7996_dev {
 	u8 fw_debug_bin;
 	u16 fw_debug_seq;
 	bool fw_debug_muru_disable;
+	bool idxlog_enable;
 
 	struct dentry *debugfs_dir;
 	struct rchan *relay_fwlog;
+	struct rchan *relay_idxlog;
 
 	struct {
 		u16 table_mask;
@@ -907,6 +909,7 @@ int mt7996_mcu_wa_cmd(struct mt7996_dev *dev, int cmd, u32 a1, u32 a2, u32 a3);
 int mt7996_mcu_red_config(struct mt7996_dev *dev, bool enable);
 int mt7996_mcu_fw_log_2_host(struct mt7996_dev *dev, u8 type, u8 ctrl);
 int mt7996_mcu_fw_dbg_ctrl(struct mt7996_dev *dev, u32 module, u8 level);
+int mt7996_mcu_fw_time_sync(struct mt76_dev *dev);
 int mt7996_mcu_trigger_assert(struct mt7996_dev *dev);
 void mt7996_mcu_rx_event(struct mt7996_dev *dev, struct sk_buff *skb);
 void mt7996_mcu_exit(struct mt7996_dev *dev);
@@ -926,6 +929,16 @@ int mt7996_mcu_set_vow_drr_ctrl(struct mt7996_phy *phy,
 				enum vow_drr_ctrl_id id);
 int mt7996_mcu_set_vow_feature_ctrl(struct mt7996_phy *phy);
 void mt7996_mcu_wmm_pbc_work(struct work_struct *work);
+
+#define PKT_BIN_DEBUG_MAGIC	0xc8763123
+enum {
+	PKT_BIN_DEBUG_MCU,
+	PKT_BIN_DEBUG_TXD,
+	PKT_BIN_DEBUG_TX,
+	PKT_BIN_DEBUG_RX,
+	PKT_BIN_DEBUG_RX_RAW,
+	PKT_BIN_DEBUG_MCU_EVENT,
+};
 
 static inline u8 mt7996_max_interface_num(struct mt7996_dev *dev)
 {

@@ -3642,7 +3642,7 @@ int mt7996_mcu_fw_dbg_ctrl(struct mt7996_dev *dev, u32 module, u8 level)
 				 sizeof(data), false);
 }
 
-static int mt7996_mcu_fw_time_sync(struct mt76_dev *dev)
+int mt7996_mcu_fw_time_sync(struct mt76_dev *dev)
 {
 	struct {
 		u8 _rsv[4];
