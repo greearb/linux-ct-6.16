@@ -643,6 +643,10 @@ struct mt7996_dev {
 		u8 fem:4;
 	} var;
 	struct mt7996_vow_ctrl vow;
+
+	// TODO:  debugfs to configure this, upstream mtk uses vendor API.
+	bool sr_pp_enable;
+	bool uba_enable;
 };
 
 enum {
