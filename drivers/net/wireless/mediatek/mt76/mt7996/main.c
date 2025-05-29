@@ -414,6 +414,8 @@ void mt7996_vif_link_remove(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	//	 "%s: band=%u, bss_idx=%u, link_id=%u, wcid=%u\n",
 	//	 __func__, phy->mt76->band_idx, mlink->idx, link_id, idx);
 
+	cancel_delayed_work(&link->sta_chsw_work);
+
 	mt7996_mcu_add_sta(dev, vif, link_conf, NULL, link, NULL,
 			   CONN_STATE_DISCONNECT, false);
 	mt7996_mcu_add_bss_info(phy, vif, link_conf, mlink, msta_link, false);
