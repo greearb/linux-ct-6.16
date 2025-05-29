@@ -329,11 +329,13 @@ struct mt76_sta_stats {
 	unsigned long tx_attempts; /* Counting any retries. unit: MSDU (all frames) */
 	unsigned long tx_retries; /* number of times frames were retried (all frames) */
 	unsigned long tx_failed; /* failed even after retries (all frames) */
+	u64 tx_airtime;
 	/* WED RX */
 	u64 rx_bytes;
 	u32 rx_packets;
 	u32 rx_errors;
 	u32 rx_drops;
+	u64 rx_airtime;
 	/* This section requires group-5 in rxd to be enabled for 7915. */
 	unsigned long rx_nss[4]; /* rx-nss histogram */
 	unsigned long rx_mode[__MT_PHY_TYPE_MAX]; /* rx mode histogram */

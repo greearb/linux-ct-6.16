@@ -140,6 +140,12 @@
 #define MT7996_RX_MSDU_PAGE_SIZE	(128 + \
 					 SKB_DATA_ALIGN(sizeof(struct skb_shared_info)))
 
+#define MT7996_DRR_STA_BSS_GRP_MASK	GENMASK(5, 0)
+#define MT7996_DRR_STA_AC0_QNTM_MASK	GENMASK(10, 8)
+#define MT7996_DRR_STA_AC1_QNTM_MASK	GENMASK(14, 12)
+#define MT7996_DRR_STA_AC2_QNTM_MASK	GENMASK(18, 16)
+#define MT7996_DRR_STA_AC3_QNTM_MASK	GENMASK(22, 20)
+
 #define to_rssi(field, rcpi)	((FIELD_GET(field, rcpi) - 220) / 2)
 
 #define MT7996_MAX_BEACON_LOSS		20
@@ -244,13 +250,98 @@ struct mt7996_twt_flow {
 
 DECLARE_EWMA(avg_signal, 10, 8)
 
+enum mt7996_dpd_ch_num {
+	DPD_CH_NUM_BW20_2G,
+	DPD_CH_NUM_BW20_5G,
+	DPD_CH_NUM_BW20_5G_SKIP,
+	DPD_CH_NUM_BW80_5G,
+	DPD_CH_NUM_BW160_5G,
+	DPD_CH_NUM_BW20_6G,
+	DPD_CH_NUM_BW80_6G,
+	DPD_CH_NUM_BW160_6G,
+	DPD_CH_NUM_BW320_6G,
+	DPD_CH_NUM_TYPE_MAX,
+};
+
+enum {
+	VOW_SEARCH_AC_FIRST,
+	VOW_SEARCH_WMM_FIRST
+};
+
+enum {
+	VOW_REFILL_PERIOD_1US,
+	VOW_REFILL_PERIOD_2US,
+	VOW_REFILL_PERIOD_4US,
+	VOW_REFILL_PERIOD_8US,
+	VOW_REFILL_PERIOD_16US,
+	VOW_REFILL_PERIOD_32US,
+	VOW_REFILL_PERIOD_64US,
+	VOW_REFILL_PERIOD_128US
+};
+
+/* Default DRR airtime quantum of each level */
+enum {
+	VOW_DRR_QUANTUM_L0 = 6,
+	VOW_DRR_QUANTUM_L1 = 12,
+	VOW_DRR_QUANTUM_L2 = 16,
+	VOW_DRR_QUANTUM_L3 = 20,
+	VOW_DRR_QUANTUM_L4 = 24,
+	VOW_DRR_QUANTUM_L5 = 28,
+	VOW_DRR_QUANTUM_L6 = 32,
+	VOW_DRR_QUANTUM_L7 = 36
+};
+
+enum {
+	VOW_DRR_QUANTUM_IDX0,
+	VOW_DRR_QUANTUM_IDX1,
+	VOW_DRR_QUANTUM_IDX2,
+	VOW_DRR_QUANTUM_IDX3,
+	VOW_DRR_QUANTUM_IDX4,
+	VOW_DRR_QUANTUM_IDX5,
+	VOW_DRR_QUANTUM_IDX6,
+	VOW_DRR_QUANTUM_IDX7,
+	VOW_DRR_QUANTUM_NUM
+};
+
+enum {
+	VOW_SCH_TYPE_FOLLOW_POLICY,
+	VOW_SCH_TYPE_FOLLOW_HW
+};
+
+enum {
+	VOW_SCH_POLICY_SRR, /* Shared Round-Robin */
+	VOW_SCH_POLICY_WRR /* Weighted Round-Robin */
+};
+
+enum vow_drr_ctrl_id {
+	VOW_DRR_CTRL_STA_ALL,
+	VOW_DRR_CTRL_STA_BSS_GROUP,
+	VOW_DRR_CTRL_AIRTIME_DEFICIT_BOUND = 0x10,
+	VOW_DRR_CTRL_AIRTIME_QUANTUM_ALL = 0x28,
+	VOW_DRR_CTRL_STA_PAUSE = 0x30
+};
+
+struct mt7996_vow_ctrl {
+	bool atf_enable;
+	bool watf_enable;
+	u8 drr_quantum[VOW_DRR_QUANTUM_NUM];
+	u8 max_deficit;
+	u8 sch_type;
+	u8 sch_policy;
+};
+
+struct mt7996_vow_sta_ctrl {
+	bool paused;
+	u8 bss_grp_idx;
+	u8 drr_quantum[IEEE80211_NUM_ACS];
+};
+
 struct mt7996_sta_link {
 	struct mt76_wcid wcid; /* must be first */
 
 	struct mt7996_sta *sta;
 
 	struct list_head rc_list;
-	u32 airtime_ac[8];
 
 	int ack_signal;
 	s8 chain_ack_signal[IEEE80211_MAX_CHAINS];
@@ -270,6 +361,7 @@ struct mt7996_sta_link {
 	} twt;
 
 	struct rcu_head rcu_head;
+	struct mt7996_vow_sta_ctrl vow;
 };
 
 struct mt7996_sta {
@@ -550,6 +642,7 @@ struct mt7996_dev {
 		u8 type:4;
 		u8 fem:4;
 	} var;
+	struct mt7996_vow_ctrl vow;
 };
 
 enum {
@@ -811,6 +904,11 @@ int mt7996_mcu_set_tx_power_ctrl(struct mt7996_phy *phy, u8 power_ctrl_id, u8 da
 int mt7996_mcu_set_scs(struct mt7996_phy *phy, u8 enable);
 void mt7996_mcu_scs_sta_poll(struct work_struct *work);
 int mt7996_mcu_set_band_confg(struct mt7996_phy *phy, u16 option, bool enable);
+int mt7996_mcu_set_vow_drr_ctrl(struct mt7996_phy *phy,
+				struct mt7996_vif_link *mconf,
+				struct mt7996_sta_link *msta_link,
+				enum vow_drr_ctrl_id id);
+int mt7996_mcu_set_vow_feature_ctrl(struct mt7996_phy *phy);
 
 static inline u8 mt7996_max_interface_num(struct mt7996_dev *dev)
 {
@@ -865,6 +963,14 @@ static inline bool mt7996_has_wa(struct mt7996_dev *dev)
 	return !is_mt7990(&dev->mt76);
 }
 
+static inline bool
+mt7996_vow_should_enable(struct mt7996_dev *dev)
+{
+	return !wiphy_ext_feature_isset(mt76_hw(dev)->wiphy,
+	                                NL80211_EXT_FEATURE_AIRTIME_FAIRNESS) ||
+	       mtk_wed_device_active(&dev->mt76.mmio.wed);
+}
+
 void mt7996_mac_init(struct mt7996_dev *dev);
 u32 mt7996_mac_wtbl_lmac_addr(struct mt7996_dev *dev, u16 wcid, u8 dw);
 bool mt7996_mac_wtbl_update(struct mt7996_dev *dev, int idx, u32 mask);
@@ -904,6 +1010,8 @@ void mt7996_set_stream_he_eht_caps(struct mt7996_phy *phy);
 void mt7996_set_stream_vht_txbf_caps(struct mt7996_phy *phy);
 void mt7996_update_channel(struct mt76_phy *mphy);
 int mt7996_init_debugfs(struct mt7996_dev *dev);
+int mt7996_mcu_set_vow_drr_dbg(struct mt7996_dev *dev, u32 val);
+
 int mt7996_mcu_set_tx_power_ctrl(struct mt7996_phy *phy, u8 power_ctrl_id, u8 data);
 int mt7996_mcu_get_tx_power_info(struct mt7996_phy *phy, u8 category, void *event);
 void mt7996_debugfs_rx_fw_monitor(struct mt7996_dev *dev, const void *data, int len);

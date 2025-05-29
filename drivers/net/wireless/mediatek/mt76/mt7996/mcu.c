@@ -756,7 +756,8 @@ mt7996_mcu_update_tx_gi(struct rate_info *rate, struct all_sta_trx_rate *mcu_rat
 static void
 mt7996_mcu_rx_all_sta_info_event(struct mt7996_dev *dev, struct sk_buff *skb)
 {
-	struct mt7996_mcu_all_sta_info_event *res;
+	struct mt7996_mcu_all_sta_info_event *res;\
+	u32 tx_airtime, rx_airtime;
 	u16 i;
 
 	skb_pull(skb, sizeof(struct mt7996_mcu_rxd));
@@ -767,6 +768,7 @@ mt7996_mcu_rx_all_sta_info_event(struct mt7996_dev *dev, struct sk_buff *skb)
 		u8 ac;
 		u16 wlan_idx;
 		struct mt76_wcid *wcid;
+		struct ieee80211_sta *sta;
 
 		switch (le16_to_cpu(res->tag)) {
 		case UNI_ALL_STA_TXRX_RATE:
@@ -806,6 +808,24 @@ mt7996_mcu_rx_all_sta_info_event(struct mt7996_dev *dev, struct sk_buff *skb)
 				le32_to_cpu(res->msdu_cnt[i].tx_msdu_cnt);
 			wcid->stats.rx_packets +=
 				le32_to_cpu(res->msdu_cnt[i].rx_msdu_cnt);
+			break;
+		case UNI_ALL_STA_TXRX_AIR_TIME:
+			wlan_idx = le16_to_cpu(res->airtime[i].wlan_idx);
+			wcid = rcu_dereference(dev->mt76.wcid[wlan_idx]);
+			sta = wcid_to_sta(wcid);
+			if (!sta)
+				continue;
+
+			for (ac = IEEE80211_AC_VO; ac < IEEE80211_NUM_ACS; ++ac) {
+				u8 lmac_ac = mt76_connac_lmac_mapping(ac);
+				tx_airtime = le32_to_cpu(res->airtime[i].tx[lmac_ac]);
+				rx_airtime = le32_to_cpu(res->airtime[i].rx[lmac_ac]);
+
+				wcid->stats.tx_airtime += tx_airtime;
+				wcid->stats.rx_airtime += rx_airtime;
+				ieee80211_sta_register_airtime(sta, mt76_ac_to_tid(ac),
+				                               tx_airtime, rx_airtime);
+			}
 			break;
 		default:
 			break;
@@ -2542,38 +2562,41 @@ error_unlock:
 	return ret;
 }
 
+#if 0
 static int
-mt7996_mcu_add_group(struct mt7996_dev *dev, struct ieee80211_vif *vif,
-		     struct ieee80211_sta *sta)
+mt7996_mcu_sta_init_vow(struct mt7996_vif_link *mconf,
+			struct mt7996_sta_link *msta_link)
 {
-#define MT_STA_BSS_GROUP		1
-	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
-	struct mt7996_sta_link *msta_link;
-	struct mt7996_sta *msta;
-	struct {
-		u8 __rsv1[4];
+	struct mt7996_phy *phy = mconf->phy;
+	struct mt7996_vow_sta_ctrl *vow = &msta_link->vow;
+	u8 omac_idx = mconf->mt76.omac_idx;
+	int ret;
 
-		__le16 tag;
-		__le16 len;
-		__le16 wlan_idx;
-		u8 __rsv2[2];
-		__le32 action;
-		__le32 val;
-		u8 __rsv3[8];
-	} __packed req = {
-		.tag = cpu_to_le16(UNI_VOW_DRR_CTRL),
-		.len = cpu_to_le16(sizeof(req) - 4),
-		.action = cpu_to_le32(MT_STA_BSS_GROUP),
-		.val = cpu_to_le32(mvif->deflink.mt76.idx % 16),
-	};
+	/* Assignment of STA BSS group index aligns FW.
+	 * Each band has its own BSS group bitmap space.
+	 * 0: BSS 0
+	 * 4..18: BSS 0x11..0x1f
+	 */
+	vow->bss_grp_idx = (omac_idx <= HW_BSSID_MAX)
+	                   ? omac_idx
+	                   : HW_BSSID_MAX + omac_idx - EXT_BSSID_START;
+	vow->paused = false;
+	vow->drr_quantum[IEEE80211_AC_VO] = VOW_DRR_QUANTUM_IDX0;
+	vow->drr_quantum[IEEE80211_AC_VI] = VOW_DRR_QUANTUM_IDX1;
+	vow->drr_quantum[IEEE80211_AC_BE] = VOW_DRR_QUANTUM_IDX2;
+	vow->drr_quantum[IEEE80211_AC_BK] = VOW_DRR_QUANTUM_IDX2;
 
-	msta = sta ? (struct mt7996_sta *)sta->drv_priv : NULL;
-	msta_link = msta ? &msta->deflink : &mvif->deflink.msta_link;
-	req.wlan_idx = cpu_to_le16(msta_link->wcid.idx);
+	ret = mt7996_mcu_set_vow_drr_ctrl(phy, mconf, msta_link, VOW_DRR_CTRL_STA_BSS_GROUP);
+	if (ret)
+		return ret;
 
-	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(VOW), &req,
-				 sizeof(req), true);
+	ret = mt7996_mcu_set_vow_drr_ctrl(phy, mconf, msta_link, VOW_DRR_CTRL_STA_PAUSE);
+	if (ret)
+		return ret;
+
+	return mt7996_mcu_set_vow_drr_ctrl(phy, mconf, msta_link, VOW_DRR_CTRL_STA_ALL);
 }
+#endif
 
 static void
 mt7996_mcu_sta_mld_setup_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
@@ -2655,7 +2678,7 @@ int mt7996_mcu_add_sta(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 	struct mt76_wcid *wcid = msta_link ? &msta_link->wcid : link->mt76.wcid;
 	struct ieee80211_sta *sta = link_sta ? link_sta->sta : NULL;
 	struct sk_buff *skb;
-	int ret;
+	//int ret;
 
 	skb = __mt76_connac_mcu_alloc_sta_req(&dev->mt76, &link->mt76, wcid,
 					      MT7996_STA_UPDATE_MAX_SIZE);
@@ -2710,11 +2733,14 @@ int mt7996_mcu_add_sta(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 		}
 	}
 
-	ret = mt7996_mcu_add_group(dev, link_conf->vif, sta);
+#if 0
+	// NOTE:  Ifdef'd out in mtk upstream owrt tree too
+	ret = mt7996_mcu_sta_init_vow(mconf, msta_link);
 	if (ret) {
 		dev_kfree_skb(skb);
 		return ret;
 	}
+#endif
 out:
 	return mt76_mcu_skb_send_msg(&dev->mt76, skb,
 				     MCU_WMWA_UNI_CMD(STA_REC_UPDATE), true);
@@ -5938,4 +5964,244 @@ void mt7996_mcu_rx_sr_event(struct mt7996_dev *dev, struct sk_buff *skb)
 		dev_info(dev->mt76.dev, "Unknown SR event tag %d\n",
 			 le16_to_cpu(event->basic.tag));
 	}
+}
+
+int mt7996_mcu_set_vow_drr_ctrl(struct mt7996_phy *phy,
+				struct mt7996_vif_link *mconf,
+				struct mt7996_sta_link *msta_link,
+				enum vow_drr_ctrl_id id)
+{
+	struct mt7996_vow_sta_ctrl *vow = msta_link ? &msta_link->vow : NULL;
+	u32 val = 0;
+	struct {
+		u8 __rsv1[4];
+
+		__le16 tag;
+		__le16 len;
+		__le16 wlan_idx;
+		u8 band_idx;
+		u8 wmm_idx;
+		__le32 ctrl_id;
+
+		union {
+			__le32 val;
+			u8 drr_quantum[VOW_DRR_QUANTUM_NUM];
+		};
+
+		u8 __rsv2[3];
+		u8 omac_idx;
+	} __packed req = {
+		.tag = cpu_to_le16(UNI_VOW_DRR_CTRL),
+		.len = cpu_to_le16(sizeof(req) - 4),
+		.wlan_idx = cpu_to_le16(msta_link ? msta_link->wcid.idx : 0),
+		.band_idx = phy->mt76->band_idx,
+		.wmm_idx = msta_link ? mconf->mt76.wmm_idx : 0,
+		.ctrl_id = cpu_to_le32(id),
+		.omac_idx = msta_link ? mconf->mt76.omac_idx : 0
+	};
+
+	switch (id) {
+	case VOW_DRR_CTRL_STA_ALL:
+		val |= FIELD_PREP(MT7996_DRR_STA_BSS_GRP_MASK, vow->bss_grp_idx);
+		val |= FIELD_PREP(MT7996_DRR_STA_AC0_QNTM_MASK, vow->drr_quantum[IEEE80211_AC_BK]);
+		val |= FIELD_PREP(MT7996_DRR_STA_AC1_QNTM_MASK, vow->drr_quantum[IEEE80211_AC_BE]);
+		val |= FIELD_PREP(MT7996_DRR_STA_AC2_QNTM_MASK, vow->drr_quantum[IEEE80211_AC_VI]);
+		val |= FIELD_PREP(MT7996_DRR_STA_AC3_QNTM_MASK, vow->drr_quantum[IEEE80211_AC_VO]);
+		req.val = cpu_to_le32(val);
+		break;
+	case VOW_DRR_CTRL_STA_BSS_GROUP:
+		req.val = cpu_to_le32(vow->bss_grp_idx);
+		break;
+	case VOW_DRR_CTRL_AIRTIME_DEFICIT_BOUND:
+		req.val = cpu_to_le32(phy->dev->vow.max_deficit);
+		break;
+	case VOW_DRR_CTRL_AIRTIME_QUANTUM_ALL:
+		memcpy(req.drr_quantum, phy->dev->vow.drr_quantum, VOW_DRR_QUANTUM_NUM);
+		break;
+	case VOW_DRR_CTRL_STA_PAUSE:
+		req.val = cpu_to_le32(vow->paused);
+		break;
+	default:
+		dev_err(phy->dev->mt76.dev, "Unknown VoW DRR Control ID: %u\n", id);
+		return -EINVAL;
+	}
+
+	return mt76_mcu_send_msg(&phy->dev->mt76, MCU_WM_UNI_CMD(VOW),
+	                         &req, sizeof(req), true);
+}
+
+int mt7996_mcu_set_vow_feature_ctrl(struct mt7996_phy *phy)
+{
+	struct mt7996_vow_ctrl *vow = &phy->dev->vow;
+	struct {
+		u8 __rsv1[4];
+
+		__le16 tag;
+		__le16 len;
+
+		/* DW0 */
+		__le16 apply_bwc_enable_per_grp;
+		__le16 apply_bwc_refill_period		: 1;
+		__le16 __rsv2				: 3;
+		__le16 apply_band1_search_rule		: 1;
+		__le16 apply_band0_search_rule		: 1;
+		__le16 __rsv3				: 3;
+		__le16 apply_watf_enable		: 1;
+		__le16 __rsv4				: 2;
+		__le16 apply_grp_no_change_in_txop	: 1;
+		__le16 apply_atf_enable			: 1;
+		__le16 apply_bwc_token_refill_enable	: 1;
+		__le16 apply_bwc_enable			: 1;
+
+		/* DW1 */
+		__le16 apply_bwc_check_time_token_per_grp;
+		__le16 __rsv5;
+
+		/* DW2 */
+		__le16 apply_bwc_check_len_token_per_grp;
+		__le16 __rsv6;
+
+		/* DW3 */
+		u8 band_idx;
+		u8 __rsv7[3];
+
+		/* DW4 */
+		__le32 __rsv8;
+
+		/* DW5 */
+		__le16 bwc_enable_per_grp;
+		__le16 bwc_refill_period	: 3;
+		__le16 __rsv9			: 1;
+		__le16 band1_search_rule	: 1;
+		__le16 band0_search_rule	: 1;
+		__le16 __rsv10			: 3;
+		__le16 watf_enable		: 1;
+		__le16 __rsv11			: 2;
+		__le16 grp_no_change_in_txop	: 1;
+		__le16 atf_enable		: 1;
+		__le16 bwc_token_refill_enable	: 1;
+		__le16 bwc_enable		: 1;
+
+		/* DW6 */
+		__le16 bwc_check_time_token_per_grp;
+		__le16 __rsv12;
+
+		/* DW7 */
+		__le16 bwc_check_len_token_per_grp;
+		__le16 __rsv13;
+
+		/* DW8 */
+		__le32 apply_atf_rts_sta_lock		: 1;
+		__le32 atf_rts_sta_lock			: 1;
+		__le32 apply_atf_keep_quantum		: 1;
+		__le32 atf_keep_quantum			: 1;
+		__le32 apply_tx_cnt_mode_ctrl		: 1;
+		__le32 tx_cnt_mode_ctrl			: 4;
+		__le32 apply_tx_measure_mode_enable	: 1;
+		__le32 tx_measure_mode_enable		: 1;
+		__le32 apply_backoff_ctrl		: 1;
+		__le32 backoff_bound_enable		: 1;
+		__le32 backoff_bound			: 5;
+		__le32 apply_atf_rts_fail_charge	: 1;
+		__le32 atf_rts_fail_charge		: 1;
+		__le32 apply_zero_eifs			: 1;
+		__le32 zero_eifs			: 1;
+		__le32 apply_rx_rifs_enable		: 1;
+		__le32 rx_rifs_enable			: 1;
+		__le32 apply_vow_ctrl			: 1;
+		__le32 vow_ctrl_val			: 1;
+		__le32 vow_ctrl_bit			: 5;
+		__le32 __rsv14				: 1;
+
+		/* DW9 */
+		__le32 apply_spl_sta_num	: 1;
+		__le32 spl_sta_num		: 3;
+		__le32 dbg_lvl			: 2;
+		__le32 apply_atf_sch_ctrl	: 1;
+		__le32 atf_sch_type		: 2;
+		__le32 atf_sch_policy		: 2;
+		__le32 __rsv15			: 21;
+	} __packed req = {
+		.tag = cpu_to_le16(UNI_VOW_FEATURE_CTRL),
+		.len = cpu_to_le16(sizeof(req) - 4),
+		/* DW0 */
+		.apply_bwc_enable_per_grp = cpu_to_le16(0xffff),
+		.apply_bwc_refill_period = true,
+		.apply_band1_search_rule = true,
+		.apply_band0_search_rule = true,
+		.apply_watf_enable = true,
+		.apply_grp_no_change_in_txop = true,
+		.apply_atf_enable = true,
+		.apply_bwc_token_refill_enable = true,
+		.apply_bwc_enable = true,
+		/* DW1 */
+		.apply_bwc_check_time_token_per_grp = cpu_to_le16(0xffff),
+		/* DW2 */
+		.apply_bwc_check_len_token_per_grp = cpu_to_le16(0xffff),
+		/* DW3 */
+		.band_idx = phy->mt76->band_idx,
+		/* DW5 */
+		.bwc_enable_per_grp = cpu_to_le16(0xffff),
+		.bwc_refill_period = VOW_REFILL_PERIOD_32US,
+		.band1_search_rule = VOW_SEARCH_WMM_FIRST,
+		.band0_search_rule = VOW_SEARCH_WMM_FIRST,
+		.watf_enable = vow->watf_enable,
+		.grp_no_change_in_txop = true,
+		.atf_enable = vow->atf_enable,
+		.bwc_token_refill_enable = true,
+		.bwc_enable = false,
+		/* DW6 */
+		.bwc_check_time_token_per_grp = cpu_to_le16(0x0),
+		/* DW7 */
+		.bwc_check_len_token_per_grp = cpu_to_le16(0x0),
+		/* DW8 */
+		.apply_atf_rts_sta_lock = false,
+		.apply_atf_keep_quantum = true,
+		.atf_keep_quantum = true,
+		.apply_tx_cnt_mode_ctrl = false,
+		.apply_tx_measure_mode_enable = false,
+		.apply_backoff_ctrl = false,
+		.apply_atf_rts_fail_charge = false,
+		.apply_zero_eifs = false,
+		.apply_rx_rifs_enable = false,
+		.apply_vow_ctrl = true,
+		.vow_ctrl_val = true,
+		/* Reset DRR table when SER occurs. */
+		.vow_ctrl_bit = 26,
+		/* DW9 */
+		.apply_spl_sta_num = false,
+		.dbg_lvl = 0,
+		.apply_atf_sch_ctrl = true,
+		.atf_sch_type = vow->sch_type,
+		.atf_sch_policy = vow->sch_policy
+	};
+
+	return mt76_mcu_send_msg(&phy->dev->mt76, MCU_WM_UNI_CMD(VOW),
+	                         &req, sizeof(req), true);
+}
+
+int mt7996_mcu_set_vow_drr_dbg(struct mt7996_dev *dev, u32 val)
+{
+#define MT7996_VOW_DEBUG_MODE	0xe
+	struct {
+		u8 __rsv1[4];
+
+		__le16 tag;
+		__le16 len;
+		u8 __rsv2[4];
+		__le32 action;
+		__le32 val;
+		u8 __rsv3[8];
+	} __packed req = {
+		.tag = cpu_to_le16(UNI_VOW_DRR_CTRL),
+		.len = cpu_to_le16(sizeof(req) - 4),
+		.action = cpu_to_le32(MT7996_VOW_DEBUG_MODE),
+		.val = cpu_to_le32(val),
+	};
+
+	if (val & ~VOW_DRR_DBG_FLAGS)
+		return -EINVAL;
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(VOW), &req,
+				 sizeof(req), true);
 }

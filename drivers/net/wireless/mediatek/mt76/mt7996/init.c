@@ -712,6 +712,37 @@ int mt7996_txbf_init(struct mt7996_dev *dev)
 	return mt7996_mcu_set_txbf(dev, BF_HW_EN_UPDATE);
 }
 
+static int mt7996_vow_init(struct mt7996_phy *phy)
+{
+	struct mt7996_vow_ctrl *vow = &phy->dev->vow;
+	int ret;
+
+	vow->atf_enable = true;
+	vow->watf_enable = false;
+	vow->max_deficit = 64;
+	vow->sch_type = VOW_SCH_TYPE_FOLLOW_POLICY;
+	vow->sch_policy = VOW_SCH_POLICY_SRR;
+
+	vow->drr_quantum[0] = VOW_DRR_QUANTUM_L0;
+	vow->drr_quantum[1] = VOW_DRR_QUANTUM_L1;
+	vow->drr_quantum[2] = VOW_DRR_QUANTUM_L2;
+	vow->drr_quantum[3] = VOW_DRR_QUANTUM_L3;
+	vow->drr_quantum[4] = VOW_DRR_QUANTUM_L4;
+	vow->drr_quantum[5] = VOW_DRR_QUANTUM_L5;
+	vow->drr_quantum[6] = VOW_DRR_QUANTUM_L6;
+	vow->drr_quantum[7] = VOW_DRR_QUANTUM_L7;
+
+	ret = mt7996_mcu_set_vow_drr_ctrl(phy, NULL, NULL, VOW_DRR_CTRL_AIRTIME_DEFICIT_BOUND);
+	if (ret)
+		return ret;
+
+	ret = mt7996_mcu_set_vow_drr_ctrl(phy, NULL, NULL, VOW_DRR_CTRL_AIRTIME_QUANTUM_ALL);
+	if (ret)
+		return ret;
+
+	return mt7996_mcu_set_vow_feature_ctrl(phy);
+}
+
 static int mt7996_register_phy(struct mt7996_dev *dev, enum mt76_band_id band)
 {
 	struct mt7996_phy *phy;
@@ -772,6 +803,12 @@ static int mt7996_register_phy(struct mt7996_dev *dev, enum mt76_band_id band)
 				ARRAY_SIZE(mt76_rates));
 	if (ret)
 		goto error;
+
+	if (mt7996_vow_should_enable(dev)) {
+		ret = mt7996_vow_init(phy);
+		if (ret)
+			goto error;
+	}
 
 	if (wed == &dev->mt76.mmio.wed_hif2 && mtk_wed_device_active(wed)) {
 		u32 irq_mask = dev->mt76.mmio.irqmask | MT_INT_TX_DONE_BAND2;
@@ -1628,7 +1665,13 @@ int mt7996_register_device(struct mt7996_dev *dev)
 	if (ret)
 		goto error;
 
-	ret = mt7996_coredump_register(dev);
+	if (mt7996_vow_should_enable(dev)) {
+		ret = mt7996_vow_init(&dev->phy);
+		if (ret)
+			goto error;
+	}
+
+ret = mt7996_coredump_register(dev);
 	if (ret)
 		goto error;
 
