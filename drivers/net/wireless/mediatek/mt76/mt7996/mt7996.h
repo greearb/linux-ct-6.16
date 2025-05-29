@@ -653,6 +653,12 @@ struct mt7996_dev {
 	// TODO:  debugfs to configure this, upstream mtk uses vendor API.
 	bool sr_pp_enable;
 	bool uba_enable;
+
+	struct {
+		void *txbf_phase_cal;
+		void *txbf_pfmu_data;
+		void *txbf_pfmu_tag;
+	} test;
 };
 
 enum {
@@ -1023,6 +1029,7 @@ void mt7996_update_channel(struct mt76_phy *mphy);
 int mt7996_init_debugfs(struct mt7996_dev *dev);
 
 int mt7996_mcu_muru_dbg_info(struct mt7996_dev *dev, u16 item, u8 val);
+void mt7996_mcu_rx_bf_event(struct mt7996_dev *dev, struct sk_buff *skb);
 int mt7996_mcu_set_muru_fixed_rate_enable(struct mt7996_dev *dev, u8 action, int val);
 int mt7996_mcu_set_muru_fixed_rate_parameter(struct mt7996_dev *dev, u8 action, void *para);
 int mt7996_mcu_set_muru_cmd(struct mt7996_dev *dev, u16 action, int val);
