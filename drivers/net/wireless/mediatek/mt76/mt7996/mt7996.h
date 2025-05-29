@@ -652,6 +652,16 @@ struct mt7996_dev {
 	bool wmm_pbc_enable;
 	struct work_struct wmm_pbc_work;
 
+	struct {
+		bool dump_mcu_pkt;
+		bool dump_mcu_event;
+		bool dump_txd;
+		bool dump_tx_pkt;
+		bool dump_rx_pkt;
+		bool dump_rx_raw;
+		u8 dump_ple_txd;
+	} dbg;
+
 	// TODO:  debugfs to configure this, upstream mtk uses vendor API.
 	bool sr_pp_enable;
 	bool uba_enable;
@@ -928,6 +938,7 @@ int mt7996_mcu_set_vow_drr_ctrl(struct mt7996_phy *phy,
 				struct mt7996_sta_link *msta_link,
 				enum vow_drr_ctrl_id id);
 int mt7996_mcu_set_vow_feature_ctrl(struct mt7996_phy *phy);
+void mt7996_packet_log_to_host(struct mt7996_dev *dev, const void *data, int len, int type, int des_len);
 void mt7996_mcu_wmm_pbc_work(struct work_struct *work);
 
 #define PKT_BIN_DEBUG_MAGIC	0xc8763123
