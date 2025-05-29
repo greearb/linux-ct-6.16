@@ -2096,6 +2096,49 @@ static const struct file_operations fops_muru_dbg_info = {
 	.llseek = default_llseek,
 };
 
+static int
+mt7996_thermal_enable_get(void *data, u64 *enable)
+{
+	struct mt7996_phy *phy = data;
+
+	*enable = phy->thermal_protection_enable;
+
+	return 0;
+}
+
+static int
+mt7996_thermal_enable_set(void *data, u64 action)
+{
+	struct mt7996_phy *phy = data;
+	int ret;
+	u8 throttling;
+
+	if (action > 1)
+		return -EINVAL;
+
+	if (!!action == phy->thermal_protection_enable)
+		return 0;
+
+	ret = mt7996_mcu_set_thermal_protect(phy, !!action);
+	if (ret)
+		return ret;
+
+	if (!!!action)
+		goto out;
+
+	throttling = MT7996_THERMAL_THROTTLE_MAX - phy->cdev_state;
+	ret = mt7996_mcu_set_thermal_throttling(phy, throttling);
+	if (ret)
+		return ret;
+
+out:
+	phy->thermal_protection_enable = !!action;
+
+	return 0;
+}
+DEFINE_DEBUGFS_ATTRIBUTE(fops_thermal_enable, mt7996_thermal_enable_get,
+			 mt7996_thermal_enable_set, "%lld\n");
+
 int mt7996_init_debugfs(struct mt7996_dev *dev)
 {
 	struct dentry *dir;
@@ -2161,6 +2204,7 @@ int mt7996_init_debugfs(struct mt7996_dev *dev)
 	debugfs_create_file("sr_scene_cond", 0400, dir, dev, &mt7996_sr_scene_cond_fops);
 
 	debugfs_create_bool("mgmt_pwr_enhance", 0600, dir, &dev->mt76.mgmt_pwr_enhance);
+	debugfs_create_file("thermal_enable", 0600, dir, phy, &fops_thermal_enable);
 	debugfs_create_file("scs_enable", 0200, dir, phy, &fops_scs_enable);
 
 	debugfs_create_u32("dfs_hw_pattern", 0400, dir, &dev->hw_pattern);
@@ -2608,11 +2652,11 @@ mt7996_link_sta_info_show(struct seq_file *file, void *data)
 	seq_printf(file, "Statistics:\n");
 	seq_printf(file, "\tTX:\n");
 	seq_printf(file, "\t\tBytes: %llu\n", stats->tx_bytes);
-	seq_printf(file, "\t\tMPDU Count: %u\n", stats->tx_mpdus);
-	seq_printf(file, "\t\tMPDU Fails: %u (PER: %u.%u%%)\n", stats->tx_failed,
+	seq_printf(file, "\t\tMPDU Count: %lu\n", stats->tx_mpdus);
+	seq_printf(file, "\t\tMPDU Fails: %lu (PER: %lu.%lu%%)\n", stats->tx_failed,
 		   stats->tx_mpdus ? stats->tx_failed * 1000 / stats->tx_mpdus / 10 : 0,
 		   stats->tx_mpdus ? stats->tx_failed * 1000 / stats->tx_mpdus % 10 : 0);
-	seq_printf(file, "\t\tMPDU Retries: %u\n", stats->tx_retries);
+	seq_printf(file, "\t\tMPDU Retries: %lu\n", stats->tx_retries);
 	seq_printf(file, "\t\tAirtime: %llu (unit: 1.024 us)\n", stats->tx_airtime);
 	seq_printf(file, "\tRX:\n");
 	seq_printf(file, "\t\tBytes: %llu\n", stats->rx_bytes);

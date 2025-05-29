@@ -98,6 +98,11 @@ int mt7996_run(struct mt7996_phy *phy)
 	ret = mt7996_mcu_set_scs(phy, SCS_ENABLE);
 	if (ret)
 		return ret;
+
+	phy->sr_enable = true;
+	phy->enhanced_sr_enable = true;
+	phy->thermal_protection_enable = true;
+
 	set_bit(MT76_STATE_RUNNING, &phy->mt76->state);
 
 	ieee80211_queue_delayed_work(dev->mphy.hw, &phy->mt76->mac_work,
@@ -310,6 +315,15 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 		ret = -ENOSPC;
 		goto error;
 	}
+
+	/* bss idx & omac idx should be set to band idx for ibf cal */
+	if (dev->mt76.vif_mask & BIT_ULL(band_idx) ||
+	    phy->omac_mask & BIT_ULL(band_idx)) {
+		ret = -ENOSPC;
+		goto error;
+	}
+	mlink->idx = band_idx;
+	idx = band_idx;
 
 	link->phy = phy;
 	mlink->omac_idx = idx;
@@ -2952,6 +2966,7 @@ const struct ieee80211_ops mt7996_ops = {
 	CFG80211_TESTMODE_DUMP(mt76_testmode_dump)
 #ifdef CONFIG_MAC80211_DEBUGFS
 	.sta_add_debugfs = mt7996_sta_add_debugfs,
+	.link_sta_add_debugfs = mt7996_link_sta_add_debugfs,
 	.link_add_debugfs = mt7996_link_add_debugfs,
 	.vif_add_debugfs = mt7996_vif_add_debugfs,
 #endif

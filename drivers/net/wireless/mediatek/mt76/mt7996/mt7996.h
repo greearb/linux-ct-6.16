@@ -509,6 +509,7 @@ struct mt7996_phy {
 	bool adjust_txp_by_loss; /* adjust txpower higher based on path-loss reported by radio */
 	bool sr_enable;
 	bool enhanced_sr_enable;
+	bool thermal_protection_enable;
 	u8 pp_mode;
 	u16 punct_bitmap;
 	struct mt7996_scs_ctrl scs_ctrl;
@@ -529,6 +530,7 @@ struct mt7996_phy {
 		u8 spe_idx;
 	} test;
 #endif
+
 	/* Index 0 (TxBSS) is not used */
         struct mt7996_vif_link __rcu *mbssid_conf[MT7996_MAX_MBSSID];
 };
@@ -1083,9 +1085,12 @@ int mt7996_mcu_set_pp_en(struct mt7996_phy *phy, u8 mode, u16 bitmap);
 #ifdef CONFIG_MAC80211_DEBUGFS
 void mt7996_sta_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			    struct ieee80211_sta *sta, struct dentry *dir);
+void mt7996_vif_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif);
+void mt7996_link_sta_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+				 struct ieee80211_link_sta *link_sta,
+				 struct dentry *dir);
 void mt7996_link_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			     struct ieee80211_bss_conf *link_conf, struct dentry *dir);
-void mt7996_vif_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif);
 #endif
 int mt7996_mmio_wed_init(struct mt7996_dev *dev, void *pdev_ptr,
 			 bool hif2, int *irq);
