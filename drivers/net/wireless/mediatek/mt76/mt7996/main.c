@@ -2871,6 +2871,7 @@ const struct ieee80211_ops mt7996_ops = {
 	CFG80211_TESTMODE_DUMP(mt76_testmode_dump)
 #ifdef CONFIG_MAC80211_DEBUGFS
 	.sta_add_debugfs = mt7996_sta_add_debugfs,
+	.vif_add_debugfs = mt7996_vif_add_debugfs,
 #endif
 	.set_radar_background = mt7996_set_radar_background,
 #ifdef CONFIG_NET_MEDIATEK_SOC_WED
