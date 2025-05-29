@@ -518,11 +518,12 @@ mt7996_fw_debug_bin_set(void *data, u64 val)
 	struct mt7996_dev *dev = data;
 	int ret;
 
-	if (!dev->relay_fwlog)
+	if (!dev->relay_fwlog) {
 		dev->relay_fwlog = relay_open("fwlog_data", dev->debugfs_dir,
 					      1500, 512, &relay_cb, NULL);
-	if (!dev->relay_fwlog)
-		return -ENOMEM;
+		if (!dev->relay_fwlog)
+			return -ENOMEM;
+	}
 
 	dev->fw_debug_bin = val;
 
@@ -531,6 +532,13 @@ mt7996_fw_debug_bin_set(void *data, u64 val)
 	ret = mt7996_fw_debug_muru_set(dev);
 	if (ret)
 		return ret;
+
+	dev->dbg.dump_mcu_pkt = !!(val & BIT(4));
+	dev->dbg.dump_txd = !!(val & BIT(5));
+	dev->dbg.dump_tx_pkt = !!(val & BIT(6));
+	dev->dbg.dump_rx_pkt = !!(val & BIT(7));
+	dev->dbg.dump_rx_raw = !!(val & BIT(8));
+	dev->dbg.dump_mcu_event = !!(val & BIT(9));
 
 	return mt7996_fw_debug_wm_set(dev, dev->fw_debug_wm);
 }
@@ -594,6 +602,31 @@ mt7996_idxlog_enable_set(void *data, u64 val)
 
 DEFINE_DEBUGFS_ATTRIBUTE(fops_idxlog_enable, mt7996_idxlog_enable_get,
 	                 mt7996_idxlog_enable_set, "%llu\n");
+
+void mt7996_packet_log_to_host(struct mt7996_dev *dev, const void *data, int len, int type, int des_len)
+{
+	struct bin_debug_hdr *hdr;
+	char *buf;
+
+	if (len > 1500 - sizeof(*hdr))
+	len = 1500 - sizeof(*hdr);
+
+	buf = kzalloc(sizeof(*hdr) + len, GFP_KERNEL);
+	if (!buf)
+		return;
+
+	hdr = (struct bin_debug_hdr *)buf;
+	hdr->magic_num = cpu_to_le32(PKT_BIN_DEBUG_MAGIC);
+	hdr->serial_id = cpu_to_le16(dev->fw_debug_seq++);
+	hdr->msg_type = cpu_to_le16(type);
+	hdr->len = cpu_to_le16(len);
+	hdr->des_len = cpu_to_le16(des_len);
+
+	memcpy(buf + sizeof(*hdr), data, len);
+
+	mt7996_debugfs_rx_log(dev, buf, sizeof(*hdr) + len);
+	kfree(buf);
+}
 
 static int
 mt7996_fw_util_wa_show(struct seq_file *file, void *data)

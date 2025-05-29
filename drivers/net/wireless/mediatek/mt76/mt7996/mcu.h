@@ -503,6 +503,14 @@ enum {
 	MCU_FW_LOG_RELAY_IDX = 40
 };
 
+struct bin_debug_hdr {
+	__le32 magic_num;
+	__le16 serial_id;
+	__le16 msg_type;
+	__le16 len;
+	__le16 des_len;	/* descriptor len for rxd */
+} __packed;
+
 enum {
 	MCU_TWT_AGRT_ADD,
 	MCU_TWT_AGRT_MODIFY,
