@@ -457,8 +457,8 @@ create_buf_file_cb(const char *filename, struct dentry *parent, umode_t mode,
 {
 	struct dentry *f;
 
-	f = debugfs_create_file("fwlog_data", mode, parent, buf,
-				&relay_file_operations);
+	f = debugfs_create_file(filename[0] == 'f' ? "fwlog_data" : "idxlog_data",
+	                        mode, parent, buf, &relay_file_operations);
 	if (IS_ERR(f))
 		return NULL;
 
@@ -547,6 +547,53 @@ mt7996_fw_debug_bin_get(void *data, u64 *val)
 
 DEFINE_DEBUGFS_ATTRIBUTE(fops_fw_debug_bin, mt7996_fw_debug_bin_get,
 			 mt7996_fw_debug_bin_set, "%lld\n");
+
+static int
+mt7996_idxlog_enable_get(void *data, u64 *val)
+{
+	struct mt7996_dev *dev = data;
+
+	*val = dev->idxlog_enable;
+
+	return 0;
+}
+
+static int
+mt7996_idxlog_enable_set(void *data, u64 val)
+{
+	static struct rchan_callbacks relay_cb = {
+		.create_buf_file = create_buf_file_cb,
+		.remove_buf_file = remove_buf_file_cb,
+	};
+	struct mt7996_dev *dev = data;
+
+	if (dev->idxlog_enable == !!val)
+		return 0;
+
+	if (!dev->relay_idxlog) {
+		dev->relay_idxlog = relay_open("idxlog_data", dev->debugfs_dir,
+		                               1500, 512, &relay_cb, NULL);
+		if (!dev->relay_idxlog)
+			return -ENOMEM;
+	}
+
+	dev->idxlog_enable = !!val;
+
+	if (val) {
+		int ret = mt7996_mcu_fw_time_sync(&dev->mt76);
+		if (ret)
+			return ret;
+
+		/* Reset relay channel only when it is not being written to. */
+		relay_reset(dev->relay_idxlog);
+	}
+
+	return mt7996_mcu_fw_log_2_host(dev, MCU_FW_LOG_WM,
+	                                val ? MCU_FW_LOG_RELAY_IDX : 0);
+}
+
+DEFINE_DEBUGFS_ATTRIBUTE(fops_idxlog_enable, mt7996_idxlog_enable_get,
+	                 mt7996_idxlog_enable_set, "%llu\n");
 
 static int
 mt7996_fw_util_wa_show(struct seq_file *file, void *data)
@@ -2045,6 +2092,8 @@ int mt7996_init_debugfs(struct mt7996_dev *dev)
 	debugfs_create_file("fw_debug_wm", 0600, dir, dev, &fops_fw_debug_wm);
 	debugfs_create_file("fw_debug_wa", 0600, dir, dev, &fops_fw_debug_wa);
 	debugfs_create_file("fw_debug_bin", 0600, dir, dev, &fops_fw_debug_bin);
+	debugfs_create_file("idxlog_enable", 0600, dir, dev, &fops_idxlog_enable);
+
 	/* TODO: wm fw cpu utilization */
 	debugfs_create_file("fw_util_wa", 0400, dir, dev,
 			    &mt7996_fw_util_wa_fops);
@@ -2117,6 +2166,32 @@ mt7996_debugfs_write_fwlog(struct mt7996_dev *dev, const void *hdr, int hdrlen,
 	spin_unlock_irqrestore(&lock, flags);
 }
 
+static void
+mt7996_debugfs_write_idxlog(struct mt7996_dev *dev, const void *data, int len)
+{
+	static DEFINE_SPINLOCK(lock);
+	unsigned long flags;
+	void *dest;
+
+	if (!dev->relay_idxlog)
+		return;
+
+	spin_lock_irqsave(&lock, flags);
+
+	dest = relay_reserve(dev->relay_idxlog, len + 4);
+	if (!dest)
+		dev_err(dev->mt76.dev, "Failed to reserve slot in %s\n",
+		        dev->relay_idxlog->base_filename);
+	else {
+		*(u32 *)dest = len;
+		dest += 4;
+		memcpy(dest, data, len);
+		relay_flush(dev->relay_idxlog);
+	}
+
+	spin_unlock_irqrestore(&lock, flags);
+}
+
 void mt7996_debugfs_rx_fw_monitor(struct mt7996_dev *dev, const void *data, int len)
 {
 	struct {
@@ -2144,11 +2219,16 @@ void mt7996_debugfs_rx_fw_monitor(struct mt7996_dev *dev, const void *data, int 
 
 bool mt7996_debugfs_rx_log(struct mt7996_dev *dev, const void *data, int len)
 {
-	if (get_unaligned_le32(data) != FW_BIN_LOG_MAGIC)
-		return false;
+	bool is_fwlog = get_unaligned_le32(data) == FW_BIN_LOG_MAGIC;
+	is_fwlog |= get_unaligned_le32(data) == PKT_BIN_DEBUG_MAGIC;
 
-	if (dev->relay_fwlog)
-		mt7996_debugfs_write_fwlog(dev, NULL, 0, data, len);
+	if (is_fwlog) {
+		if (dev->relay_fwlog)
+			mt7996_debugfs_write_fwlog(dev, NULL, 0, data, len);
+	} else if (dev->relay_idxlog)
+		mt7996_debugfs_write_idxlog(dev, data, len);
+	else
+		return false;
 
 	return true;
 }
