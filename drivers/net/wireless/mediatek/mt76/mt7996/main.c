@@ -1891,6 +1891,86 @@ out:
 	mutex_unlock(&dev->mt76.mutex);
 }
 
+#if 0
+// TODO:  Needs mac80211 patch, maybe upstream will do it differently.
+//autobuild/unified/filogic/mac80211/24.10/files/package/kernel/mac80211/patches/subsys/0062-mtk-mac80211-add-link-information-when-dump-station.patch
+static void mt7996_sta_link_statistics(struct ieee80211_hw *hw,
+				       struct ieee80211_vif *vif,
+				       struct ieee80211_sta *sta,
+				       unsigned int link_id,
+				       struct station_link_info *linfo)
+{
+	struct mt7996_dev *dev = mt7996_hw_dev(hw);
+	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
+	struct mt7996_sta_link *msta_link;
+	struct mt7996_vif_link *mconf;
+	struct mt76_sta_stats *stats;
+	int i;
+
+	mutex_lock(&dev->mt76.mutex);
+	msta_link = mt76_dereference(msta->link[link_id], &dev->mt76);
+	if (!msta_link)
+		goto out;
+	stats = &msta_link->wcid.stats;
+
+	mconf = mt7996_vif_link(dev, vif, link_id);
+	if (!mconf)
+		goto out;
+
+	linfo->signal = (s8)msta_link->signal;
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_SIGNAL);
+
+	linfo->chains = mconf->phy->mt76->antenna_mask;
+	memcpy(linfo->chain_signal, msta_link->chain_signal, IEEE80211_MAX_CHAINS);
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_CHAIN_SIGNAL);
+
+	linfo->signal_avg = -(s8)ewma_avg_signal_read(&msta_link->signal_avg);
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_SIGNAL_AVG);
+
+	for (i = 0; i < IEEE80211_MAX_CHAINS; ++i)
+		linfo->chain_signal_avg[i] = -(s8)ewma_avg_signal_read(msta_link->chain_signal_avg + i);
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_CHAIN_SIGNAL_AVG);
+
+	linfo->ack_signal = (s8)msta_link->ack_signal;
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL);
+
+	linfo->avg_ack_signal = -(s8)ewma_avg_signal_read(&msta_link->avg_ack_signal);
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL_AVG);
+
+	linfo->txrate = msta_link->wcid.rate;
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
+
+	linfo->rxrate = msta_link->wcid.rx_rate;
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_BITRATE);
+
+	linfo->tx_bytes = stats->tx_bytes;
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BYTES64);
+
+	linfo->rx_bytes = stats->rx_bytes;
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_BYTES64);
+
+	linfo->tx_failed = stats->tx_failed;
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_FAILED);
+
+	linfo->tx_retries = stats->tx_retries;
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_RETRIES);
+
+	linfo->rx_mpdu_count = stats->rx_mpdus;
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_MPDUS);
+
+	linfo->fcs_err_count = stats->rx_fcs_err;
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_FCS_ERROR_COUNT);
+
+	linfo->tx_duration = stats->tx_airtime;
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_DURATION);
+
+	linfo->rx_duration = stats->rx_airtime;
+	linfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_DURATION);
+out:
+	mutex_unlock(&dev->mt76.mutex);
+}
+#endif
+
 static void mt7996_sta_rc_work(void *data, struct ieee80211_sta *sta)
 {
 	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
@@ -2863,6 +2943,7 @@ const struct ieee80211_ops mt7996_ops = {
 	.set_bitrate_mask = mt7996_set_bitrate_mask,
 	.set_coverage_class = mt7996_set_coverage_class,
 	.sta_statistics = mt7996_sta_statistics,
+	//.sta_link_statistics = mt7996_sta_link_statistics,
 	.sta_set_4addr = mt7996_sta_set_4addr,
 	.sta_set_decap_offload = mt7996_sta_set_decap_offload,
 	.add_twt_setup = mt7996_mac_add_twt_setup,
@@ -2871,6 +2952,7 @@ const struct ieee80211_ops mt7996_ops = {
 	CFG80211_TESTMODE_DUMP(mt76_testmode_dump)
 #ifdef CONFIG_MAC80211_DEBUGFS
 	.sta_add_debugfs = mt7996_sta_add_debugfs,
+	.link_add_debugfs = mt7996_link_add_debugfs,
 	.vif_add_debugfs = mt7996_vif_add_debugfs,
 #endif
 	.set_radar_background = mt7996_set_radar_background,

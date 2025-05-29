@@ -343,6 +343,9 @@ struct mt7996_sta_link {
 
 	struct list_head rc_list;
 
+	s8 chain_signal[IEEE80211_MAX_CHAINS];
+	int signal;
+
 	int ack_signal;
 	s8 chain_ack_signal[IEEE80211_MAX_CHAINS];
 	struct ewma_avg_signal avg_ack_signal;
@@ -1080,6 +1083,8 @@ int mt7996_mcu_set_pp_en(struct mt7996_phy *phy, u8 mode, u16 bitmap);
 #ifdef CONFIG_MAC80211_DEBUGFS
 void mt7996_sta_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			    struct ieee80211_sta *sta, struct dentry *dir);
+void mt7996_link_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+			     struct ieee80211_bss_conf *link_conf, struct dentry *dir);
 void mt7996_vif_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif);
 #endif
 int mt7996_mmio_wed_init(struct mt7996_dev *dev, void *pdev_ptr,

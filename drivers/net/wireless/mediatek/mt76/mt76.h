@@ -326,13 +326,17 @@ struct mt76_sta_stats {
 	u64 tx_bytes;
 
 	/* WED TX */
+	unsigned long tx_packets; /* tx msdu count reported by firmware */
 	unsigned long tx_attempts; /* Counting any retries. unit: MSDU (all frames) */
 	unsigned long tx_retries; /* number of times frames were retried (all frames) */
 	unsigned long tx_failed; /* failed even after retries (all frames) */
+	unsigned long tx_mpdus;
 	u64 tx_airtime;
 	/* WED RX */
 	u64 rx_bytes;
 	u32 rx_packets;
+	u32 rx_mpdus;
+	u32 rx_fcs_err;
 	u32 rx_errors;
 	u32 rx_drops;
 	u64 rx_airtime;
@@ -382,6 +386,8 @@ struct mt76_wcid {
 	 * in 7915 at least.
 	 */
 	struct rate_info rate;
+	struct rate_info rx_rate;
+
 	unsigned long ampdu_state;
 	bool rate_short_gi; /* cached HT/VHT short_gi, from mac_sta_poll() */
 	u8 rate_he_gi; /* cached HE GI, from mac_sta_poll() */
