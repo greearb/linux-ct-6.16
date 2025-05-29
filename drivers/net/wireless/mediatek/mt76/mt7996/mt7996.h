@@ -510,6 +510,8 @@ struct mt7996_phy {
 	u16 punct_bitmap;
 	struct mt7996_scs_ctrl scs_ctrl;
 
+	u8 muru_onoff;
+
 #ifdef CONFIG_NL80211_TESTMODE
 	struct {
 		u32 *reg_backup;
@@ -626,6 +628,7 @@ struct mt7996_dev {
 	u8 fw_debug_wa;
 	u8 fw_debug_bin;
 	u16 fw_debug_seq;
+	bool fw_debug_muru_disable;
 
 	struct dentry *debugfs_dir;
 	struct rchan *relay_fwlog;
@@ -1014,6 +1017,12 @@ void mt7996_set_stream_he_eht_caps(struct mt7996_phy *phy);
 void mt7996_set_stream_vht_txbf_caps(struct mt7996_phy *phy);
 void mt7996_update_channel(struct mt76_phy *mphy);
 int mt7996_init_debugfs(struct mt7996_dev *dev);
+
+int mt7996_mcu_muru_dbg_info(struct mt7996_dev *dev, u16 item, u8 val);
+int mt7996_mcu_set_muru_fixed_rate_enable(struct mt7996_dev *dev, u8 action, int val);
+int mt7996_mcu_set_muru_fixed_rate_parameter(struct mt7996_dev *dev, u8 action, void *para);
+int mt7996_mcu_set_muru_cmd(struct mt7996_dev *dev, u16 action, int val);
+int mt7996_mcu_muru_set_prot_frame_thr(struct mt7996_dev *dev, u32 val);
 int mt7996_mcu_set_vow_drr_dbg(struct mt7996_dev *dev, u32 val);
 
 int mt7996_mcu_set_tx_power_ctrl(struct mt7996_phy *phy, u8 power_ctrl_id, u8 data);
@@ -1040,6 +1049,8 @@ void mt7996_sta_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 int mt7996_mmio_wed_init(struct mt7996_dev *dev, void *pdev_ptr,
 			 bool hif2, int *irq);
 u32 mt7996_wed_init_buf(void *ptr, dma_addr_t phys, int token_id);
+int mt7996_set_muru_cfg(struct mt7996_phy *phy, u8 action, u8 val);
+int mt7996_mcu_set_muru_cfg(struct mt7996_phy *phy, void *data);
 
 int mt7996_mcu_set_sr_enable(struct mt7996_phy *phy, u8 action, u64 val, bool set);
 void mt7996_mcu_rx_sr_event(struct mt7996_dev *dev, struct sk_buff *skb);

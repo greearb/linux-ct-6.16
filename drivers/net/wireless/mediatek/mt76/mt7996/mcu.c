@@ -1671,6 +1671,7 @@ mt7996_mcu_sta_muru_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
 			struct mt7996_vif_link *mconf,
 			struct ieee80211_link_sta *link_sta)
 {
+	struct mt7996_phy *phy = mconf->phy;
 	struct ieee80211_he_cap_elem *elem = &link_sta->he_cap.he_cap_elem;
 	struct sta_rec_muru *muru;
 	struct tlv *tlv;
@@ -1682,13 +1683,18 @@ mt7996_mcu_sta_muru_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
 	tlv = mt76_connac_mcu_add_tlv(skb, STA_REC_MURU, sizeof(*muru));
 
 	muru = (struct sta_rec_muru *)tlv;
-	if (ok_vht(link_sta) || ok_he(link_sta))
-		muru->cfg.mimo_dl_en = link_conf->eht_mu_beamformer ||
-			link_conf->he_mu_beamformer ||
-			link_conf->vht_mu_beamformer ||
-			link_conf->vht_mu_beamformee;
-	if (ok_he(link_sta))
-		muru->cfg.ofdma_dl_en = true;
+	if (ok_vht(link_sta) || ok_he(link_sta)) {
+		muru->cfg.mimo_dl_en = (link_conf->eht_mu_beamformer ||
+					link_conf->he_mu_beamformer ||
+					link_conf->vht_mu_beamformer ||
+					link_conf->vht_mu_beamformee) &&
+			!!(phy->muru_onoff & MUMIMO_DL);
+		muru->cfg.mimo_ul_en = !!(phy->muru_onoff & MUMIMO_UL);
+	}
+	if (ok_he(link_sta)) {
+		muru->cfg.ofdma_dl_en = !!(phy->muru_onoff & OFDMA_DL);
+		muru->cfg.ofdma_ul_en = !!(phy->muru_onoff & OFDMA_UL);
+	}
 
 	if (ok_vht(link_sta))
 		muru->mimo_dl.vht_mu_bfee =
@@ -6204,4 +6210,308 @@ int mt7996_mcu_set_vow_drr_dbg(struct mt7996_dev *dev, u32 val)
 
 	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(VOW), &req,
 				 sizeof(req), true);
+}
+
+int mt7996_mcu_muru_dbg_info(struct mt7996_dev *dev, u16 item, u8 val)
+{
+	struct {
+		u8 __rsv1[4];
+
+		__le16 tag;
+		__le16 len;
+
+		__le16 item;
+		u8 __rsv2[2];
+		__le32 value;
+	} __packed req = {
+		.tag = cpu_to_le16(UNI_CMD_MURU_DBG_INFO),
+		.len = cpu_to_le16(sizeof(req) - 4),
+		.item = cpu_to_le16(item),
+		.value = cpu_to_le32(val),
+	};
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(MURU), &req,
+				 sizeof(req), true);
+}
+
+int mt7996_mcu_set_muru_fixed_rate_enable(struct mt7996_dev *dev, u8 action, int val)
+{
+	struct {
+		u8 _rsv[4];
+
+		__le16 tag;
+		__le16 len;
+
+		__le16 value;
+		__le16 rsv;
+	} __packed data = {
+		.tag = cpu_to_le16(action),
+		.len = cpu_to_le16(sizeof(data) - 4),
+		.value = cpu_to_le16(!!val),
+	};
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(MURU), &data, sizeof(data),
+				 false);
+}
+
+int mt7996_mcu_set_muru_fixed_rate_parameter(struct mt7996_dev *dev, u8 action, void *para)
+{
+	char *buf = (char *)para;
+	u8 num_user = 0, recv_arg = 0, max_mcs = 0, usr_mcs[4] = {0};
+	__le16 bw;
+	int i;
+	struct {
+		u8 _rsv[4];
+
+		__le16 tag;
+		__le16 len;
+
+		u8 cmd_version;
+		u8 cmd_revision;
+		__le16 rsv;
+
+		struct uni_muru_mum_set_group_tbl_entry entry;
+	} __packed data = {
+		.tag = cpu_to_le16(action),
+		.len = cpu_to_le16(sizeof(data) - 4),
+	};
+
+#define __RUALLOC_TYPE_CHECK_HE(BW) ((BW == RUALLOC_BW20) || (BW == RUALLOC_BW40) || (BW == RUALLOC_BW80) || (BW == RUALLOC_BW160))
+#define __RUALLOC_TYPE_CHECK_EHT(BW) (__RUALLOC_TYPE_CHECK_HE(BW) || (BW == RUALLOC_BW320))
+	/* [Num of user] - 1~4
+	 * [RUAlloc] - BW320: 395, BW160: 137, BW80: 134, BW40: 130, BW20: 122
+	 * [LTF/GI] - For VHT, short GI: 0, Long GI: 1; 	 *
+	 * For HE/EHT, 4xLTF+3.2us: 0, 4xLTF+0.8us: 1, 2xLTF+0.8us:2
+	 * [Phy/FullBW] - VHT: 0 / HEFullBw: 1 / HEPartialBw: 2 / EHTFullBW: 3, EHTPartialBW: 4
+	 * [DL/UL] DL: 0, UL: 1, DL_UL: 2
+	 * [Wcid User0] - WCID 0
+	 * [MCS of WCID0] - For HE/VHT, 0-11: 1ss MCS0-MCS11, 12-23: 2SS MCS0-MCS11
+	 * For EHT, 0-13: 1ss MCS0-MCS13, 14-27: 2SS MCS0-MCS13
+	 * [WCID 1]
+	 * [MCS of WCID1]
+	 * [WCID 2]
+	 * [MCS of WCID2]
+	 * [WCID 3]
+	 * [MCS of WCID3]
+	 */
+
+	recv_arg = sscanf(buf, "%hhu %hu %hhu %hhu %hhu %hu %hhu %hu %hhu %hu %hhu %hu %hhu",
+			  &num_user, &bw, &data.entry.gi, &data.entry.capa, &data.entry.dl_ul,
+			  &data.entry.wlan_idx0, &usr_mcs[0],
+			  &data.entry.wlan_idx1, &usr_mcs[1],
+			  &data.entry.wlan_idx2, &usr_mcs[2],
+			  &data.entry.wlan_idx3, &usr_mcs[3]);
+
+	if (recv_arg != (5 + (2 * num_user))) {
+		dev_err(dev->mt76.dev, "The number of argument is invalid\n");
+		goto error;
+	}
+
+	if (num_user > 0 && num_user < 5)
+		data.entry.num_user = num_user - 1;
+	else {
+		dev_err(dev->mt76.dev, "The number of user count is invalid\n");
+		goto error;
+	}
+
+	/**
+	 * Older chip shall be set as HE. Refer to getHWSupportByChip() in Logan
+	 * driver to know the value for differnt chips
+	 */
+	data.cmd_version = UNI_CMD_MURU_VER_EHT;
+
+	if (data.cmd_version == UNI_CMD_MURU_VER_EHT)
+		max_mcs = UNI_MAX_MCS_SUPPORT_EHT;
+	else
+		max_mcs = UNI_MAX_MCS_SUPPORT_HE;
+
+
+	// Parameter Check
+	if (data.cmd_version != UNI_CMD_MURU_VER_EHT) {
+		if ((data.entry.capa > MAX_MODBF_HE) || (bw == RUALLOC_BW320))
+			goto error;
+	} else {
+		if ((data.entry.capa <= MAX_MODBF_HE) && (bw == RUALLOC_BW320))
+			goto error;
+	}
+
+	if (data.entry.capa <= MAX_MODBF_HE)
+		max_mcs = UNI_MAX_MCS_SUPPORT_HE;
+
+	if (__RUALLOC_TYPE_CHECK_EHT(bw)) {
+		data.entry.ru_alloc = (u8)(bw & 0xFF);
+		if (bw == RUALLOC_BW320)
+			data.entry.ru_alloc_ext = (u8)(bw >> 8);
+	} else {
+		dev_err(dev->mt76.dev, "RU_ALLOC argument is invalid\n");
+		goto error;
+	}
+
+	if ((data.entry.gi > 2) ||
+	    ((data.entry.gi > 1) && (data.entry.capa == MAX_MODBF_VHT))) {
+		dev_err(dev->mt76.dev, "GI argument is invalid\n");
+		goto error;
+	}
+
+	if (data.entry.dl_ul > 2) {
+		dev_err(dev->mt76.dev, "DL_UL argument is invalid\n");
+		goto error;
+	}
+
+#define __mcs_handler(_n)							\
+	do {									\
+		if (usr_mcs[_n] > max_mcs) {					\
+			usr_mcs[_n] -= (max_mcs + 1);				\
+			data.entry.nss##_n = 1;					\
+			if (usr_mcs[_n] > max_mcs)				\
+				usr_mcs[_n] = max_mcs;				\
+		}								\
+		if ((data.entry.dl_ul & 0x1) == 0)				\
+			data.entry.dl_mcs_user##_n = usr_mcs[_n];		\
+		if ((data.entry.dl_ul & 0x3) > 0)				\
+			data.entry.ul_mcs_user##_n = usr_mcs[_n];		\
+	}									\
+	while (0)
+
+	for (i=0; i<= data.entry.num_user; i++) {
+		switch (i) {
+			case 0:
+				__mcs_handler(0);
+				break;
+			case 1:
+				__mcs_handler(1);
+				break;
+			case 2:
+				__mcs_handler(2);
+				break;
+			case 3:
+				__mcs_handler(3);
+				break;
+			default:
+				break;
+		}
+	}
+#undef __mcs_handler
+
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(MURU), &data,
+				 sizeof(data), false);
+
+error:
+	dev_err(dev->mt76.dev, "Command failed!\n");
+	return -EINVAL;
+}
+
+/**
+ * This function can be used to build the following commands
+ * MURU_SUTX_CTRL (0x10)
+ * SET_FORCE_MU (0x33)
+ * SET_MUDL_ACK_POLICY (0xC8)
+ * SET_TRIG_TYPE (0xC9)
+ * SET_20M_DYN_ALGO (0xCA)
+ * SET_CERT_MU_EDCA_OVERRIDE (0xCD)
+ */
+int mt7996_mcu_set_muru_cmd(struct mt7996_dev *dev, u16 action, int val)
+{
+	struct {
+		u8 _rsv[4];
+
+		__le16 tag;
+		__le16 len;
+
+		u8 config;
+		u8 rsv[3];
+	} __packed data = {
+		.tag = cpu_to_le16(action),
+		.len = cpu_to_le16(sizeof(data) - 4),
+		.config = (u8) val,
+	};
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(MURU), &data, sizeof(data),
+				 false);
+}
+
+int mt7996_mcu_muru_set_prot_frame_thr(struct mt7996_dev *dev, u32 val)
+{
+	struct {
+		u8 _rsv[4];
+
+		__le16 tag;
+		__le16 len;
+
+		__le32 prot_frame_thr;
+	} __packed data = {
+		.tag = cpu_to_le16(UNI_CMD_MURU_PROT_FRAME_THR),
+		.len = cpu_to_le16(sizeof(data) - 4),
+		.prot_frame_thr = cpu_to_le32(val),
+	};
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(MURU), &data, sizeof(data),
+				 false);
+}
+
+int mt7996_mcu_set_muru_cfg(struct mt7996_phy *phy, void *data)
+{
+	struct mt7996_dev *dev = phy->dev;
+	struct mt7996_muru *muru;
+	struct {
+		u8 _rsv[4];
+
+		__le16 tag;
+		__le16 len;
+
+		u8 version;
+		u8 revision;
+		u8 _rsv2[2];
+
+		struct mt7996_muru muru;
+	} __packed req = {
+		.tag = cpu_to_le16(UNI_CMD_MURU_MUNUAL_CONFIG),
+		.len = cpu_to_le16(sizeof(req) - 4),
+		.version = UNI_CMD_MURU_VER_EHT,
+	};
+
+	muru = (struct mt7996_muru *) data;
+	memcpy(&req.muru, muru, sizeof(struct mt7996_muru));
+
+	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(MURU), &req,
+				 sizeof(req), false);
+}
+
+int mt7996_set_muru_cfg(struct mt7996_phy *phy, u8 action, u8 val)
+{
+	struct mt7996_muru *muru;
+	struct mt7996_muru_dl *dl;
+	struct mt7996_muru_ul *ul;
+	struct mt7996_muru_comm *comm;
+	int ret = 0;
+
+	muru = kzalloc(sizeof(struct mt7996_muru), GFP_KERNEL);
+	dl = &muru->dl;
+	ul = &muru->ul;
+	comm = &muru->comm;
+
+	switch (action) {
+	case MU_CTRL_DL_USER_CNT:
+		dl->user_num = val;
+		comm->ppdu_format = MURU_PPDU_HE_MU;
+		comm->sch_type = MURU_OFDMA_SCH_TYPE_DL;
+		muru->cfg_comm = cpu_to_le32(MURU_COMM_SET);
+		muru->cfg_dl = cpu_to_le32(MURU_FIXED_DL_TOTAL_USER_CNT);
+		ret = mt7996_mcu_set_muru_cfg(phy, muru);
+		break;
+	case MU_CTRL_UL_USER_CNT:
+		ul->user_num = val;
+		comm->ppdu_format = MURU_PPDU_HE_TRIG;
+		comm->sch_type = MURU_OFDMA_SCH_TYPE_UL;
+		muru->cfg_comm = cpu_to_le32(MURU_COMM_SET);
+		muru->cfg_ul = cpu_to_le32(MURU_FIXED_UL_TOTAL_USER_CNT);
+		ret = mt7996_mcu_set_muru_cfg(phy, muru);
+		break;
+	default:
+		break;
+	}
+
+	kfree(muru);
+	return ret;
 }
