@@ -333,6 +333,7 @@ static int ieee80211_vif_update_links(struct ieee80211_sub_if_data *sdata,
 				      u16 new_links, u16 dormant_links)
 {
 	u16 old_links = sdata->vif.valid_links;
+	u16 old_active = sdata->vif.active_links;
 	unsigned long add = new_links & ~old_links;
 	unsigned long rem = old_links & ~new_links;
 	unsigned int link_id;
@@ -341,6 +342,8 @@ static int ieee80211_vif_update_links(struct ieee80211_sub_if_data *sdata,
 	struct ieee80211_bss_conf *old[IEEE80211_MLD_MAX_NUM_LINKS];
 	struct ieee80211_link_data *old_data[IEEE80211_MLD_MAX_NUM_LINKS];
 	bool use_deflink = old_links == 0; /* set for error case */
+	struct ieee80211_local *local = sdata->local;
+	bool driver_wants_active_links = !ieee80211_hw_check(&local->hw, WANTS_VALID_LINKS);
 
 	lockdep_assert_wiphy(sdata->local->hw.wiphy);
 
@@ -410,14 +413,23 @@ static int ieee80211_vif_update_links(struct ieee80211_sub_if_data *sdata,
 
 		ieee80211_set_vif_links_bitmaps(sdata, new_links, dormant_links);
 
-		/* FIXME
-		 * MLMR solution does link add/del when valid links change
-		 * and so we change to report old/new valid links to driver.
-		 * Also, TTLM is handled in other callbacks (not upstream yet).
-		 */
-		if (sdata->vif.type != NL80211_IFTYPE_AP_VLAN)
-			ret = drv_change_vif_links(sdata->local, sdata, old_links,
-						   new_links, old);
+		/* tell the driver */
+		if (sdata->vif.type != NL80211_IFTYPE_AP_VLAN) {
+			if (driver_wants_active_links) {
+				ret = drv_change_vif_links(sdata->local, sdata,
+							   old_links & old_active,
+							   new_links & sdata->vif.active_links,
+							   old);
+			} else {
+				/* FIXME
+				 * MLMR solution does link add/del when valid links change
+				 * and so we change to report old/new valid links to driver.
+				 * Also, TTLM is handled in other callbacks (not upstream yet).
+				 */
+				ret = drv_change_vif_links(sdata->local, sdata, old_links,
+							   new_links, old);
+			}
+		}
 		if (!new_links)
 			ieee80211_debugfs_recreate_netdev(sdata, false);
 
