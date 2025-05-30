@@ -504,8 +504,6 @@ mt7996_mac_fill_rx(struct mt7996_dev *dev, enum mt76_rxq_id q,
 	status->wcid = mt7996_rx_get_wcid(dev, idx, band_idx);
 
 	if (status->wcid) {
-		struct mt7996_sta_link *msta_link;
-
 		msta_link = container_of(status->wcid, struct mt7996_sta_link,
 					 wcid);
 		stats = &status->wcid->stats;
@@ -645,6 +643,13 @@ mt7996_mac_fill_rx(struct mt7996_dev *dev, enum mt76_rxq_id q,
 		status->chain_signal[2] = to_rssi(MT_PRXV_RCPI2, v3);
 		status->chain_signal[3] = to_rssi(MT_PRXV_RCPI3, v3);
 		nss = hweight8(mphy->antenna_mask);
+
+		if (msta_link) {
+			memcpy(msta_link->chain_signal, status->chain_signal,
+			       IEEE80211_MAX_CHAINS);
+			msta_link->signal = mt76_rx_signal(mphy->antenna_mask,
+							   msta_link->chain_signal);
+		}
 
 		/* RXD Group 5 - C-RXV */
 		if (rxd1 & MT_RXD1_NORMAL_GROUP_5) {
