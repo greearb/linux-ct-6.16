@@ -2923,6 +2923,9 @@ struct ieee80211_txq {
  *	but otherwise ignored/worked around for interoperability. This is a
  *	HW flag so drivers can opt in according to their own control, e.g. in
  *	testing.
+ * @IEEE80211_HW_WANTS_VALID_LINKS: Some drivers may want valid links added/removed,
+ *	and some may just want active links.  Setting this flag will cause mac80211
+ *	to pass valid links in vif_update_links logic.
  *
  * @NUM_IEEE80211_HW_FLAGS: number of hardware flags, used for sizing arrays
  */
@@ -2985,6 +2988,7 @@ enum ieee80211_hw_flags {
 	IEEE80211_HW_DISALLOW_PUNCTURING_5GHZ,
 	IEEE80211_HW_HANDLES_QUIET_CSA,
 	IEEE80211_HW_STRICT,
+	IEEE80211_HW_WANTS_VALID_LINKS,
 
 	/* keep last, obviously */
 	NUM_IEEE80211_HW_FLAGS

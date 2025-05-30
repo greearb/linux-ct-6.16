@@ -495,6 +495,7 @@ static const char *hw_flag_names[] = {
 	FLAG(DISALLOW_PUNCTURING_5GHZ),
 	FLAG(HANDLES_QUIET_CSA),
 	FLAG(STRICT),
+	FLAG(WANTS_VALID_LINKS),
 #undef FLAG
 };
 
