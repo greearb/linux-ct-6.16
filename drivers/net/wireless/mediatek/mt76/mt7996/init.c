@@ -1683,14 +1683,18 @@ int mt7996_register_device(struct mt7996_dev *dev)
 	if (ret)
 		return ret;
 
-	mt7996_for_each_phy(dev, phy)
-		mt7996_thermal_init(phy);
-
-	dev->recovery.hw_init_done = true;
-
-	ret = mt7996_init_debugfs(dev);
+	ret = mt7996_init_dev_debugfs(&dev->phy);
 	if (ret)
 		goto error;
+
+	mt7996_for_each_phy(dev, phy) {
+		mt7996_thermal_init(phy);
+		ret = mt7996_init_band_debugfs(phy);
+		if (ret)
+			goto error;
+	}
+
+	dev->recovery.hw_init_done = true;
 
 	if (mt7996_vow_should_enable(dev)) {
 		ret = mt7996_vow_init(&dev->phy);
