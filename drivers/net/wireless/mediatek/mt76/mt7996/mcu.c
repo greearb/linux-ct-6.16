@@ -2046,11 +2046,23 @@ static bool mt7996_check_limit_ampdu_en(struct ieee80211_ampdu_params *params) {
 	for_each_set_bit(link_id, &valid_links, IEEE80211_MLD_MAX_NUM_LINKS) {
 		struct ieee80211_link_sta __rcu *link =
 			link_sta_dereference_protected(sta, link_id);
-		struct mt7996_vif_link *mconf =
-			mt7996_vif_link(mvif->dev, vif, link_id);
-		struct mt76_phy *phy = mconf->phy->mt76;
+		struct mt7996_vif_link *mconf;
+		struct mt76_phy *phy;
 		struct ieee80211_eht_mcs_nss_supp_bw *ss = NULL;
 		u8 sta_bw, ap_nss, sta_nss;
+
+		if (!link) {
+			pr_err("check-limit-ampdu-en, link is NULL. link_id: %d\n",
+				link_id);
+			continue;
+		}
+		mconf =	mt7996_vif_link(mvif->dev, vif, link_id);
+		if (!mconf) {
+			pr_err("check-limit-ampdu-en, mconf is NULL, link_id: %d\n",
+				link_id);
+			continue;
+		}
+		phy = mconf->phy->mt76;
 
 		switch (phy->chandef.width) {
 		case NL80211_CHAN_WIDTH_160:
