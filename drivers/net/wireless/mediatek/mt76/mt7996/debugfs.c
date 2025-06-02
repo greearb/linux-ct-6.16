@@ -609,7 +609,7 @@ void mt7996_packet_log_to_host(struct mt7996_dev *dev, const void *data, int len
 	char *buf;
 
 	if (len > 1500 - sizeof(*hdr))
-	len = 1500 - sizeof(*hdr);
+		len = 1500 - sizeof(*hdr);
 
 	buf = kzalloc(sizeof(*hdr) + len, GFP_KERNEL);
 	if (!buf)
@@ -755,8 +755,8 @@ mt7996_tx_stats_show_phy(struct seq_file *file, struct mt7996_phy *phy)
 static int
 mt7996_tx_stats_show(struct seq_file *file, void *data)
 {
-	struct mt7996_dev *dev = file->private;
-	struct mt7996_phy *phy = &dev->phy;
+	struct mt7996_phy *phy = file->private;
+	struct mt7996_dev *dev = phy->dev;
 
 	mutex_lock(&dev->mt76.mutex);
 
@@ -1274,8 +1274,8 @@ mt7996_sta_hw_queue_read(void *data, struct ieee80211_sta *sta)
 static int
 mt7996_hw_queues_show(struct seq_file *file, void *data)
 {
-	struct mt7996_dev *dev = file->private;
-	struct mt7996_phy *phy = &dev->phy;
+	struct mt7996_phy *phy = file->private;
+	struct mt7996_dev *dev = phy->dev;
 	static const struct hw_queue_map ple_queue_map[] = {
 		{ "CPU_Q0",  0,  1, MT_CTX0	      },
 		{ "CPU_Q1",  1,  1, MT_CTX0 + 1	      },
@@ -1353,8 +1353,8 @@ DEFINE_SHOW_ATTRIBUTE(mt7996_hw_queues);
 static int
 mt7996_xmit_queues_show(struct seq_file *file, void *data)
 {
-	struct mt7996_dev *dev = file->private;
-	struct mt7996_phy *phy;
+	struct mt7996_phy *phy = file->private;
+	struct mt7996_dev *dev = phy->dev;
 	struct {
 		struct mt76_queue *q;
 		char *queue;
@@ -2249,24 +2249,30 @@ static int mt7996_pp_alg_show(struct seq_file *s, void *data)
 }
 DEFINE_SHOW_ATTRIBUTE(mt7996_pp_alg);
 
-int mt7996_init_debugfs(struct mt7996_dev *dev)
+int mt7996_init_band_debugfs(struct mt7996_phy *phy)
 {
+	struct mt7996_dev *dev = phy->dev;
 	struct dentry *dir;
-	struct mt7996_phy *phy = &dev->phy;
+	char dir_name[10];
 
-	dir = mt76_register_debugfs_fops(&dev->mphy, NULL);
+	if (!dev->debugfs_dir)
+		return -EINVAL;
+
+	snprintf(dir_name, sizeof(dir_name), "band%d", phy->mt76->band_idx);
+
+	dir = debugfs_create_dir(dir_name, dev->debugfs_dir);
 	if (!dir)
 		return -ENOMEM;
 
-	debugfs_create_file("hw-queues", 0400, dir, dev,
+	debugfs_create_file("hw-queues", 0400, dir, phy,
 			    &mt7996_hw_queues_fops);
-	debugfs_create_file("xmit-queues", 0400, dir, dev,
+	debugfs_create_file("xmit-queues", 0400, dir, phy,
 			    &mt7996_xmit_queues_fops);
-	debugfs_create_file("tx_stats", 0400, dir, dev, &mt7996_tx_stats_fops);
-	debugfs_create_file("phy_info", 0400, dir, dev, &mt7996_phy_info_fops);
+	debugfs_create_file("phy_info", 0400, dir, phy, &mt7996_phy_info_fops);
 	debugfs_create_file("sys_recovery", 0600, dir, phy,
 			    &mt7996_sys_recovery_ops);
 	debugfs_create_file("atf_enable", 0600, dir, phy, &fops_atf_enable);
+	debugfs_create_file("tx_stats", 0400, dir, phy, &mt7996_tx_stats_fops);
 	debugfs_create_file("red", 0200, dir, dev, &fops_red_config);
 	debugfs_create_file("vow_drr_dbg", 0200, dir, dev, &fops_vow_drr_dbg);
 	debugfs_create_file("muru_prot_thr", 0200, dir, dev, &fops_muru_prot_thr);
@@ -2275,6 +2281,30 @@ int mt7996_init_debugfs(struct mt7996_dev *dev)
 	debugfs_create_file("muru_fixed_group_rate", 0600, dir, dev,
 			    &fops_muru_fixed_group_rate);
 	debugfs_create_file("muru_dbg", 0200, dir, dev, &fops_muru_dbg_info);
+	if (phy->mt76->cap.has_5ghz) {
+		debugfs_create_u32("dfs_hw_pattern", 0400, dir,
+				   &dev->hw_pattern);
+		debugfs_create_file("radar_trigger", 0200, dir, dev,
+				    &fops_radar_trigger);
+		debugfs_create_devm_seqfile(dev->mt76.dev, "rdd_monitor", dir,
+					    mt7996_rdd_monitor);
+	}
+
+#ifdef CONFIG_MTK_DEBUG
+	mt7996_mtk_init_band_debugfs(phy, dir);
+	mt7996_mtk_init_band_debugfs_internal(phy, dir);
+#endif
+	return 0;
+}
+
+int mt7996_init_dev_debugfs(struct mt7996_phy *phy)
+{
+	struct mt7996_dev *dev = phy->dev;
+	struct dentry *dir;
+
+	dir = mt76_register_debugfs_fops(phy->mt76, NULL);
+	if (!dir)
+		return -ENOMEM;
 	debugfs_create_file("fw_debug_wm", 0600, dir, dev, &fops_fw_debug_wm);
 	debugfs_create_file("fw_debug_wa", 0600, dir, dev, &fops_fw_debug_wa);
 	debugfs_create_file("fw_debug_bin", 0600, dir, dev, &fops_fw_debug_bin);
@@ -2332,7 +2362,12 @@ int mt7996_init_debugfs(struct mt7996_dev *dev)
 	debugfs_create_devm_seqfile(dev->mt76.dev, "rdd_monitor", dir,
 				    mt7996_rdd_monitor);
 
-	dev->debugfs_dir = dir;
+	if (phy == &dev->phy) {
+		dev->debugfs_dir = dir;
+#ifdef CONFIG_MTK_DEBUG
+		mt7996_mtk_init_dev_debugfs_internal(phy, dir);
+#endif
+	}
 
 	return 0;
 }
