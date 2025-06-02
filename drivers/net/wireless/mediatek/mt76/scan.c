@@ -44,6 +44,7 @@ mt76_scan_send_probe(struct mt76_dev *dev, struct cfg80211_ssid *ssid)
 	struct mt76_phy *phy = dev->scan.phy;
 	struct ieee80211_tx_info *info;
 	struct sk_buff *skb;
+	struct ieee80211_hdr *hdr;
 
 	if (WARN_ON_ONCE((unsigned long)(mvif) < 4000)) {
 		pr_err("scan-send-probe: mvif: %p\n", mvif);
@@ -59,9 +60,8 @@ mt76_scan_send_probe(struct mt76_dev *dev, struct cfg80211_ssid *ssid)
 	if (!skb)
 		return;
 
+	hdr = (struct ieee80211_hdr *)skb->data;
 	if (is_unicast_ether_addr(req->bssid)) {
-		struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
-
 		ether_addr_copy(hdr->addr1, req->bssid);
 		ether_addr_copy(hdr->addr3, req->bssid);
 	}
@@ -83,6 +83,9 @@ mt76_scan_send_probe(struct mt76_dev *dev, struct cfg80211_ssid *ssid)
 	if (req->no_cck)
 		info->flags |= IEEE80211_TX_CTL_NO_CCK_RATE;
 	info->control.flags |= IEEE80211_TX_CTRL_DONT_USE_RATE_MASK;
+
+	mt76_dbg(dev, MT76_DBG_CHAN, "%s: scan probe req, vif->addr: %pM  addr1: %pM addr2: %pM  addr3: %pM\n",
+		 __func__, vif->addr, hdr->addr1, hdr->addr2, hdr->addr3);
 
 	mt76_tx(phy, NULL, mvif->wcid, skb);
 
@@ -184,13 +187,20 @@ int mt76_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		mlink = mt76_vif_link(dev, vif, 0);
 
 		if (mlink && mlink->band_idx != phy->band_idx) {
+			mt76_dbg(dev, MT76_DBG_CHAN, "%s: non-mld: remove mlink to change to band: %d\n",
+				 __func__, phy->band_idx);
 			dev->drv->vif_link_remove(phy, vif, NULL, mlink);
 			mlink = NULL;
+		} else {
+			mt76_dbg(dev, MT76_DBG_CHAN, "%s: non-mld: use existing mlink for band: %d\n",
+				 __func__, phy->band_idx);
 		}
 
 		if (!mlink) {
 			mlink = (struct mt76_vif_link *)vif->drv_priv;
 			ret = dev->drv->vif_link_add(phy, vif, &vif->bss_conf, NULL);
+			mt76_dbg(dev, MT76_DBG_CHAN, "%s: non-mld: add mlink on band: %d, ret: %d\n",
+				 __func__, phy->band_idx, ret);
 			if (ret)
 				goto out;
 		}
@@ -217,6 +227,8 @@ int mt76_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 				mlink = (struct mt76_vif_link *)vif->drv_priv;
 				memcpy(&vif->bss_conf, link_conf, sizeof(struct ieee80211_bss_conf));
 				ret = dev->drv->vif_link_add(phy, vif, &vif->bss_conf, NULL);
+				mt76_dbg(dev, MT76_DBG_CHAN, "%s: mld: added default link for scanning, ret: %d\n",
+					 __func__, ret);
 				if (ret)
 					goto out;
 				found = true;
@@ -252,6 +264,8 @@ int mt76_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			vif->bss_conf.link_id = link_id;
 			mlink = (struct mt76_vif_link *)vif->drv_priv;
 			ret = dev->drv->vif_link_add(phy, vif, &vif->bss_conf, NULL);
+			mt76_dbg(dev, MT76_DBG_CHAN, "%s: mld: added link for scanning, ret: %d\n",
+				 __func__, ret);
 			if (ret)
 				goto out;
 		}
@@ -263,6 +277,9 @@ int mt76_hw_scan(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	dev->scan.phy = phy;
 	dev->scan.mlink = mlink;
 	set_bit(MT76_SCANNING, &phy->state);
+
+	mt76_dbg(dev, MT76_DBG_CHAN, "%s: queing scan, mlink idx: %d  link_idx: %d  omac_idx: %d  wmm_idx: %d offchannel: %d\n",
+		 __func__, mlink->idx, mlink->link_idx, mlink->omac_idx, mlink->band_idx, mlink->wmm_idx);
 	ieee80211_queue_delayed_work(dev->phy.hw, &dev->scan_work, 0);
 
 out:
