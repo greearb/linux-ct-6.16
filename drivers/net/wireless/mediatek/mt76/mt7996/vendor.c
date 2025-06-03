@@ -134,6 +134,12 @@ csi_ctrl_policy[NUM_MTK_VENDOR_ATTRS_CSI_CTRL] = {
 	[MTK_VENDOR_ATTR_CSI_CTRL_DATA] = { .type = NLA_NESTED },
 };
 
+static const struct nla_policy
+dfs_tx_ctrl_policy[NUM_MTK_VENDOR_ATTRS_DFS_TX_CTRL] = {
+	[MTK_VENDOR_ATTR_DFS_TX_CTRL_MODE] = {.type = NLA_U8 },
+	[MTK_VENDOR_ATTR_DFS_TX_CTRL_RADIO_IDX] = {.type = NLA_U8 },
+};
+
 struct mt7996_amnt_data {
 	u8 idx;
 	u8 addr[ETH_ALEN];
@@ -1261,6 +1267,41 @@ out:
 	return err;
 }
 
+static int mt7996_vendor_dfs_tx_mode_ctrl(struct wiphy *wiphy,
+					  struct wireless_dev *wdev,
+					  const void *data,
+					  int data_len)
+{
+	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
+	struct mt7996_dev *dev = mt7996_hw_dev(hw);
+	struct mt7996_phy *phy;
+	struct nlattr *tb[NUM_MTK_VENDOR_ATTRS_DFS_TX_CTRL];
+	u8 radio_idx, dfs_tx_mode;
+	int err, rdd_idx;
+
+	if (!tb[MTK_VENDOR_ATTR_DFS_TX_CTRL_MODE] ||
+	    !tb[MTK_VENDOR_ATTR_DFS_TX_CTRL_RADIO_IDX])
+		return -EINVAL;
+
+	err = nla_parse(tb, MTK_VENDOR_ATTR_DFS_TX_CTRL_MAX, data, data_len,
+			dfs_tx_ctrl_policy, NULL);
+	if (err)
+		return err;
+
+	radio_idx = nla_get_u8(tb[MTK_VENDOR_ATTR_DFS_TX_CTRL_RADIO_IDX]);
+	if (!mt7996_radio_valid(dev, radio_idx))
+		return -EINVAL;
+
+	phy = dev->radio_phy[radio_idx];
+	rdd_idx = mt7996_get_rdd_idx(phy, false);
+	if (rdd_idx < 0)
+		return -EINVAL;
+
+	dfs_tx_mode = nla_get_u8(tb[MTK_VENDOR_ATTR_DFS_TX_CTRL_MODE]);
+
+	return mt7996_mcu_rdd_cmd(dev, RDD_DET_MODE, rdd_idx, dfs_tx_mode);
+}
+
 static const struct wiphy_vendor_command mt7996_vendor_commands[] = {
 	{
 		.info = {
@@ -1399,6 +1440,17 @@ static const struct wiphy_vendor_command mt7996_vendor_commands[] = {
 		.dumpit = mt7996_vendor_csi_ctrl_dump,
 		.policy = csi_ctrl_policy,
 		.maxattr = MTK_VENDOR_ATTR_CSI_CTRL_MAX,
+	},
+	{
+		.info = {
+			.vendor_id = MTK_NL80211_VENDOR_ID,
+			.subcmd = MTK_NL80211_VENDOR_SUBCMD_DFS_TX_CTRL,
+		},
+		.flags = WIPHY_VENDOR_CMD_NEED_NETDEV |
+			WIPHY_VENDOR_CMD_NEED_RUNNING,
+		.doit = mt7996_vendor_dfs_tx_mode_ctrl,
+		.policy = dfs_tx_ctrl_policy,
+		.maxattr = MTK_VENDOR_ATTR_DFS_TX_CTRL_MAX,
 	},
 };
 
