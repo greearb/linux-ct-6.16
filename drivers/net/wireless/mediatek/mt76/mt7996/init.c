@@ -522,8 +522,8 @@ mt7996_init_wiphy(struct ieee80211_hw *hw, struct mtk_wed_device *wed)
 	if (is_mt7990(mdev) && dev->has_eht)
 		hw->max_tx_aggregation_subframes = 512;
 
-	hw->netdev_features = NETIF_F_RXCSUM | NETIF_F_HW_CSUM;
-	//hw->netdev_features = NETIF_F_RXCSUM;
+	//hw->netdev_features = NETIF_F_RXCSUM | NETIF_F_HW_CSUM;
+	hw->netdev_features = NETIF_F_RXCSUM;
 
 	if (mtk_wed_device_active(wed))
 		hw->netdev_features |= NETIF_F_HW_TC;
