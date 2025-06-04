@@ -1446,6 +1446,27 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
 	t->wcid = wcid->idx;
 
 	id = mt76_token_consume(mdev, &t, mconf->mt76.band_idx);
+
+	if (id == -EBUSY && sta && sta->mlo) {
+		struct ieee80211_link_sta *link_sta;
+		struct mt7996_vif_link *mconf_temp;
+		unsigned int link_id_temp;
+
+		/* For MLO station, try to get token from affiliated link */
+		for_each_sta_active_link(vif, sta, link_sta, link_id_temp) {
+			mconf_temp = (struct mt7996_vif_link *)
+				     rcu_dereference(mvif->mt76.link[link_id_temp]);
+
+			if (!mconf_temp)
+				continue;
+
+			id = mt76_token_consume(mdev, &t, mconf_temp->mt76.band_idx);
+			if (id >= 0)
+				break;
+		}
+	}
+
+
 	if (id < 0) {
 		mtk_dbg(&dev->mt76, TXV, "mt7996-tx-prepare-skb, token_consume error: %d\n",
 			id);

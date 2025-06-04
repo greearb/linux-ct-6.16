@@ -941,7 +941,7 @@ EXPORT_SYMBOL_GPL(__mt76_set_tx_blocked);
 int mt76_token_consume(struct mt76_dev *dev, struct mt76_txwi_cache **ptxwi,
 		       u8 phy_idx)
 {
-	int token = -EINVAL;
+	int token = -EBUSY;
 	struct mt76_phy *phy = mt76_dev_phy(dev, phy_idx);
 
 	spin_lock_bh(&dev->token_lock);
