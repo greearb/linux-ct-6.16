@@ -1818,9 +1818,9 @@ mt7996_mcu_bss_basic_tlv(struct mt7996_dev *dev,
 	memcpy(bss->bssid, link_conf->bssid, ETH_ALEN);
 
 	mt76_dbg(phy->dev, MT76_DBG_BSS,
-		 "%s: band=%d, omac=%d, wmm_idx=%d, bssid=%pM, link=%d, en=%d\n",
+		 "%s: band=%d, omac=%d, wmm_idx=%d, bssid=%pM, link=%d, en=%d sta_wlan_idx: %d\n",
 		 __func__, bss->band_idx, bss->omac_idx,
-		 bss->wmm_idx, bss->bssid, link_conf->link_id, enable);
+		 bss->wmm_idx, bss->bssid, link_conf->link_id, enable, sta_wlan_idx);
 
 	bss->bcn_interval = cpu_to_le16(link_conf->beacon_int);
 	bss->dtim_period = link_conf->dtim_period;
@@ -3352,20 +3352,28 @@ mt7996_mcu_sta_mld_setup_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
 	vif = container_of((void *)msta->vif, struct ieee80211_vif, drv_priv);
 	mld_setup_link = (struct mld_setup_link *)mld_setup->link_info;
 	mt76_dbg(&dev->mt76, MT76_DBG_STA,
-		 "%s: STA %pM pri_link=%u, pri_wcid=%u, sec_link=%u, sec_wcid=%u\n",
+		 "%s: STA %pM pri_link=%u, pri_wcid=%u, sec_link=%u, sec_wcid=%u valid_links: 0x%lx\n",
 		 __func__, sta->addr, msta->deflink_id,
 		 le16_to_cpu(mld_setup->primary_id),
-		 msta->sec_link, le16_to_cpu(mld_setup->seconed_id));
+		 msta->sec_link, le16_to_cpu(mld_setup->seconed_id), links);
 	for_each_set_bit(link_id, &links, IEEE80211_MLD_MAX_NUM_LINKS) {
 		struct mt7996_vif_link *link;
 
 		msta_link = mt76_dereference(msta->link[link_id], &dev->mt76);
-		if (!msta_link)
+		if (!msta_link) {
+			mt76_dbg(&dev->mt76, MT76_DBG_STA,
+				 "%s: WARNING: STA %pM could not find msta_link for link_id: %d.\n",
+				 __func__, sta->addr, link_id);
 			continue;
+		}
 
 		link = mt7996_vif_link(dev, vif, link_id);
-		if (!link)
+		if (!link) {
+			mt76_dbg(&dev->mt76, MT76_DBG_STA,
+				 "%s: WARNING: STA %pM could not find msta_link for link_id: %d.\n",
+				 __func__, sta->addr, link_id);
 			continue;
+		}
 
 		mld_setup_link->wcid = cpu_to_le16(msta_link->wcid.idx);
 		mld_setup_link->bss_idx = link->mt76.idx;

@@ -295,6 +295,10 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	int idx, ret;
 	u8 link_id = link_conf->link_id;
 
+	mt76_dbg(&dev->mt76, MT76_DBG_BSS,
+		 "%s:  vif_link_add called, link_id: %d.\n",
+		 __func__, link_id);
+
 	if (rcu_access_pointer(mvif->mt76.link[link_id]))
 		return 0;
 
@@ -436,9 +440,9 @@ void mt7996_vif_link_remove(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 
 	dev = phy->dev;
 
-	//mt76_dbg(&dev->mt76, MT76_DBG_BSS,
-	//	 "%s: band=%u, bss_idx=%u, link_id=%u, wcid=%u\n",
-	//	 __func__, phy->mt76->band_idx, mlink->idx, link_id, idx);
+	mt76_dbg(&dev->mt76, MT76_DBG_BSS,
+		 "%s: band=%u, bss_idx=%u, link_id=%u, wcid=%u\n",
+		 __func__, phy->mt76->band_idx, mlink->idx, link_id, idx);
 
 	cancel_delayed_work(&link->sta_chsw_work);
 
@@ -1396,7 +1400,7 @@ mt7996_mac_sta_add_links(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 	int i, ret;
 
 	mt76_dbg(&dev->mt76, MT76_DBG_STA,
-		 "%s: added_links=0x%lx, assoc=%d\n", __func__, add, assoc);
+		 "%s: add_links=0x%lx, assoc=%d\n", __func__, add, assoc);
 	for_each_set_bit(link_id, &add, IEEE80211_MLD_MAX_NUM_LINKS) {
 		struct mt7996_vif_link *mconf =
 			mt7996_vif_link(dev, vif, link_id);
@@ -1405,8 +1409,12 @@ mt7996_mac_sta_add_links(struct mt7996_dev *dev, struct ieee80211_vif *vif,
 		struct ieee80211_link_sta *link_sta =
 			link_sta_dereference_protected(sta, link_id);
 
-		if (!mconf || !conf || !link_sta)
+		if (!mconf || !conf || !link_sta) {
+			mt76_dbg(&dev->mt76, MT76_DBG_STA,
+				 "%s: WARNING: STA %pM link_id: %d could not find one of: mconf: %p conf: %p link_sta: %p.\n",
+				 __func__, sta->addr, link_id, mconf, conf, link_sta);
 			continue;
+		}
 
 		ret = mt7996_mac_sta_init_link(dev, conf, link_sta, mconf, assoc);
 		if (ret)
