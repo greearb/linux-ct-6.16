@@ -1285,7 +1285,8 @@ mt7996_mac_sta_init_link(struct mt7996_dev *dev,
 	if (ret)
 		goto error;
 
-	ret = mt7996_mcu_add_rate_ctrl(dev, link_conf->vif, link_conf, link_sta, link, msta_link, false);
+	ret = mt7996_mcu_add_rate_ctrl(dev, link_conf->vif, link_conf, link_sta, link, msta_link,
+				       link_id, false);
 	if (ret)
 		goto error;
 
