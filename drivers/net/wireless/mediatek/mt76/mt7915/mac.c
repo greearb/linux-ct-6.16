@@ -1667,7 +1667,7 @@ mt7915_mac_full_reset(struct mt7915_dev *dev)
 	spin_unlock_bh(&dev->mt76.sta_poll_lock);
 
 	memset(dev->mt76.wcid_mask, 0, sizeof(dev->mt76.wcid_mask));
-	dev->mt76.vif_mask = 0;
+	dev->mt76.vif_mask[0] = 0;
 	dev->phy.omac_mask = 0;
 	if (phy2)
 		phy2->omac_mask = 0;

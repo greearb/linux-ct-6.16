@@ -385,7 +385,7 @@ static int mt7925_mac_link_bss_add(struct mt792x_dev *dev,
 	if (vif->type == NL80211_IFTYPE_P2P_DEVICE) {
 		mconf->mt76.idx = MT792x_MAX_INTERFACES;
 	} else {
-		mconf->mt76.idx = __ffs64(~dev->mt76.vif_mask);
+		mconf->mt76.idx = __ffs64(~dev->mt76.vif_mask[0]);
 
 		if (mconf->mt76.idx >= MT792x_MAX_INTERFACES) {
 			ret = -ENOSPC;
@@ -405,7 +405,7 @@ static int mt7925_mac_link_bss_add(struct mt792x_dev *dev,
 	else
 		mconf->mt76.basic_rates_idx = MT792x_BASIC_RATES_TBL;
 
-	dev->mt76.vif_mask |= BIT_ULL(mconf->mt76.idx);
+	dev->mt76.vif_mask[0] |= BIT_ULL(mconf->mt76.idx);
 	mvif->phy->omac_mask |= BIT_ULL(mconf->mt76.omac_idx);
 
 	idx = MT792x_WTBL_RESERVED - mconf->mt76.idx;
