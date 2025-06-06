@@ -872,6 +872,12 @@ struct mt7996_dev {
 		void *txbf_pfmu_data;
 		void *txbf_pfmu_tag;
 	} test;
+
+	/* Enables use of the REPEATER_BSSID range station omac_idx. This allows us to use up to
+	 * 31 stations (+ 1 AP), rather than the standard 19 (15 ext + 4 hw) stations. However,
+	 * this is experimental and currently requires an active AP interface to enable scanning.
+	 */
+	bool sta_omac_repeater_bssid_enable;
 };
 
 enum {
