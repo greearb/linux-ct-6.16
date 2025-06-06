@@ -3046,6 +3046,14 @@ void mt7996_mac_update_stats(struct mt7996_phy *phy)
 	}
 }
 
+void mt7996_set_wireless_amsdu(struct ieee80211_hw *hw, u8 en)
+{
+	if (en)
+		ieee80211_hw_set(hw, SUPPORTS_AMSDU_IN_AMPDU);
+	else
+		ieee80211_hw_clear(hw, SUPPORTS_AMSDU_IN_AMPDU);
+}
+
 void mt7996_mac_sta_rc_work(struct work_struct *work)
 {
 	struct mt7996_dev *dev = container_of(work, struct mt7996_dev, rc_work);
