@@ -1546,7 +1546,11 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
 	if (!is_8023 && mt7996_tx_use_mgmt(dev, tx_info->skb))
 		txp->fw.flags |= cpu_to_le16(MT_CT_INFO_MGMT_FRAME);
 
-	txp->fw.bss_idx = mconf->mt76.idx; // TODO:  Another place for bssid to be mis-configured?
+	if (mconf->mt76.bss_idx)
+		txp->fw.bss_idx = mconf->mt76.bss_idx - 1;
+	else
+		txp->fw.bss_idx = mconf->mt76.idx;
+
 	txp->fw.token = cpu_to_le16(id);
 	txp->fw.rept_wds_wcid = cpu_to_le16(sta ? wcid->idx : 0xfff);
 
