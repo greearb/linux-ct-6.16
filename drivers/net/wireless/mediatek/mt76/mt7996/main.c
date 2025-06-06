@@ -329,14 +329,17 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 		goto error;
 	}
 
-	/* bss idx & omac idx should be set to band idx for ibf cal */
-	if (dev->mt76.vif_mask[0] & BIT_ULL(band_idx) ||
-	    phy->omac_mask & BIT_ULL(band_idx)) {
-		ret = -ENOSPC;
-		goto error;
-	}
-	mlink->idx = band_idx;
-	idx = band_idx;
+	/* Below code seems to be testmode only, re-enable when we bring that patch in */
+	///* bss idx & omac idx should be set to band idx for ibf cal */
+	//if (dev->mt76.vif_mask[0] & BIT_ULL(band_idx) ||
+	//    (dev->mt76.vif_mask[1] & BIT_ULL(band_idx-64)) ||
+	//    phy->omac_mask & BIT_ULL(band_idx)) {
+	//	ret = -ENOSPC;
+	//	goto error;
+	//}
+	//mlink->idx = band_idx;
+	//idx = band_idx;
+
 
 	link->phy = phy;
 	mlink->omac_idx = idx;
