@@ -833,11 +833,21 @@ static int
 mt7996_mcu_update_trx_rates(struct mt76_wcid *wcid, struct all_sta_trx_rate *mcu_rate)
 {
 	struct mt7996_sta_link *msta_link = container_of(wcid, struct mt7996_sta_link, wcid);
-	struct mt76_dev *dev = &msta_link->sta->vif->dev->mt76;
-	struct mt76_phy *phy = mt76_dev_phy(dev, wcid->phy_idx);
+	struct mt76_dev *dev;
+	struct mt76_phy *phy;
+	struct mt7996_dev *dev_96;
 	struct ieee80211_supported_band *sband = NULL;
 	bool cck;
 	int ret;
+
+	if (!msta_link->sta ||
+	    !msta_link->sta->vif ||
+	    !msta_link->sta->vif->dev)
+		return 0;
+
+	dev_96 = msta_link->sta->vif->dev;
+	dev = &dev_96->mt76;
+	phy = mt76_dev_phy(dev, wcid->phy_idx);
 
 	/* TX rate */
 	cck = false;
