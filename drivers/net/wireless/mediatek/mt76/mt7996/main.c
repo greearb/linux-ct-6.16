@@ -662,7 +662,7 @@ static void mt7996_remove_interface(struct ieee80211_hw *hw,
 	if (!mconf || !conf)
 		goto out;
 
-	mt7996_vif_link_remove(mconf->phy->mt76, vif, NULL, &mconf->mt76);
+	mt7996_vif_link_remove(mconf->phy->mt76, vif, conf, &mconf->mt76);
 
 out:
 	mutex_unlock(&dev->mt76.mutex);
