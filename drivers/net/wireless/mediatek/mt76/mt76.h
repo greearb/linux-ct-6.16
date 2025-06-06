@@ -1048,7 +1048,7 @@ struct mt76_dev {
 
 	u32 wcid_mask[DIV_ROUND_UP(MT76_N_WCIDS, 32)];
 
-	u64 vif_mask;
+	u64 vif_mask[2];
 
 	struct mt76_wcid global_wcid;
 	struct mt76_wcid __rcu *wcid[MT76_N_WCIDS];
@@ -1508,7 +1508,7 @@ static inline int mt76_wed_dma_setup(struct mt76_dev *dev, struct mt76_queue *q,
 
 static inline int mt76_vif_count(struct mt76_dev *dev)
 {
-	return hweight_long(dev->vif_mask);
+	return hweight_long(dev->vif_mask[0]) + hweight_long(dev->vif_mask[1]);
 }
 
 #define mt76xx_chip(dev) mt76_chip(&((dev)->mt76))

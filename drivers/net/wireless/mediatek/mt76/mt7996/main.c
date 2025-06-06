@@ -313,7 +313,11 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	mlink = &link->mt76;
 	msta_link = &link->msta_link;
 
-	mlink->idx = __ffs64(~dev->mt76.vif_mask);
+	if (dev->mt76.vif_mask[0] == 0xffffffffffffffff)
+		mlink->idx = __ffs64(~dev->mt76.vif_mask[1]) + 64;
+	else
+		mlink->idx = __ffs64(~dev->mt76.vif_mask[0]);
+
 	if (mlink->idx >= mt7996_max_interface_num(dev)) {
 		ret = -ENOSPC;
 		goto error;
@@ -326,7 +330,7 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	}
 
 	/* bss idx & omac idx should be set to band idx for ibf cal */
-	if (dev->mt76.vif_mask & BIT_ULL(band_idx) ||
+	if (dev->mt76.vif_mask[0] & BIT_ULL(band_idx) ||
 	    phy->omac_mask & BIT_ULL(band_idx)) {
 		ret = -ENOSPC;
 		goto error;
@@ -352,7 +356,11 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	if (ret)
 		goto error;
 
-	dev->mt76.vif_mask |= BIT_ULL(mlink->idx);
+	if (mlink->idx > 63)
+		dev->mt76.vif_mask[1] |= BIT_ULL(mlink->idx - 64);
+	else
+		dev->mt76.vif_mask[0] |= BIT_ULL(mlink->idx);
+
 	phy->omac_mask |= BIT_ULL(mlink->omac_idx);
 
 	idx = MT7996_WTBL_RESERVED - mlink->idx;
@@ -461,7 +469,11 @@ void mt7996_vif_link_remove(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 		link->mbssid_idx = 0;
 	}
 
-	dev->mt76.vif_mask &= ~BIT_ULL(mlink->idx);
+	if (mlink->idx > 63)
+		dev->mt76.vif_mask[1] &= ~BIT_ULL(mlink->idx - 64);
+	else
+		dev->mt76.vif_mask[0] &= ~BIT_ULL(mlink->idx);
+
 	phy->omac_mask &= ~BIT_ULL(mlink->omac_idx);
 
 	mvif->mt76.valid_links &= ~BIT(link_id);
