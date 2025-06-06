@@ -180,9 +180,11 @@ static inline int get_free_idx(u64 mask, u8 start, u8 end)
 	return 0;
 }
 
-static int get_omac_idx(enum nl80211_iftype type, u64 mask)
+static int get_omac_idx(enum nl80211_iftype type, struct mt7996_phy *phy)
 {
 	int i;
+	struct mt7996_dev *dev = phy->dev;
+	u64 mask = phy->omac_mask;
 
 	switch (type) {
 	case NL80211_IFTYPE_MESH_POINT:
@@ -195,6 +197,12 @@ static int get_omac_idx(enum nl80211_iftype type, u64 mask)
 
 		if (type != NL80211_IFTYPE_STATION)
 			break;
+
+		if (dev->sta_omac_repeater_bssid_enable) {
+			i = get_free_idx(mask, REPEATER_BSSID_START, REPEATER_BSSID_MAX);
+			if (i)
+				return i - 1;
+		}
 
 		i = get_free_idx(mask, EXT_BSSID_1, EXT_BSSID_MAX);
 		if (i)
@@ -326,7 +334,7 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	if (phy->omac_mask == 0xFFFFFFFF)
 		phy->omac_mask = 0;
 
-	idx = get_omac_idx(vif->type, phy->omac_mask);
+	idx = get_omac_idx(vif->type, phy);
 	if (idx < 0) {
 		ret = -ENOSPC;
 		goto error;
@@ -354,6 +362,19 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	mlink->band_idx = band_idx;
 	mlink->wmm_idx = vif->type == NL80211_IFTYPE_AP ? 0 : 3;
 	mlink->wcid = &msta_link->wcid;
+
+	if (dev->sta_omac_repeater_bssid_enable) {
+		if (idx >= REPEATER_BSSID_START && band_idx == 0)
+			mlink->bss_idx = 0;
+		else if (idx >= REPEATER_BSSID_START && band_idx == 1)
+			mlink->bss_idx = 1;
+		else if (idx >= REPEATER_BSSID_START && band_idx == 2)
+			mlink->bss_idx = 2;
+		else
+			mlink->bss_idx = mlink->idx + 3;
+
+		mlink->bss_idx += 1;
+	}
 
 	ret = mt7996_mcu_add_dev_info(phy, vif, link_conf, mlink, true);
 	if (ret)
@@ -700,8 +721,7 @@ int mt7996_set_channel(struct mt76_phy *mphy)
 			ret = mt7996_mcu_set_pp_en(phy, PP_USR_MODE,
 						   mphy->main_chandef.punctured);
 		} else if (mphy->chanctx->has_sta) {
-			u8 omac_idx = get_omac_idx(NL80211_IFTYPE_STATION,
-				      phy->omac_mask);
+			u8 omac_idx = get_omac_idx(NL80211_IFTYPE_STATION, phy);
 			ret = mt7996_mcu_set_pp_sta_dscb(phy, &mphy->main_chandef,
 							 omac_idx);
 		}
