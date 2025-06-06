@@ -323,6 +323,9 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 		goto error;
 	}
 
+	if (phy->omac_mask == 0xFFFFFFFF)
+		phy->omac_mask = 0;
+
 	idx = get_omac_idx(vif->type, phy->omac_mask);
 	if (idx < 0) {
 		ret = -ENOSPC;
@@ -340,16 +343,13 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	//mlink->idx = band_idx;
 	//idx = band_idx;
 
-
-	link->phy = phy;
-	mlink->omac_idx = idx;
-
-	idx = get_own_mld_idx(dev->mld_id_mask, false);
-	if (idx < 0) {
+	link->own_mld_id = get_own_mld_idx(dev->mld_id_mask, false);
+	if (link->own_mld_id < 0) {
 		ret = -ENOSPC;
 		goto error;
 	}
-	link->own_mld_id = idx;
+	link->phy = phy;
+	mlink->omac_idx = idx;
 
 	mlink->band_idx = band_idx;
 	mlink->wmm_idx = vif->type == NL80211_IFTYPE_AP ? 0 : 3;
