@@ -221,7 +221,7 @@ mt7996_tm_init(struct mt7996_phy *phy, bool en)
 	phy->mt76->test.flag |= MT_TM_FW_RX_COUNT;
 }
 
-static void
+void
 mt7996_tm_update_channel(struct mt7996_phy *phy)
 {
 #define CHAN_FREQ_BW_80P80_TAG		(SET_ID(CHAN_FREQ) | BIT(16))

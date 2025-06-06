@@ -117,6 +117,14 @@ struct mt7996_mcu_rxd {
 };
 
 enum {
+	UNI_MEC_READ_INFO = 0,
+	UNI_MEC_AMSDU_ALGO_EN_STA,
+	UNI_MEC_AMSDU_PARA_STA,
+	UNI_MEC_AMSDU_ALGO_THRESHOLD,
+	UNI_MEC_IFAC_SPEED,
+};
+
+enum {
 	UNI_EVENT_SR_CFG_SR_ENABLE = 0x1,
 	UNI_EVENT_SR_SW_SD = 0x83,
 	UNI_EVENT_SR_HW_IND = 0xC9,
@@ -266,6 +274,20 @@ struct mt7996_mcu_rdd_report {
 		u8 mdrdy_flag;
 		u8 tx_active;
 	} hw_pulse[32];
+} __packed;
+
+struct mt7996_rdd_ctrl {
+	u8 _rsv[4];
+
+	__le16 tag;
+	__le16 len;
+
+	u8 ctrl;
+	u8 rdd_idx;
+	u8 rdd_rx_sel;
+	u8 val;
+	u8 disable_timer;
+	u8 rsv[3];
 } __packed;
 
 struct mt7996_mcu_background_chain_ctrl {
@@ -1081,7 +1103,16 @@ enum {
 	RATE_PARAM_FIXED_MCS,
 	RATE_PARAM_FIXED_GI = 11,
 	RATE_PARAM_AUTO = 20,
+#ifdef CONFIG_MTK_VENDOR
+	RATE_PARAM_FIXED_MIMO = 30,
+	RATE_PARAM_FIXED_OFDMA = 31,
+	RATE_PARAM_AUTO_MU = 32,
+#endif
 };
+
+#define RATE_CFG_BAND_IDX	GENMASK(17, 16)
+#define RATE_CFG_MODE	GENMASK(15, 8)
+#define RATE_CFG_VAL	GENMASK(7, 0)
 
 /* MURU */
 #define OFDMA_DL                       BIT(0)
@@ -1138,6 +1169,7 @@ enum {
 					 sizeof(struct sta_rec_hdr_trans) +	\
 					 sizeof(struct sta_rec_mld_setup) +	\
 					 sizeof(struct mld_setup_link) * 3 +	\
+					 sizeof(struct sta_rec_tx_cap) +	\
 					 sizeof(struct sta_rec_eht_mld) +	\
 					 sizeof(struct tlv))
 
@@ -1171,6 +1203,8 @@ enum {
 	UNI_BAND_CONFIG_EDCCA_ENABLE = 0x05,
         UNI_BAND_CONFIG_EDCCA_THRESHOLD = 0x06,
 	UNI_BAND_CONFIG_RTS_THRESHOLD = 0x08,
+	UNI_BAND_CONFIG_RTS_SIGTA_EN = 0x09,
+	UNI_BAND_CONFIG_DIS_SECCH_CCA_DET = 0x0a,
 	UNI_BAND_CONFIG_LPI_CTRL = 0x0d,
 	UNI_BAND_CONFIG_BSSID_MAPPING_ADDR = 0x12,
 };
@@ -1517,6 +1551,26 @@ enum {
 	MT7996_SEC_MODE_SCRAMBLE,
 	MT7996_SEC_MODE_MAX,
 };
+
+enum {
+	UNI_CMD_MLO_AGC_TX = 4,
+	UNI_CMD_MLO_AGC_TRIG = 5,
+};
+
+struct mt7996_mlo_agc_set {
+	u8 rsv[4];
+
+	__le16 tag;
+	__le16 len;
+
+	u8 mld_id;
+	u8 link_id;
+	u8 ac;
+	u8 disp_pol;
+	u8 ratio;
+	u8 order;
+	__le16 mgf;
+} __packed;
 
 enum {
 	UNI_CMD_PP_EN_CTRL,
@@ -2467,5 +2521,110 @@ enum {
 	EDCCA_JAPAN = 3,
 	EDCCA_ETSI_2023 = 4,
 };
+
+#ifdef CONFIG_MTK_VENDOR
+struct mt7996_mcu_csi_event {
+	struct mt7996_mcu_rxd rxd;
+
+	u8 band_idx;
+	u8 _rsv[3];
+
+	__le16 tag;
+	__le16 len;
+	u8 tlv_buf[0];
+};
+
+enum UNI_EVENT_CSI_TAG_T {
+	UNI_EVENT_CSI_DATA = 0,
+	UNI_EVENT_CSI_MAX_NUM
+};
+
+struct csi_tlv {
+	struct {
+		__le32 tag;
+		__le32 len;
+	} basic;
+	union {
+		u8 mac[ETH_ALEN];
+		__le32 info;
+		s16 data[0];
+	};
+} __packed;
+
+struct csi_bitmap_info_update {
+	u8 action;
+	u8 addr[ETH_ALEN];
+};
+
+#define CSI_MAX_BUF_NUM	3000
+
+enum CSI_EVENT_TLV_TAG {
+	CSI_EVENT_FW_VER,
+	CSI_EVENT_CBW,
+	CSI_EVENT_RSSI,
+	CSI_EVENT_SNR,
+	CSI_EVENT_BAND,
+	CSI_EVENT_CSI_NUM,
+	CSI_EVENT_CSI_I_DATA,
+	CSI_EVENT_CSI_Q_DATA,
+	CSI_EVENT_DBW,
+	CSI_EVENT_CH_IDX,
+	CSI_EVENT_TA,
+	CSI_EVENT_EXTRA_INFO,
+	CSI_EVENT_RX_MODE,
+	CSI_EVENT_RSVD1,
+	CSI_EVENT_RSVD2,
+	CSI_EVENT_RSVD3,
+	CSI_EVENT_RSVD4,
+	CSI_EVENT_H_IDX,
+	CSI_EVENT_TX_RX_IDX,
+	CSI_EVENT_TS,
+	CSI_EVENT_PKT_SN,
+	CSI_EVENT_BW_SEG,
+	CSI_EVENT_REMAIN_LAST,
+	CSI_EVENT_TR_STREAM,
+	CSI_EVENT_TLV_TAG_NUM,
+};
+
+enum CSI_CHAIN_TYPE {
+	CSI_CHAIN_ERR,
+	CSI_CHAIN_COMPLETE,
+	CSI_CHAIN_SEGMENT_FIRST,
+	CSI_CHAIN_SEGMENT_MIDDLE,
+	CSI_CHAIN_SEGMENT_LAST,
+	CSI_CHAIN_SEGMENT_ERR,
+};
+
+enum CSI_CONTROL_MODE_T {
+	CSI_CONTROL_MODE_STOP,
+	CSI_CONTROL_MODE_START,
+	CSI_CONTROL_MODE_SET,
+	CSI_CONTROL_MODE_NUM
+};
+
+enum CSI_CONFIG_ITEM_T {
+	CSI_CONFIG_RSVD1,
+	CSI_CONFIG_WF,
+	CSI_CONFIG_RSVD2,
+	CSI_CONFIG_FRAME_TYPE,
+	CSI_CONFIG_TX_PATH,
+	CSI_CONFIG_OUTPUT_FORMAT,
+	CSI_CONFIG_INFO,
+	CSI_CONFIG_CHAIN_FILTER,
+	CSI_CONFIG_STA_FILTER,
+	CSI_CONFIG_ACTIVE_MODE,
+	CSI_CONFIG_ITEM_NUM
+};
+
+/* CSI config Tag */
+enum UNI_CMD_CSI_TAG_T {
+	UNI_CMD_CSI_STOP = 0,
+	UNI_CMD_CSI_START = 1,
+	UNI_CMD_CSI_SET_FRAME_TYPE = 2,
+	UNI_CMD_CSI_SET_CHAIN_FILTER = 3,
+	UNI_CMD_CSI_SET_STA_FILTER = 4,
+	UNI_CMD_CSI_SET_ACTIVE_MODE = 5,
+};
+#endif
 
 #endif
