@@ -139,14 +139,20 @@ void mt76_scan_work(struct work_struct *work)
 	cfg80211_chandef_create(&chandef, dev->scan.chan, NL80211_CHAN_HT20);
 	mt76_set_channel(phy, &chandef, true);
 
+	mt76_dbg(dev, MT76_DBG_SCAN, "%s: moving to chan_idx: %d\n",
+		 __func__, dev->scan.chan_idx);
+
 	if (!req->n_ssids ||
 	    chandef.chan->flags & (IEEE80211_CHAN_NO_IR | IEEE80211_CHAN_RADAR))
 		goto out;
 
 	duration = HZ / 16; /* ~60 ms */
 	local_bh_disable();
-	for (i = 0; i < req->n_ssids; i++)
+	for (i = 0; i < req->n_ssids; i++) {
+		mt76_dbg(dev, MT76_DBG_SCAN, "%s: Sending probe request to %s\n",
+			 __func__, req->ssids[i].ssid);
 		mt76_scan_send_probe(dev, &req->ssids[i]);
+	}
 	local_bh_enable();
 
 out:
