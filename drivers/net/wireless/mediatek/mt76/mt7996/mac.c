@@ -806,7 +806,7 @@ mt7996_mac_fill_rx(struct mt7996_dev *dev, enum mt76_rxq_id q,
 			 */
 			if (ieee80211_has_a4(fc) && is_mesh && status->amsdu)
 				*qos &= ~IEEE80211_QOS_CTL_A_MSDU_PRESENT;
-		} else if (ieee80211_is_beacon(fc)) {
+		} else if (ieee80211_is_beacon(fc) && dev->sta_omac_repeater_bssid_enable) {
 			struct ieee80211_hw *hw = phy->mt76->hw;
 			struct ieee80211_sta *sta;
 

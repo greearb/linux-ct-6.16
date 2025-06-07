@@ -628,7 +628,13 @@ static int mt7996_add_interface(struct ieee80211_hw *hw,
 
 	vif->offload_flags |= IEEE80211_OFFLOAD_ENCAP_4ADDR;
 
-	INIT_DELAYED_WORK(&mvif->beacon_mon_work, mt7996_beacon_mon_work);
+	/* TODO: This may not be related to the 31 station patch. Investigate further.
+	 *       OWRT tree seems to experience beacon loss regularly, and uses Nullfunc frames
+	 *       to stay associated. Maybe this is a temporary fix from their tree for that...
+	 */
+	if (!dev->sta_omac_repeater_bssid_enable)
+		INIT_DELAYED_WORK(&mvif->beacon_mon_work, mt7996_beacon_mon_work);
+
 	mvif->dev = dev;
 	mvif->sta.vif = mvif;
 	/* TODO: temporaily set this to prevent some crashes */
@@ -3322,8 +3328,14 @@ mt7996_event_callback(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 								 true);
 			}
 
-			ieee80211_queue_delayed_work(hw, &mvif->beacon_mon_work,
-						     msecs_to_jiffies(next_time));
+			/* TODO: This may not be related to the 31 station patch. Investigate
+			 *       further. OWRT tree seems to experience beacon loss regularly, and
+			 *       uses Nullfunc frames to stay associated. Maybe this is a temporary
+			 *       fix from their tree for that...
+			 */
+			if (!dev->sta_omac_repeater_bssid_enable)
+				ieee80211_queue_delayed_work(hw, &mvif->beacon_mon_work,
+							     msecs_to_jiffies(next_time));
 			mutex_unlock(&dev->mt76.mutex);
 			break;
 		}
