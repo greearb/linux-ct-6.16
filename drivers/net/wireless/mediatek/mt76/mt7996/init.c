@@ -18,6 +18,12 @@
 #define MT76_DRIVER_VERSION "6.15.0-ct"
 extern u32 debug_lvl; /* module param */
 
+bool mt7996_repeater_sta = 1;
+module_param(mt7996_repeater_sta, bool, 0644);
+MODULE_PARM_DESC(mt7996_repeater_sta,
+		 "Enable repeater stations\n"
+	);
+
 static int lp_ctrl = 0x3f;
 module_param(lp_ctrl, int, 0644);
 MODULE_PARM_DESC(lp_ctrl, "Low power control."
@@ -1722,6 +1728,7 @@ int mt7996_register_device(struct mt7996_dev *dev)
 	dev->phy.mt76 = &dev->mt76.phy;
 	dev->mt76.phy.priv = &dev->phy;
 	dev->mt76.debug_lvl = debug_lvl;
+	dev->sta_omac_repeater_bssid_enable = mt7996_repeater_sta;
 	INIT_WORK(&dev->rc_work, mt7996_mac_sta_rc_work);
 	INIT_DELAYED_WORK(&dev->mphy.mac_work, mt7996_mac_work);
 	INIT_DELAYED_WORK(&dev->scs_work, mt7996_mcu_scs_sta_poll);
