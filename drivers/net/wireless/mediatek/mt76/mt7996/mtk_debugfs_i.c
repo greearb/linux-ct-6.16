@@ -981,10 +981,8 @@ static const struct file_operations fops_mlo_agc_trig = {
 	.llseek = default_llseek,
 };
 
-int mt7996_mtk_init_dev_debugfs_internal(struct mt7996_phy *phy, struct dentry *dir)
+int mt7996_mtk_init_dev_debugfs_internal(struct mt7996_dev *dev, struct dentry *dir)
 {
-	struct mt7996_dev *dev = phy->dev;
-
 	debugfs_create_devm_seqfile(dev->mt76.dev, "token_txd", dir,
 				    mt7996_token_txd_read);
 	debugfs_create_u32("txd_dump", 0600, dir, &dev->dbg.txd_read_cnt);

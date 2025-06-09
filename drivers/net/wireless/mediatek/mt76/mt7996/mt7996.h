@@ -1358,7 +1358,7 @@ int mt7996_mcu_thermal_debug(struct mt7996_dev *dev, u8 mode, u8 action);
 void mt7996_dump_bmac_rxd_info(struct mt7996_dev *dev, __le32 *rxd);
 void mt7996_dump_bmac_txd_info(struct seq_file *s, struct mt7996_dev *dev,
 			       __le32 *txd, bool is_hif_txd, bool dump_txp);
-int mt7996_mtk_init_dev_debugfs_internal(struct mt7996_phy *phy, struct dentry *dir);
+int mt7996_mtk_init_dev_debugfs_internal(struct mt7996_dev *dev, struct dentry *dir);
 int mt7996_mtk_init_band_debugfs_internal(struct mt7996_phy *phy, struct dentry *dir);
 int mt7996_mcu_mlo_agc(struct mt7996_dev *dev, const void *data, int len);
 #endif
