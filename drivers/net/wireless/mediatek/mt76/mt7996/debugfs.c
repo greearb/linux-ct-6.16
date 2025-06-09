@@ -1528,8 +1528,7 @@ DEFINE_DEBUGFS_ATTRIBUTE(fops_fw_debug_muru_disable,
 static int
 mt7996_txpower_level_set(void *data, u64 val)
 {
-	struct mt7996_dev *dev = data;
-	struct mt7996_phy *phy = &dev->phy;
+	struct mt7996_phy *phy = data;
 	int ret;
 
 	if (val > 100)
@@ -1558,8 +1557,7 @@ static ssize_t
 mt7996_get_txpower_info(struct file *file, char __user *user_buf,
 			size_t count, loff_t *ppos)
 {
-	struct mt7996_dev *dev = file->private_data;
-	struct mt7996_phy *phy = &dev->phy;
+	struct mt7996_phy *phy = file->private_data;
 	struct mt7996_mcu_txpower_event *event;
 	struct txpower_basic_info *basic_info;
 	struct mt76_phy *mphy = phy->mt76;
@@ -1667,8 +1665,8 @@ __mt7996_get_txpower_sku(struct file *file, char __user *user_buf,
 			 size_t count, loff_t *ppos, struct mt7996_mcu_txpower_event *event,
 			 char* buf, size_t size)
 {
-	struct mt7996_dev *dev = file->private_data;
-	struct mt7996_phy *phy = &dev->phy;
+	struct mt7996_phy *phy = file->private_data;
+	struct mt7996_dev *dev = phy->dev;
 	u8 band_idx = phy->mt76->band_idx;
 	int i, offs = 0, len = 0;
 	ssize_t ret;
@@ -1803,8 +1801,7 @@ static ssize_t
 mt7996_get_txpower_default(struct file *file, char __user *user_buf,
 			   size_t count, loff_t *ppos)
 {
-	struct mt7996_dev *dev = file->private_data;
-	struct mt7996_phy *phy = &dev->phy;
+	struct mt7996_phy *phy = file->private_data;
 	static const size_t size = 5120;
 	char *buf;
 	int ret;
@@ -1850,8 +1847,7 @@ static ssize_t
 mt7996_get_txpower_path(struct file *file, char __user *user_buf,
 			size_t count, loff_t *ppos)
 {
-	struct mt7996_dev *dev = file->private_data;
-	struct mt7996_phy *phy = &dev->phy;
+	struct mt7996_phy *phy = file->private_data;
 	struct mt7996_mcu_txpower_event *event;
 	static const size_t size = 5120;
 	int i, offs = 0, len = 0;
@@ -1961,8 +1957,7 @@ DEFINE_DEBUGFS_ATTRIBUTE(fops_sr_enable, mt7996_sr_enable_get,
 static int
 mt7996_adjust_txp_by_loss_get(void *data, u64 *val)
 {
-	struct mt7996_dev *dev = data;
-	struct mt7996_phy *phy = &dev->phy;
+	struct mt7996_phy *phy = data;
 
 	*val = phy->adjust_txp_by_loss;
 
@@ -1972,8 +1967,7 @@ mt7996_adjust_txp_by_loss_get(void *data, u64 *val)
 static int
 mt7996_adjust_txp_by_loss_set(void *data, u64 val)
 {
-	struct mt7996_dev *dev = data;
-	struct mt7996_phy *phy = &dev->phy;
+	struct mt7996_phy *phy = data;
 
 	if (!!val == phy->adjust_txp_by_loss)
 		return 0;
@@ -2337,6 +2331,25 @@ int mt7996_init_band_debugfs(struct mt7996_phy *phy)
 					    mt7996_rdd_monitor);
 	}
 
+	debugfs_create_file("txpower_level", 0600, dir, phy, &fops_txpower_level);
+	debugfs_create_file("txpower_info", 0600, dir, phy, &mt7996_txpower_info_fops);
+	debugfs_create_file("txpower_sku", 0600, dir, phy, &mt7996_txpower_sku_fops);
+	debugfs_create_file("txpower_default", 0600, dir, phy, &mt7996_txpower_default_fops);
+	debugfs_create_file("txpower_path", 0600, dir, phy, &mt7996_txpower_path_fops);
+	debugfs_create_file("adjust_txp_by_loss", 0600, dir, phy, &fops_adjust_txp_by_loss);
+
+	debugfs_create_file("thermal_enable", 0600, dir, phy, &fops_thermal_enable);
+	debugfs_create_file("scs_enable", 0200, dir, phy, &fops_scs_enable);
+
+	if (is_mt7992(&dev->mt76)) {
+		debugfs_create_file("mru_probe_enable", 0600, dir, phy,
+				    &fops_mru_probe_enable);
+	}
+
+	debugfs_create_file("pp_alg", 0200, dir, phy, &mt7996_pp_alg_fops);
+	debugfs_create_file("radar_trigger", 0200, dir, phy,
+			    &fops_radar_trigger);
+
 #ifdef CONFIG_MTK_DEBUG
 	mt7996_mtk_init_band_debugfs(phy, dir);
 	mt7996_mtk_init_band_debugfs_internal(phy, dir);
@@ -2361,8 +2374,6 @@ int mt7996_init_dev_debugfs(struct mt7996_phy *phy)
 		debugfs_create_file("sr_pp_enable", 0600, dir, dev,
 				    &fops_sr_pp_enable);
 		debugfs_create_file("uba_enable", 0600, dir, dev, &fops_uba_enable);
-		debugfs_create_file("mru_probe_enable", 0600, dir, phy,
-				    &fops_mru_probe_enable);
 	}
 	/* TODO: wm fw cpu utilization */
 	debugfs_create_file("fw_util_wa", 0400, dir, dev,
@@ -2387,29 +2398,16 @@ int mt7996_init_dev_debugfs(struct mt7996_phy *phy)
 
 	debugfs_create_file("phy_info", 0400, dir, dev, &mt7996_phy_info_fops);
 
-	debugfs_create_file("txpower_level", 0600, dir, dev, &fops_txpower_level);
-	debugfs_create_file("txpower_info", 0600, dir, dev, &mt7996_txpower_info_fops);
-	debugfs_create_file("txpower_sku", 0600, dir, dev, &mt7996_txpower_sku_fops);
-	debugfs_create_file("txpower_default", 0600, dir, dev, &mt7996_txpower_default_fops);
-	debugfs_create_file("txpower_path", 0600, dir, dev, &mt7996_txpower_path_fops);
-	debugfs_create_file("adjust_txp_by_loss", 0600, dir, dev, &fops_adjust_txp_by_loss);
-
 	debugfs_create_bool("mgmt_pwr_enhance", 0600, dir, &dev->mt76.mgmt_pwr_enhance);
-	debugfs_create_file("thermal_enable", 0600, dir, phy, &fops_thermal_enable);
-	debugfs_create_file("scs_enable", 0200, dir, phy, &fops_scs_enable);
-
-	debugfs_create_file("pp_alg", 0200, dir, phy, &mt7996_pp_alg_fops);
 
 	debugfs_create_u32("dfs_hw_pattern", 0400, dir, &dev->hw_pattern);
-	debugfs_create_file("radar_trigger", 0200, dir, phy,
-			    &fops_radar_trigger);
 	debugfs_create_devm_seqfile(dev->mt76.dev, "rdd_monitor", dir,
 				    mt7996_rdd_monitor);
 
 	if (phy == &dev->phy) {
 		dev->debugfs_dir = dir;
 #ifdef CONFIG_MTK_DEBUG
-		mt7996_mtk_init_dev_debugfs_internal(phy, dir);
+		mt7996_mtk_init_dev_debugfs_internal(dev, dir);
 #endif
 	}
 #ifdef CONFIG_MTK_DEBUG
