@@ -84,6 +84,56 @@ static const struct ieee80211_iface_combination if_comb = {
 	.beacon_int_min_gcd = 100,
 };
 
+static const struct ieee80211_iface_limit if_limits_repeater_global = {
+	.max = MT7996_MAX_INTERFACES_REPEATER * MT7996_MAX_RADIOS,
+	.types = BIT(NL80211_IFTYPE_STATION)
+		 | BIT(NL80211_IFTYPE_ADHOC)
+		 | BIT(NL80211_IFTYPE_AP)
+#ifdef CONFIG_MAC80211_MESH
+		 | BIT(NL80211_IFTYPE_MESH_POINT)
+#endif
+};
+
+static const struct ieee80211_iface_combination if_comb_repeater_global = {
+	.limits = &if_limits_repeater_global,
+	.n_limits = 1,
+	.max_interfaces = MT7996_MAX_INTERFACES_REPEATER * MT7996_MAX_RADIOS,
+	.num_different_channels = MT7996_MAX_RADIOS,
+	.radar_detect_widths = BIT(NL80211_CHAN_WIDTH_20_NOHT) |
+			       BIT(NL80211_CHAN_WIDTH_20) |
+			       BIT(NL80211_CHAN_WIDTH_40) |
+			       BIT(NL80211_CHAN_WIDTH_80) |
+			       BIT(NL80211_CHAN_WIDTH_160),
+	.beacon_int_min_gcd = 100,
+};
+
+static const struct ieee80211_iface_limit if_limits_repeater[] = {
+	{
+		.max = 16,
+		.types = BIT(NL80211_IFTYPE_AP)
+#ifdef CONFIG_MAC80211_MESH
+			 | BIT(NL80211_IFTYPE_MESH_POINT)
+#endif
+	}, {
+		.max = MT7996_MAX_REPEATER_STA,
+		.types = BIT(NL80211_IFTYPE_STATION)
+	}
+};
+
+static const struct ieee80211_iface_combination if_comb_repeater = {
+	.limits = if_limits_repeater,
+	.n_limits = ARRAY_SIZE(if_limits_repeater),
+	.max_interfaces = MT7996_MAX_INTERFACES_REPEATER,
+	.num_different_channels = 1,
+	.beacon_int_infra_match = true,
+	.radar_detect_widths = BIT(NL80211_CHAN_WIDTH_20_NOHT) |
+			       BIT(NL80211_CHAN_WIDTH_20) |
+			       BIT(NL80211_CHAN_WIDTH_40) |
+			       BIT(NL80211_CHAN_WIDTH_80) |
+			       BIT(NL80211_CHAN_WIDTH_160),
+	.beacon_int_min_gcd = 100,
+};
+
 static const struct ieee80211_iface_combination if_comb_7992 = {
 	.limits = if_limits,
 	.n_limits = ARRAY_SIZE(if_limits),
@@ -325,6 +375,34 @@ static int mt7996_thermal_init(struct mt7996_phy *phy)
 	return 0;
 }
 
+static void
+mt7996_configure_iface_combinations(struct mt7996_dev *dev)
+{
+	struct ieee80211_hw *hw = dev->mt76.hw;
+	struct wiphy *wiphy = hw->wiphy;
+	struct wiphy_radio *radio;
+
+	for (int i = 0; i < wiphy->n_radio; i++) {
+		radio = &dev->radios[i];
+
+		if (!is_mt7996(&dev->mt76))
+			radio->iface_combinations = &if_comb_7992;
+		else if (dev->sta_omac_repeater_bssid_enable)
+			radio->iface_combinations = &if_comb_repeater;
+		else
+			radio->iface_combinations = &if_comb;
+
+		radio->n_iface_combinations = 1;
+	}
+
+	if (dev->sta_omac_repeater_bssid_enable)
+		wiphy->iface_combinations = &if_comb_repeater_global;
+	else
+		wiphy->iface_combinations = &if_comb_global;
+
+	wiphy->n_iface_combinations = 1;
+}
+
 static void mt7996_led_set_config(struct led_classdev *led_cdev,
 				  u8 delay_on, u8 delay_off)
 {
@@ -509,8 +587,6 @@ mt7996_init_wiphy_band(struct ieee80211_hw *hw, struct mt7996_phy *phy)
 	dev->radio_phy[n_radios] = phy;
 	radio->freq_range = freq;
 	radio->n_freq_range = 1;
-	radio->iface_combinations = is_mt7996(&dev->mt76) ? &if_comb : &if_comb_7992;
-	radio->n_iface_combinations = 1;
 	radio->antenna_mask = phy->mt76->chainmask;
 	hw->wiphy->n_radio++;
 
@@ -552,9 +628,6 @@ mt7996_init_wiphy(struct ieee80211_hw *hw, struct mtk_wed_device *wed)
 	hw->sta_data_size = sizeof(struct mt7996_sta);
 	hw->vif_data_size = sizeof(struct mt7996_vif);
 	hw->chanctx_data_size = sizeof(struct mt76_chanctx);
-
-	wiphy->iface_combinations = &if_comb_global;
-	wiphy->n_iface_combinations = 1;
 
 	wiphy->radio = dev->radios;
 
@@ -1755,6 +1828,8 @@ int mt7996_register_device(struct mt7996_dev *dev)
 	ret = mt7996_register_phy(dev, MT_BAND2);
 	if (ret)
 		return ret;
+
+	mt7996_configure_iface_combinations(dev);
 
 	ret = mt76_register_device(&dev->mt76, true, mt76_rates,
 				   ARRAY_SIZE(mt76_rates));
