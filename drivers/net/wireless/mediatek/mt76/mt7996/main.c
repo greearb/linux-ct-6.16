@@ -173,6 +173,12 @@ static void mt7996_stop(struct ieee80211_hw *hw, bool suspend)
 	cancel_delayed_work_sync(&dev->scs_work);
 }
 
+static bool
+mt7996_has_repeater_stations(struct mt7996_phy *phy)
+{
+	return !!(phy->omac_mask & GENMASK_ULL(REPEATER_BSSID_MAX, REPEATER_BSSID_START));
+}
+
 static inline int get_free_idx(u64 mask, u8 start, u8 end)
 {
 	if (~mask & GENMASK_ULL(end, start))
@@ -289,6 +295,237 @@ mt7996_init_bitrate_mask(struct ieee80211_vif *vif, struct mt7996_vif_link *mlin
 	}
 }
 
+/* Remove the headless link, see add_headless_vif for more details. */
+static void
+mt7996_remove_headless_vif(struct mt7996_phy *phy)
+{
+	struct mt76_phy *mphy;
+	struct mt7996_dev *dev;
+	struct ieee80211_vif *vif;
+	struct ieee80211_bss_conf *link_conf;
+	struct mt7996_vif *mvif;
+	struct mt7996_vif_link *link;
+	struct mt7996_sta_link *msta_link;
+	struct mt76_vif_link *mlink;
+	int idx;
+	int link_id;
+
+	if (!phy)
+		return;
+
+	mphy = phy->mt76;
+	dev = phy->dev;
+	vif = phy->headless_vif;
+
+	if (!vif)
+		return;
+
+	link_conf = &vif->bss_conf;
+	mvif = (struct mt7996_vif *)vif->drv_priv;
+	link = &mvif->deflink;
+	msta_link = &link->msta_link;
+	mlink = &link->mt76;
+
+	if (!mlink->wcid)
+		goto out;
+
+	idx = msta_link->wcid.idx;
+	link_id = msta_link->wcid.link_id;
+
+	dev = phy->dev;
+
+	mt76_dbg(&dev->mt76, MT76_DBG_BSS,
+		 "%s: band=%u, bss_idx=%u, link_id=%u, wcid=%u\n",
+		 __func__, phy->mt76->band_idx, mlink->idx, link_id, idx);
+
+	cancel_delayed_work(&link->sta_chsw_work);
+
+	mt7996_mcu_add_sta(dev, vif, link_conf, NULL, link, NULL,
+			   CONN_STATE_DISCONNECT, false);
+	mt7996_mcu_add_bss_info(phy, vif, link_conf, mlink, msta_link, false);
+
+	mt7996_mcu_add_dev_info(phy, vif, link_conf, mlink, false);
+
+	rcu_assign_pointer(dev->mt76.wcid[idx], NULL);
+
+	rcu_assign_pointer(mvif->mt76.link[link_id], NULL);
+	rcu_assign_pointer(mvif->sta.link[link_id], NULL);
+	if (link->mbssid_idx != 0 && link->mbssid_idx < MT7996_MAX_MBSSID) {
+		rcu_assign_pointer(phy->mbssid_conf[link->mbssid_idx], NULL);
+		link->mbssid_idx = 0;
+	}
+
+	if (mlink->idx > 63)
+		dev->mt76.vif_mask[1] &= ~BIT_ULL(mlink->idx - 64);
+	else
+		dev->mt76.vif_mask[0] &= ~BIT_ULL(mlink->idx);
+
+	phy->omac_mask &= ~BIT_ULL(mlink->omac_idx);
+
+	mvif->mt76.valid_links &= ~BIT(link_id);
+	dev->mld_id_mask &= ~BIT_ULL(link->own_mld_id);
+
+	spin_lock_bh(&dev->mt76.sta_poll_lock);
+	if (!list_empty(&msta_link->wcid.poll_list))
+		list_del_init(&msta_link->wcid.poll_list);
+	spin_unlock_bh(&dev->mt76.sta_poll_lock);
+
+	mt76_wcid_cleanup(&dev->mt76, &msta_link->wcid);
+
+out:
+	phy->headless_vif = NULL;
+
+	kfree(vif);
+}
+
+/* Adds a "headless" VIF for the band. Repeater stations need one HW_BSSID link to be active in
+ * order to work. In order to provide the illusion of not needing this master interface to users,
+ * we manually set up that link if a repeater station is added. To minimize the impact of this, this
+ * code uses mac80211 structs, so that no other API needs to change. Only the fields needed to set
+ * up this minimal link configuration are set in those structs, so they should be treated with much
+ * care.
+ */
+static int
+mt7996_add_headless_vif(struct mt7996_phy *phy)
+{
+	struct mt7996_vif_link *link;
+	struct mt76_vif_link *mlink;
+	struct mt7996_vif *mvif;
+	struct mt7996_sta_link *msta_link;
+	struct mt7996_dev *dev = phy->dev;
+	u8 band_idx = phy->mt76->band_idx;
+	struct ieee80211_hw *hw = phy->mt76->hw;
+	int idx, ret;
+	struct ieee80211_bss_conf *link_conf;
+	struct ieee80211_vif *vif = NULL;
+	u8 link_id = 0;
+
+	if (phy->headless_vif)
+		return 0;
+
+	vif = kzalloc(struct_size(vif, drv_priv, hw->vif_data_size),
+		      GFP_KERNEL);
+	if (!vif)
+		return -ENOMEM;
+
+	mt76_dbg(&dev->mt76, MT76_DBG_BSS, "%s: Adding headless link\n", __func__);
+
+	phy->headless_vif = vif;
+
+	link_conf = &vif->bss_conf;
+	link_conf->vif = vif;
+	mvif = (struct mt7996_vif *)vif->drv_priv;
+	link = &mvif->deflink;
+	mlink = &link->mt76;
+	msta_link = &link->msta_link;
+
+	/* Only fields that matter are edited below */
+	memcpy(&link_conf->addr, &phy->mt76->macaddr, sizeof(link_conf->addr));
+	/* Enable local-administered bit, to make this address unique */
+	link_conf->addr[0] |= 0x2;
+	link_conf->bssid = link_conf->addr;
+	link_conf->link_id = link_id;
+
+	vif->type = NL80211_IFTYPE_AP;
+
+	if (rcu_access_pointer(mvif->mt76.link[link_id]))
+		return 0;
+
+	if (dev->mt76.vif_mask[0] == 0xffffffffffffffff)
+		mlink->idx = __ffs64(~dev->mt76.vif_mask[1]) + 64;
+	else
+		mlink->idx = __ffs64(~dev->mt76.vif_mask[0]);
+
+	if (mlink->idx >= mt7996_max_interface_num(dev)) {
+		ret = -ENOSPC;
+		goto error;
+	}
+
+	if (phy->omac_mask & HW_BSSID_0) {
+		ret = -ENOSPC;
+		goto error;
+	}
+	idx = HW_BSSID_0;
+
+	link->phy = phy;
+	mlink->omac_idx = idx;
+
+	mlink->band_idx = band_idx;
+	mlink->wmm_idx = 0;
+	mlink->wcid = &msta_link->wcid;
+
+	mlink->bss_idx = mlink->idx + 3;
+	mlink->bss_idx += 1;
+
+	ret = mt7996_mcu_add_dev_info(phy, NULL /* unused */,
+				      link_conf /* needed for MAC addr */,
+				      mlink, true);
+	if (ret)
+		goto error;
+
+	if (mlink->idx > 63)
+		dev->mt76.vif_mask[1] |= BIT_ULL(mlink->idx - 64);
+	else
+		dev->mt76.vif_mask[0] |= BIT_ULL(mlink->idx);
+
+	idx = MT7996_WTBL_RESERVED - mlink->idx;
+
+	INIT_LIST_HEAD(&msta_link->rc_list);
+	msta_link->wcid.idx = idx;
+	msta_link->wcid.link_id = link_conf->link_id;
+	msta_link->wcid.tx_info |= MT_WCID_TX_INFO_SET;
+	mt76_wcid_init(&msta_link->wcid, band_idx);
+
+	link->bpcc = 0;
+	memset(link->tsf_offset, 0, sizeof(link->tsf_offset));
+	mlink->mvif = &mvif->mt76;
+	mvif->mt76.valid_links |= BIT(link_id);
+	mvif->dev = dev;
+	INIT_DELAYED_WORK(&link->sta_chsw_work, mt7996_sta_chsw_work);
+
+	dev->mld_id_mask |= BIT_ULL(link->own_mld_id);
+
+	rcu_assign_pointer(msta_link->wcid.def_wcid, &mvif->sta.deflink.wcid);
+	msta_link->wcid.link_valid = true;
+	msta_link->sta = &mvif->sta;
+	msta_link->sta->vif = mvif;
+	msta_link->sta = NULL;
+
+	mt7996_mac_wtbl_update(dev, idx,
+			       MT_WTBL_UPDATE_ADM_COUNT_CLEAR);
+
+	if (phy->mt76->chandef.chan->band != NL80211_BAND_2GHZ)
+		mlink->basic_rates_idx = MT7996_BASIC_RATES_TBL + 4;
+	else
+		mlink->basic_rates_idx = MT7996_BASIC_RATES_TBL;
+
+	mt7996_init_bitrate_mask(vif, link);
+
+	mt7996_mcu_add_bss_info(phy, vif, link_conf, mlink, msta_link, true);
+
+	mt7996_mcu_add_sta(dev, vif, link_conf, NULL, link, msta_link,
+			   CONN_STATE_PORT_SECURE, true);
+	rcu_assign_pointer(dev->mt76.wcid[idx], &msta_link->wcid);
+	rcu_assign_pointer(mvif->mt76.link[link_id], &link->mt76);
+	rcu_assign_pointer(mvif->sta.link[link_id], msta_link);
+
+	if (link_conf->nontransmitted && link_conf->bssid_index != 0 &&
+	    link_conf->bssid_index < MT7996_MAX_MBSSID) {
+		rcu_assign_pointer(phy->mbssid_conf[link_conf->bssid_index], link);
+		link->mbssid_idx = link_conf->bssid_index;
+	}
+
+	mt76_dbg(&dev->mt76, MT76_DBG_BSS,
+		 "%s: band=%u, bss_idx=%u, link_id=%u, wcid=%u\n",
+		 __func__, phy->mt76->band_idx, mlink->idx,
+		 link_id, msta_link->wcid.idx);
+
+	return 0;
+error:
+	mt7996_remove_headless_vif(phy);
+	return ret;
+}
+
 int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 			struct ieee80211_bss_conf *link_conf,
 			struct mt76_vif_link *mlink)
@@ -338,6 +575,22 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	if (idx < 0) {
 		ret = -ENOSPC;
 		goto error;
+	}
+
+	mt76_dbg(&dev->mt76, MT76_DBG_BSS, "%s: Selected OMAC index %d\n",
+		 __func__, idx);
+
+	if (dev->sta_omac_repeater_bssid_enable) {
+		if (BIT_ULL(idx) & __GENMASK_ULL(REPEATER_BSSID_MAX, REPEATER_BSSID_START)) {
+			ret = mt7996_add_headless_vif(phy);
+			mt76_dbg(&dev->mt76, MT76_DBG_BSS, "%s: called add_headless_vif, ret %d\n",
+				 __func__, ret);
+		} else if (idx == HW_BSSID_0) {
+			mt76_dbg(&dev->mt76, MT76_DBG_BSS,
+				 "%s: omac_idx shared with headless, calling remove_headless_vif\n",
+				 __func__);
+			mt7996_remove_headless_vif(phy);
+		}
 	}
 
 	/* Below code seems to be testmode only, re-enable when we bring that patch in */
@@ -466,6 +719,7 @@ void mt7996_vif_link_remove(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	struct mt7996_dev *dev;
 	int idx = msta_link->wcid.idx;
 	int link_id = msta_link->wcid.link_id;
+	int ret;
 
 	if (!phy || !mlink->wcid)
 		goto out;
@@ -509,6 +763,18 @@ void mt7996_vif_link_remove(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	spin_unlock_bh(&dev->mt76.sta_poll_lock);
 
 	mt76_wcid_cleanup(&dev->mt76, &msta_link->wcid);
+
+	if (dev->sta_omac_repeater_bssid_enable) {
+		if (!mt7996_has_repeater_stations(phy)) {
+			mt7996_remove_headless_vif(phy);
+			mt76_dbg(&dev->mt76, MT76_DBG_STA, "%s: Removing headless VIF\n",
+				 __func__);
+		} else if (mlink->omac_idx == HW_BSSID_0) {
+			ret = mt7996_add_headless_vif(phy);
+			mt76_dbg(&dev->mt76, MT76_DBG_STA, "%s: Re-started headless VIF, ret: %d\n",
+				 __func__, ret);
+		}
+	}
 
 out:
 	if (link != &mvif->deflink)
