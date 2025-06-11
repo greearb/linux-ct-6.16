@@ -607,6 +607,8 @@ struct mt7996_phy {
 	struct mt76_phy *mt76;
 	struct mt7996_dev *dev;
 
+	struct ieee80211_vif *headless_vif;
+
 	struct ieee80211_sband_iftype_data iftype[NUM_NL80211_BANDS][NUM_NL80211_IFTYPES];
 
 	/* Initial txpower, from EEPROM I suppose. */
