@@ -106,7 +106,8 @@ static const struct wiphy_iftype_ext_capab mt7996_iftypes_ext_capa[] = {
 		.extended_capabilities = mt7996_if_types_ext_capa_sta,
 		.extended_capabilities_mask = mt7996_if_types_ext_capa_sta,
 		.extended_capabilities_len = sizeof(mt7996_if_types_ext_capa_sta),
-		.mld_capa_and_ops = 2 | MT7996_NEG_TTLM_SUPPORT,
+		.mld_capa_and_ops = (2 | MT7996_NEG_TTLM_SUPPORT |
+				     IEEE80211_MLD_CAP_OP_LINK_RECONF_SUPPORT),
 	},
 	{
 		.iftype = NL80211_IFTYPE_AP,
