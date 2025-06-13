@@ -646,6 +646,9 @@ struct mt7996_phy {
 	u16 punct_bitmap;
 	struct mt7996_scs_ctrl scs_ctrl;
 
+	u32 hw_drop;
+	u32 mcu_drop;
+
 	u8 muru_onoff;
 
 #ifdef CONFIG_NL80211_TESTMODE

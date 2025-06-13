@@ -772,6 +772,8 @@ mt7996_mcu_update_rate(struct rate_info *rate, struct ieee80211_supported_band *
 		if (gi)
 			tmp_rate.flags |= RATE_INFO_FLAGS_SHORT_GI;
 		break;
+	case MT_PHY_TYPE_PLR:
+		break;
 	case MT_PHY_TYPE_HE_SU:
 	case MT_PHY_TYPE_HE_EXT_SU:
 	case MT_PHY_TYPE_HE_TB:
@@ -946,11 +948,13 @@ mt7996_mcu_rx_all_sta_info_event(struct mt7996_dev *dev, struct sk_buff *skb)
 
 	for (i = 0; i < le16_to_cpu(res->sta_num); i++) {
 		u8 ac;
+		bool v1;
 		u16 wlan_idx;
 		struct mt76_wcid *wcid;
 		struct mt76_phy *mphy;
 		struct ieee80211_sta *sta;
-		u32 tx_bytes, rx_bytes, tx_airtime, rx_airtime, tx_packets, rx_packets;
+		u32 tx_bytes, rx_bytes, tx_bytes_failed = 0, tx_airtime, rx_airtime,
+		    tx_packets, rx_packets;
 
 		switch (le16_to_cpu(res->tag)) {
 		case UNI_ALL_STA_TXRX_RATE:
@@ -964,7 +968,11 @@ mt7996_mcu_rx_all_sta_info_event(struct mt7996_dev *dev, struct sk_buff *skb)
 				dev_err(dev->mt76.dev, "Failed to update TX/RX rates.\n");
 			break;
 		case UNI_ALL_STA_TXRX_ADM_STAT:
-			wlan_idx = le16_to_cpu(res->adm_stat[i].wlan_idx);
+			v1 = le16_to_cpu(res->len) == UNI_EVENT_SIZE_ADM_STAT_V1;
+			if (v1)
+				wlan_idx = le16_to_cpu(res->adm_stat_v1[i].wlan_idx);
+			else
+				wlan_idx = le16_to_cpu(res->adm_stat_v2[i].wlan_idx);
 			wcid = mt76_wcid_ptr(dev, wlan_idx);
 
 			if (!wcid)
@@ -972,11 +980,23 @@ mt7996_mcu_rx_all_sta_info_event(struct mt7996_dev *dev, struct sk_buff *skb)
 
 			mphy = mt76_dev_phy(&dev->mt76, wcid->phy_idx);
 			for (ac = IEEE80211_AC_VO; ac < IEEE80211_NUM_ACS; ac++) {
-				tx_bytes = le32_to_cpu(res->adm_stat[i].tx_bytes[ac]);
-				rx_bytes = le32_to_cpu(res->adm_stat[i].rx_bytes[ac]);
+				u8 lmac_ac = mt76_connac_lmac_mapping(ac);
+				if (v1) {
+					tx_bytes = le32_to_cpu(res->adm_stat_v1[i].tx_bytes[lmac_ac]);
+					rx_bytes = le32_to_cpu(res->adm_stat_v1[i].rx_bytes[lmac_ac]);
+				} else {
+					tx_bytes = le32_to_cpu(res->adm_stat_v2[i].tx_bytes[lmac_ac]);
+					rx_bytes = le32_to_cpu(res->adm_stat_v2[i].rx_bytes[lmac_ac]);
+					tx_bytes_failed = le32_to_cpu(res->adm_stat_v2[i].tx_bytes_failed[lmac_ac]);
+				}
+
+				wcid->stats.tx_bytes_per_ac[ac] += tx_bytes;
+				wcid->stats.rx_bytes_per_ac[ac] += rx_bytes;
+				wcid->stats.tx_bytes_failed_per_ac[ac] += tx_bytes_failed;
 
 				wcid->stats.tx_bytes += tx_bytes;
 				wcid->stats.rx_bytes += rx_bytes;
+				wcid->stats.tx_bytes_failed += tx_bytes_failed;
 
 				// TODO:  Consider adding later?
 				//__mt7996_stat_to_netdev(mphy, wcid,
@@ -7190,7 +7210,7 @@ int mt7996_mcu_set_pp_en(struct mt7996_phy *phy, u8 mode, u16 bitmap)
 
 #ifdef CONFIG_MTK_DEBUG
 	/* Configuring PP would cause FW to disable MRU Probe by default. */
-	if (is_mt7992(&dev->mt76))
+	if (!is_mt7996(&dev->mt76))
 		phy->mru_probe_enable = false;
 #endif
 
@@ -8848,7 +8868,7 @@ int mt7996_mcu_set_sr_pp_en(struct mt7996_dev *dev, u8 enable)
 		.enable = cpu_to_le32(enable),
 	};
 
-	if (!is_mt7992(&dev->mt76))
+	if (is_mt7996(&dev->mt76))
 		return -EINVAL;
 
 	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(PP),
@@ -8875,7 +8895,7 @@ int mt7996_mcu_set_uba_en(struct mt7996_dev *dev, u8 enable)
 		.val = enable,
 	};
 
-	if (!is_mt7992(&dev->mt76))
+	if (is_mt7996(&dev->mt76))
 		return -EINVAL;
 
 	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(RA),
@@ -8906,7 +8926,7 @@ int mt7996_mcu_set_mru_probe_en(struct mt7996_phy *phy)
 		.band_idx = phy->mt76->band_idx,
 	};
 
-	if (!is_mt7992(&dev->mt76))
+	if (is_mt7996(&dev->mt76))
 		return -EINVAL;
 
 	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(PP),

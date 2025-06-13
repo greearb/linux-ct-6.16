@@ -301,6 +301,7 @@ enum mt76_phy_type {
 	MT_PHY_TYPE_HT,
 	MT_PHY_TYPE_HT_GF,
 	MT_PHY_TYPE_VHT,
+	MT_PHY_TYPE_PLR, /* Proprietary Long Range */
 	MT_PHY_TYPE_HE_SU = 8,
 	MT_PHY_TYPE_HE_EXT_SU,
 	MT_PHY_TYPE_HE_TB,
@@ -325,6 +326,9 @@ struct mt76_sta_stats {
 	u64 tx_nss[4];		/* 1, 2, 3, 4 */
 	u64 tx_mcs[16];		/* mcs idx */
 	u64 tx_bytes;
+	u64 tx_bytes_per_ac[IEEE80211_NUM_ACS];
+	u64 tx_bytes_failed;
+	u64 tx_bytes_failed_per_ac[IEEE80211_NUM_ACS];
 
 	/* WED TX */
 	unsigned long tx_packets; /* tx msdu count reported by firmware */
@@ -335,6 +339,7 @@ struct mt76_sta_stats {
 	u64 tx_airtime;
 	/* WED RX */
 	u64 rx_bytes;
+	u64 rx_bytes_per_ac[IEEE80211_NUM_ACS];
 	u32 rx_packets;
 	u32 rx_mpdus;
 	u32 rx_fcs_err;
@@ -458,8 +463,10 @@ struct mt76_txwi_cache {
 	};
 
 	unsigned long jiffies;
+	u8 phy_idx;
 
 	u8 qid;
+	u16 wcid;
 };
 
 struct mt76_rx_tid {

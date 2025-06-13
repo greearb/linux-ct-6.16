@@ -342,15 +342,28 @@ mt7996_fw_debug_wm_set(void *data, u64 val)
 		DEBUG_IDS_SND = 84,
 		DEBUG_IDS_BSRP,
 		DEBUG_IDS_TPUT_MON,
-		DEBUG_IDS_PP = 93,
-		DEBUG_IDS_RA,
-		DEBUG_IDS_BF,
-		DEBUG_IDS_SR,
-		DEBUG_IDS_RU,
-		DEBUG_IDS_MUMIMO,
-		DEBUG_IDS_MLO = 100,
-		DEBUG_IDS_ERR_LOG,
 	};
+	enum mt7996_ids_idx {
+		DEBUG_MT7996_IDS_PP = 93,
+		DEBUG_MT7996_IDS_RA,
+		DEBUG_MT7996_IDS_BF,
+		DEBUG_MT7996_IDS_SR,
+		DEBUG_MT7996_IDS_RU,
+		DEBUG_MT7996_IDS_MUMIMO,
+		DEBUG_MT7996_IDS_MLO = 100,
+		DEBUG_MT7996_IDS_ERR_LOG,
+	};
+	enum mt7992_ids_idx {
+		DEBUG_MT7992_IDS_PP = 94,
+		DEBUG_MT7992_IDS_RA,
+		DEBUG_MT7992_IDS_BF,
+		DEBUG_MT7992_IDS_SR,
+		DEBUG_MT7992_IDS_RU,
+		DEBUG_MT7992_IDS_MUMIMO,
+		DEBUG_MT7992_IDS_MLO = 101,
+		DEBUG_MT7992_IDS_ERR_LOG,
+	};
+
 	u8 debug_category[] = {
 		DEBUG_TXCMD,
 		DEBUG_CMD_RPT_TX,
@@ -360,14 +373,14 @@ mt7996_fw_debug_wm_set(void *data, u64 val)
 		DEBUG_IDS_SND,
 		DEBUG_IDS_BSRP,
 		DEBUG_IDS_TPUT_MON,
-		DEBUG_IDS_PP,
-		DEBUG_IDS_RA,
-		DEBUG_IDS_BF,
-		DEBUG_IDS_SR,
-		DEBUG_IDS_RU,
-		DEBUG_IDS_MUMIMO,
-		DEBUG_IDS_MLO,
-		DEBUG_IDS_ERR_LOG,
+		is_mt7996(&dev->mt76) ? DEBUG_MT7996_IDS_PP : DEBUG_MT7992_IDS_PP,
+		is_mt7996(&dev->mt76) ? DEBUG_MT7996_IDS_RA : DEBUG_MT7992_IDS_RA,
+		is_mt7996(&dev->mt76) ? DEBUG_MT7996_IDS_BF : DEBUG_MT7992_IDS_BF,
+		is_mt7996(&dev->mt76) ? DEBUG_MT7996_IDS_SR : DEBUG_MT7992_IDS_SR,
+		is_mt7996(&dev->mt76) ? DEBUG_MT7996_IDS_RU : DEBUG_MT7992_IDS_RU,
+		is_mt7996(&dev->mt76) ? DEBUG_MT7996_IDS_MUMIMO : DEBUG_MT7992_IDS_MUMIMO,
+		is_mt7996(&dev->mt76) ? DEBUG_MT7996_IDS_MLO : DEBUG_MT7992_IDS_MLO,
+		is_mt7996(&dev->mt76) ? DEBUG_MT7996_IDS_ERR_LOG : DEBUG_MT7992_IDS_ERR_LOG,
 	};
 	bool tx, rx, en;
 	int ret;
@@ -2341,7 +2354,7 @@ int mt7996_init_band_debugfs(struct mt7996_phy *phy)
 	debugfs_create_file("thermal_enable", 0600, dir, phy, &fops_thermal_enable);
 	debugfs_create_file("scs_enable", 0200, dir, phy, &fops_scs_enable);
 
-	if (is_mt7992(&dev->mt76)) {
+	if (!is_mt7996(&dev->mt76)) {
 		debugfs_create_file("mru_probe_enable", 0600, dir, phy,
 				    &fops_mru_probe_enable);
 	}
@@ -2370,7 +2383,7 @@ int mt7996_init_dev_debugfs(struct mt7996_phy *phy)
 	debugfs_create_file("fw_debug_bin", 0600, dir, dev, &fops_fw_debug_bin);
 	debugfs_create_file("idxlog_enable", 0600, dir, dev, &fops_idxlog_enable);
 
-	if (is_mt7992(&dev->mt76)) {
+	if (!is_mt7996(&dev->mt76)) {
 		debugfs_create_file("sr_pp_enable", 0600, dir, dev,
 				    &fops_sr_pp_enable);
 		debugfs_create_file("uba_enable", 0600, dir, dev, &fops_uba_enable);
@@ -2623,8 +2636,9 @@ mt7996_sta_links_info_show(struct seq_file *s, void *data)
 		tx_retries += wcid->stats.tx_retries;
 		rx_cnt += wcid->stats.rx_packets;
 
-		seq_printf(s, "link%d: wcid=%d, phy=%d, link_valid=%d\n",
-			    wcid->link_id, wcid->idx, wcid->phy_idx, wcid->link_valid);
+		seq_printf(s, "link%d: wcid=%d, phy=%d, link_valid=%d, ampdu_state=0x%lx\n",
+			    wcid->link_id, wcid->idx, wcid->phy_idx, wcid->link_valid,
+			    wcid->ampdu_state);
 	}
 	mutex_unlock(&dev->mt76.mutex);
 
@@ -2699,8 +2713,9 @@ mt7996_vif_links_info_show(struct seq_file *s, void *data)
 		if (!mconf->phy->mt76->chanctx)
 			continue;
 
-		seq_printf(s, "            band_idx=%d, channel=%d, bw%s\n",
+		seq_printf(s, "            band_idx=%d, radio_idx=%d, channel=%d, bw%s\n",
 			   mconf->mt76.band_idx,
+			   mconf->mt76.ctx->radio_idx,
 			   mconf->phy->mt76->chanctx->chandef.chan->hw_value,
 			   width_to_bw[mconf->phy->mt76->chanctx->chandef.width]);
 	}
@@ -2729,8 +2744,9 @@ mt7996_parse_rate(struct rate_info *rate, char *buf, size_t size)
 		GI_3_2
 	} gi = GI_0_8;
 
-	pos += snprintf(pos, size - (pos - buf), "%u.%u Mbit/s",
-			bitrate / 10, bitrate % 10);
+	if (bitrate)
+		pos += snprintf(pos, size - (pos - buf), "%u.%u Mbit/s",
+				bitrate / 10, bitrate % 10);
 
 	if (rate->flags & RATE_INFO_FLAGS_MCS) {
 		pos += snprintf(pos, size - (pos - buf), " HT");
@@ -2756,6 +2772,8 @@ mt7996_parse_rate(struct rate_info *rate, char *buf, size_t size)
 			gi = GI_1_6;
 		else if (rate->eht_gi == NL80211_RATE_INFO_EHT_GI_3_2)
 			gi = GI_3_2;
+	} else if (rate->legacy == 0) {
+		pos += snprintf(pos, size - (pos - buf), "Proprietary Long Range");
 	} else {
 		pos += snprintf(pos, size - (pos - buf), " Legacy");
 		legacy = true;
@@ -2808,6 +2826,12 @@ mt7996_parse_rate(struct rate_info *rate, char *buf, size_t size)
 	}
 }
 
+static const char *ac_to_str(enum ieee80211_ac_numbers ac)
+{
+	static const char *ac_str[] = {"VO", "VI", "BE", "BK"};
+	return ac_str[ac];
+}
+
 static int
 mt7996_link_sta_info_show(struct seq_file *file, void *data)
 {
@@ -2817,6 +2841,7 @@ mt7996_link_sta_info_show(struct seq_file *file, void *data)
 	struct mt76_sta_stats *stats;
 	struct mt76_wcid *wcid;
 	char buf[100];
+	u8 ac;
 
 	mutex_lock(&msta->vif->dev->mt76.mutex);
 
@@ -2851,7 +2876,12 @@ mt7996_link_sta_info_show(struct seq_file *file, void *data)
 
 	seq_printf(file, "Statistics:\n");
 	seq_printf(file, "\tTX:\n");
-	seq_printf(file, "\t\tBytes: %llu\n", stats->tx_bytes);
+	seq_printf(file, "\t\tByte Count: %llu\n", stats->tx_bytes);
+	for (ac = IEEE80211_AC_VO; ac < IEEE80211_NUM_ACS; ++ac)
+		seq_printf(file, "\t\t\t%s: %llu\n", ac_to_str(ac), stats->tx_bytes_per_ac[ac]);
+	seq_printf(file, "\t\tByte Fails: %llu\n", stats->tx_bytes_failed);
+	for (ac = IEEE80211_AC_VO; ac < IEEE80211_NUM_ACS; ++ac)
+		seq_printf(file, "\t\t\t%s: %llu\n", ac_to_str(ac), stats->tx_bytes_failed_per_ac[ac]);
 	seq_printf(file, "\t\tMPDU Count: %lu\n", stats->tx_mpdus);
 	seq_printf(file, "\t\tMPDU Fails: %lu (PER: %lu.%lu%%)\n", stats->tx_failed,
 		   stats->tx_mpdus ? stats->tx_failed * 1000 / stats->tx_mpdus / 10 : 0,
@@ -2859,7 +2889,9 @@ mt7996_link_sta_info_show(struct seq_file *file, void *data)
 	seq_printf(file, "\t\tMPDU Retries: %lu\n", stats->tx_retries);
 	seq_printf(file, "\t\tAirtime: %llu (unit: 1.024 us)\n", stats->tx_airtime);
 	seq_printf(file, "\tRX:\n");
-	seq_printf(file, "\t\tBytes: %llu\n", stats->rx_bytes);
+	seq_printf(file, "\t\tByte Count: %llu\n", stats->rx_bytes);
+	for (ac = IEEE80211_AC_VO; ac < IEEE80211_NUM_ACS; ++ac)
+		seq_printf(file, "\t\t\t%s: %llu\n", ac_to_str(ac), stats->rx_bytes_per_ac[ac]);
 	seq_printf(file, "\t\tMPDU Count: %u\n", stats->rx_mpdus);
 	seq_printf(file, "\t\tMPDU FCS Errors: %u (PER: %u.%u%%)\n", stats->rx_fcs_err,
 		   stats->rx_mpdus ? stats->rx_fcs_err * 1000 / stats->rx_mpdus / 10 : 0,

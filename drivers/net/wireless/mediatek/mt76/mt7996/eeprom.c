@@ -242,6 +242,8 @@ static int mt7996_eeprom_parse_efuse_hw_cap(struct mt7996_phy *phy,
 					    u8 *path, u8 *rx_path, u8 *nss)
 {
 #define MODE_HE_ONLY		BIT(0)
+#define PWR_BOOST_CAP		BIT(7)
+#define FIPS_CAP		BIT(8)
 #define WTBL_SIZE_GROUP		GENMASK(31, 28)
 #define STREAM_CAP(_offs)	((cap & (0x7 << (_offs))) >> (_offs))
 	struct mt7996_dev *dev = phy->dev;
