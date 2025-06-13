@@ -345,7 +345,7 @@ static int mt7996_dump_version(struct seq_file *s, void *data)
 		[MT7996_FEM_MIX] = "mixed FEM",
 	};
 
-	seq_printf(s, "Version: 4.3.%02d.%02d\n", PKG_YEAR, PKG_MONTH);
+	seq_printf(s, "Version: 4.4.%02d.%02d\n", PKG_YEAR, PKG_MONTH);
 
 	if (!test_bit(MT76_STATE_MCU_RUNNING, &dev->mphy.state))
 		return 0;
@@ -2413,7 +2413,8 @@ static int mt7996_token_read(struct seq_file *s, void *data)
 	seq_printf(s, "Token from host:\n");
 	spin_lock_bh(&dev->mt76.token_lock);
 	idr_for_each_entry(&dev->mt76.token, txwi, msdu_id) {
-		seq_printf(s, "%4d (pending time %u ms)\n", msdu_id,
+		seq_printf(s, "%4d (wcid = %4d, pending time %u ms)\n",
+			   msdu_id, txwi->wcid,
 			   jiffies_to_msecs(jiffies - txwi->jiffies));
 	}
 	spin_unlock_bh(&dev->mt76.token_lock);
@@ -2981,6 +2982,10 @@ mt7996_reset_counter(void *data, u64 val)
 		return ret;
 
 	ret = mt7996_mcu_get_all_sta_info(mdev, UNI_ALL_STA_TXRX_AIR_TIME);
+	if (ret)
+		return ret;
+
+	ret = mt7996_mcu_get_all_sta_info(mdev, UNI_ALL_STA_RX_MPDU_COUNT);
 	if (ret)
 		return ret;
 
