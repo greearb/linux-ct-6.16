@@ -210,12 +210,12 @@ static int get_omac_idx(enum nl80211_iftype type, struct mt7996_phy *phy)
 				return i - 1;
 		}
 
+		if (~mask & BIT(HW_BSSID_0))
+			return HW_BSSID_0;
+
 		i = get_free_idx(mask, EXT_BSSID_1, EXT_BSSID_MAX);
 		if (i)
 			return i - 1;
-
-		if (~mask & BIT(HW_BSSID_0))
-			return HW_BSSID_0;
 
 		break;
 	case NL80211_IFTYPE_MONITOR:
