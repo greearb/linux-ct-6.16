@@ -221,12 +221,25 @@ static int get_omac_idx(enum nl80211_iftype type, struct mt7996_phy *phy)
 	case NL80211_IFTYPE_MONITOR:
 	case NL80211_IFTYPE_AP:
 		/* ap uses hw bssid 0 and ext bssid */
-		if (~mask & BIT(HW_BSSID_0))
-			return HW_BSSID_0;
+		if (dev->sta_omac_repeater_bssid_enable) {
+			/* Use HW_BSSID_0 last, as bouncing that link will disrupt repeater
+			 * interfaces.
+			 */
+			i = get_free_idx(mask, EXT_BSSID_1, EXT_BSSID_MAX);
+			if (i)
+				return i - 1;
 
-		i = get_free_idx(mask, EXT_BSSID_1, EXT_BSSID_MAX);
-		if (i)
-			return i - 1;
+			/* NOTE: Does MLD need this interface? */
+			if (~mask & BIT(HW_BSSID_0))
+				return HW_BSSID_0;
+		} else {
+			if (~mask & BIT(HW_BSSID_0))
+				return HW_BSSID_0;
+
+			i = get_free_idx(mask, EXT_BSSID_1, EXT_BSSID_MAX);
+			if (i)
+				return i - 1;
+		}
 
 		break;
 	default:
