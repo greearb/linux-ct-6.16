@@ -1507,7 +1507,7 @@ u32 mtk_m32(struct mtk_eth *eth, u32 mask, u32 set, unsigned int reg);
 
 static inline void mtk_ppe_drop_config(struct mtk_eth *eth, u32 config)
 {
-	if (MTK_HAS_CAPS(eth->soc->caps, MTK_NETSYS_V1))
+	if (true) /* TODO:  More upstream patches to support: MTK_HAS_CAPS(eth->soc->caps, MTK_NETSYS_V1)) */
 		return;
 
 	mtk_w32(eth, config, PSE_PPE_DROP(0));
