@@ -703,7 +703,7 @@ free_skb:
 	return ret;
 }
 
-static int
+int
 mt76_dma_rx_fill_buf(struct mt76_dev *dev, struct mt76_queue *q,
 		     bool allow_direct)
 {
