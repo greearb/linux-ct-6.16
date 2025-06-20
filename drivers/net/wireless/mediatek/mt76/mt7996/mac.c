@@ -11,6 +11,7 @@
 #include "../dma.h"
 #include "mac.h"
 #include "mcu.h"
+#include "vendor.h"
 
 #define to_rssi(field, rcpi)	((FIELD_GET(field, rcpi) - 220) / 2)
 
@@ -822,6 +823,12 @@ mt7996_mac_fill_rx(struct mt7996_dev *dev, enum mt76_rxq_id q,
 			}
 		}
 		skb_set_mac_header(skb, (unsigned char *)hdr - skb->data);
+
+#ifdef CONFIG_MTK_VENDOR
+		if (phy->amnt_ctrl.enable && !ieee80211_is_beacon(fc))
+			mt7996_vendor_amnt_fill_rx(phy, skb);
+#endif
+
 	} else {
 		status->flag |= RX_FLAG_8023;
 		mt7996_wed_check_ppe(dev, &dev->mt76.q_rx[q], msta_link ? msta_link->sta : NULL, skb,

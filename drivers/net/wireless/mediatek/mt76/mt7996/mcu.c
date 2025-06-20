@@ -2625,7 +2625,10 @@ mt7996_mcu_sta_vht_tlv(struct sk_buff *skb, struct ieee80211_link_sta *link_sta)
 {
 	struct sta_rec_vht *vht;
 	struct tlv *tlv;
-
+#ifdef CONFIG_MTK_VENDOR
+	struct mt7996_sta *msta = (struct mt7996_sta *)link_sta->sta->drv_priv;
+	struct mt7996_phy *phy = (struct mt7996_phy *)msta->vif->deflink.phy;
+#endif
 	/* For 6G band, this tlv is necessary to let hw work normally */
 	if (!link_sta->he_6ghz_capa.capa && !ok_vht(link_sta))
 		return;
@@ -2636,6 +2639,9 @@ mt7996_mcu_sta_vht_tlv(struct sk_buff *skb, struct ieee80211_link_sta *link_sta)
 	vht->vht_cap = cpu_to_le32(link_sta->vht_cap.cap);
 	vht->vht_rx_mcs_map = link_sta->vht_cap.vht_mcs.rx_mcs_map;
 	vht->vht_tx_mcs_map = link_sta->vht_cap.vht_mcs.tx_mcs_map;
+#ifdef CONFIG_MTK_VENDOR
+	vht->rts_bw_sig = phy->rts_bw_sig;
+#endif
 }
 
 static void
