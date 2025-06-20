@@ -911,6 +911,10 @@ static int mt7996_register_phy(struct mt7996_dev *dev, enum mt76_band_id band)
 	if (ret)
 		goto error;
 
+#ifdef CONFIG_MTK_VENDOR
+	mt7996_vendor_register(phy);
+#endif
+
 	ret = mt76_register_phy(mphy, true, mt76_rates,
 				ARRAY_SIZE(mt76_rates));
 	if (ret)
@@ -1844,6 +1848,10 @@ int mt7996_register_device(struct mt7996_dev *dev)
 		return ret;
 
 	mt7996_init_wiphy(hw, &dev->mt76.mmio.wed);
+
+#ifdef CONFIG_MTK_VENDOR
+	mt7996_vendor_register(&dev->phy);
+#endif
 
 	ret = mt7996_register_phy(dev, MT_BAND1);
 	if (ret)
