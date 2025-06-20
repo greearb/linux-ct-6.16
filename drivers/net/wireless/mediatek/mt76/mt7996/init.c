@@ -936,11 +936,35 @@ error:
 	return ret;
 }
 
+#ifdef CONFIG_MTK_VENDOR
+static int mt7996_unregister_csi(struct mt7996_phy *phy)
+{
+	struct csi_data *c, *tmp_c;
+
+	spin_lock_bh(&phy->csi.lock);
+	phy->csi.enable = 0;
+
+	list_for_each_entry_safe(c, tmp_c, &phy->csi.list, node) {
+		list_del(&c->node);
+		kfree(c);
+	}
+	spin_unlock_bh(&phy->csi.lock);
+
+	return 0;
+}
+#endif
+
 static void
 mt7996_unregister_phy(struct mt7996_phy *phy)
 {
-	if (phy)
-		mt7996_unregister_thermal(phy);
+	if (!phy)
+		return;
+
+#ifdef CONFIG_MTK_VENDOR
+	mt7996_unregister_csi(phy);
+#endif
+
+	mt7996_unregister_thermal(phy);
 }
 
 void mt7996_set_pcie_l1ss(struct mt7996_dev *dev, bool en)
