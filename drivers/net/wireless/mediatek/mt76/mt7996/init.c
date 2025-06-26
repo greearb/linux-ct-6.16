@@ -84,19 +84,23 @@ static const struct ieee80211_iface_combination if_comb = {
 	.beacon_int_min_gcd = 100,
 };
 
-static const struct ieee80211_iface_limit if_limits_repeater_global = {
-	.max = MT7996_MAX_INTERFACES_REPEATER * MT7996_MAX_RADIOS,
-	.types = BIT(NL80211_IFTYPE_STATION)
-		 | BIT(NL80211_IFTYPE_ADHOC)
-		 | BIT(NL80211_IFTYPE_AP)
+static const struct ieee80211_iface_limit if_limits_repeater_global[] = {
+	{
+		.max = 16 * MT7996_MAX_RADIOS,
+		.types = BIT(NL80211_IFTYPE_AP)
+			 | BIT(NL80211_IFTYPE_ADHOC)
 #ifdef CONFIG_MAC80211_MESH
-		 | BIT(NL80211_IFTYPE_MESH_POINT)
+			 | BIT(NL80211_IFTYPE_MESH_POINT)
 #endif
+	}, {
+		.max = MT7996_MAX_REPEATER_STA * MT7996_MAX_RADIOS,
+		.types = BIT(NL80211_IFTYPE_STATION)
+	}
 };
 
 static const struct ieee80211_iface_combination if_comb_repeater_global = {
-	.limits = &if_limits_repeater_global,
-	.n_limits = 1,
+	.limits = if_limits_repeater_global,
+	.n_limits = ARRAY_SIZE(if_limits_repeater_global),
 	.max_interfaces = MT7996_MAX_INTERFACES_REPEATER * MT7996_MAX_RADIOS,
 	.num_different_channels = MT7996_MAX_RADIOS,
 	.radar_detect_widths = BIT(NL80211_CHAN_WIDTH_20_NOHT) |
