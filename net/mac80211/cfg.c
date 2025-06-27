@@ -3029,8 +3029,10 @@ static int ieee80211_scan(struct wiphy *wiphy,
 		 */
 		if (ieee80211_num_beaconing_links(sdata) &&
 		    (!(wiphy->features & NL80211_FEATURE_AP_SCAN) ||
-		     !(req->flags & NL80211_SCAN_FLAG_AP)))
+		     !(req->flags & NL80211_SCAN_FLAG_AP))) {
+			sdata_info(sdata, "Scan failed, beaconing links and not FEATURE_AP_SCAN | not SCAN_FLAG_AP\n");
 			return -EOPNOTSUPP;
+		}
 		break;
 	case NL80211_IFTYPE_NAN:
 	default:

@@ -612,6 +612,10 @@ u32 ieee80211_scan_req_radio_mask(struct ieee80211_local *local,
 	u32 mask = 0;
 	int i, r;
 
+	/* Deal with drivers that don't configure n_radio. */
+	if (local->hw.wiphy->n_radio == 0)
+		return 0x1;
+
 	for (r = 0; r < local->hw.wiphy->n_radio; r++) {
 		radio = &local->hw.wiphy->radio[r];
 
@@ -666,21 +670,31 @@ u32 ieee80211_can_leave_ch(struct ieee80211_sub_if_data *sdata,
 	struct ieee80211_link_data *link;
 	unsigned int link_id;
 	u32 radar_mask, mask = radio_mask;
+	u32 rv;
 
 	lockdep_assert_wiphy(local->hw.wiphy);
 
 	radar_mask = ieee80211_is_radar_required(local, radio_mask);
 	if (radar_mask && !regulatory_pre_cac_allowed(local->hw.wiphy) &&
-	    !wiphy->dfs_relax)
-		return radio_mask & ~radar_mask;
+	    !wiphy->dfs_relax) {
+		rv = radio_mask & ~radar_mask;
+		if (!rv) {
+			sdata_info(sdata, "can-leave-ch failed, radar_mask: 0x%x dfs_relax: %d\n",
+				   radar_mask, wiphy->dfs_relax);
+		}
+		return rv;
+	}
+
 
 	list_for_each_entry(sdata_iter, &local->interfaces, list) {
 		for_each_valid_link(&sdata_iter->wdev, link_id) {
 			if (!sdata_iter->wdev.links[link_id].cac_started)
 				continue;
 
-			if (!wiphy->n_radio)
+			if (!wiphy->n_radio) {
+				sdata_info(sdata, "can-leave-ch failed, no wiphy->n_radio\n");
 				return false;
+			}
 
 			link = sdata_dereference(sdata->link[link_id], sdata);
 			if (!link)
@@ -836,8 +850,11 @@ static int __ieee80211_start_scan(struct ieee80211_sub_if_data *sdata,
 
 	lockdep_assert_wiphy(local->hw.wiphy);
 
-	if (local->scan_req)
+	if (local->scan_req) {
+		sdata_info(sdata, "start-scan failed, local->scan_req exists: %p\n",
+			   local->scan_req);
 		return -EBUSY;
+	}
 
 	/* For an MLO connection, if a link ID was specified, validate that it
 	 * is indeed active.
@@ -851,8 +868,12 @@ static int __ieee80211_start_scan(struct ieee80211_sub_if_data *sdata,
 
 	radio_mask = ieee80211_scan_req_radio_mask(local, req);
 	allowed_radios = ieee80211_can_leave_ch(sdata, radio_mask);
-	if (!allowed_radios)
+	if (!allowed_radios) {
+		sdata_info(sdata, "start-scan failed, can_leave_ch says no allowed radios, radio_mask: 0x%x n_radio: %d  req->n_channels: %d\n",
+			   radio_mask, local->hw.wiphy->n_radio, req->n_channels);
 		return -EBUSY;
+	}
+
 	if (allowed_radios != radio_mask)
 		ieee80211_scan_req_update(local, req, allowed_radios);
 
