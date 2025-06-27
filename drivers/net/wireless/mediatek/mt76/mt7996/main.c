@@ -186,20 +186,40 @@ static inline int get_free_idx(u64 mask, u8 start, u8 end)
 	return 0;
 }
 
+#define MT7996_HW_OMAC_LIMIT 8
+
 static int get_omac_idx(enum nl80211_iftype type, struct mt7996_phy *phy)
 {
 	int i;
 	struct mt7996_dev *dev = phy->dev;
-	u64 mask = phy->omac_mask;
+	u64 mask;
+	u8 other_phy_hw_omac_count = 0;
+	u8 upper_hw_omac_limit;
+
+	for (i = 0; i < MT7996_MAX_RADIOS; i++) {
+		mask = dev->radio_phy[i]->omac_mask & GENMASK_ULL(HW_BSSID_3, HW_BSSID_0);
+		other_phy_hw_omac_count += hweight64(mask);
+	}
+
+	mask = phy->omac_mask & GENMASK_ULL(HW_BSSID_3, HW_BSSID_0);
+	other_phy_hw_omac_count -= hweight64(mask);
+
+	mask = phy->omac_mask;
 
 	switch (type) {
 	case NL80211_IFTYPE_MESH_POINT:
 	case NL80211_IFTYPE_ADHOC:
 	case NL80211_IFTYPE_STATION:
-		/* prefer hw bssid slot 1-3 */
-		i = get_free_idx(mask, HW_BSSID_1, HW_BSSID_3);
-		if (i)
-			return i - 1;
+		if (other_phy_hw_omac_count < MT7996_HW_OMAC_LIMIT) {
+			/* Prefer hw bssid slot 1-3, however only 8 of these are available across
+			 * all 3 bands.
+			 */
+			upper_hw_omac_limit = HW_BSSID_1 +
+			                      (MT7996_HW_OMAC_LIMIT - other_phy_hw_omac_count - 1);
+			i = get_free_idx(mask, HW_BSSID_1, min(upper_hw_omac_limit, HW_BSSID_3));
+			if (i)
+				return i - 1;
+		}
 
 		if (type != NL80211_IFTYPE_STATION)
 			break;
@@ -393,6 +413,8 @@ out:
 	kfree(vif);
 }
 
+#define MT7996_HEADLESS_LINK_IDX HW_BSSID_1
+
 /* Adds a "headless" VIF for the band. Repeater stations need one HW_BSSID link to be active in
  * order to work. In order to provide the illusion of not needing this master interface to users,
  * we manually set up that link if a repeater station is added. To minimize the impact of this, this
@@ -416,6 +438,9 @@ mt7996_add_headless_vif(struct mt7996_phy *phy)
 	u8 link_id = 0;
 
 	if (phy->headless_vif)
+		return 0;
+
+	if (phy->omac_mask & BIT(MT7996_HEADLESS_LINK_IDX))
 		return 0;
 
 	vif = kzalloc(struct_size(vif, drv_priv, hw->vif_data_size),
@@ -458,11 +483,7 @@ mt7996_add_headless_vif(struct mt7996_phy *phy)
 		goto error;
 	}
 
-	if (phy->omac_mask & HW_BSSID_0) {
-		ret = -ENOSPC;
-		goto error;
-	}
-	idx = HW_BSSID_0;
+	idx = MT7996_HEADLESS_LINK_IDX;
 
 	link->phy = phy;
 	mlink->omac_idx = idx;
@@ -606,7 +627,7 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 			ret = mt7996_add_headless_vif(phy);
 			mt76_dbg(&dev->mt76, MT76_DBG_BSS, "%s: called add_headless_vif, ret %d\n",
 				 __func__, ret);
-		} else if (idx == HW_BSSID_0) {
+		} else if (idx == MT7996_HEADLESS_LINK_IDX) {
 			mt76_dbg(&dev->mt76, MT76_DBG_BSS,
 				 "%s: omac_idx shared with headless, calling remove_headless_vif\n",
 				 __func__);
@@ -794,7 +815,7 @@ void mt7996_vif_link_remove(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 			mt7996_remove_headless_vif(phy);
 			mt76_dbg(&dev->mt76, MT76_DBG_STA, "%s: Removing headless VIF\n",
 				 __func__);
-		} else if (mlink->omac_idx == HW_BSSID_0) {
+		} else if (mlink->omac_idx == MT7996_HEADLESS_LINK_IDX) {
 			ret = mt7996_add_headless_vif(phy);
 			mt76_dbg(&dev->mt76, MT76_DBG_STA, "%s: Re-started headless VIF, ret: %d\n",
 				 __func__, ret);
