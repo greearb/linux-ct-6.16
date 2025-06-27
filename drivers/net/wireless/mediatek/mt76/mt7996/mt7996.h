@@ -14,8 +14,8 @@
 
 #define MT7996_MAX_RADIOS		3
 #define MT7996_MAX_INTERFACES		19	/* per-band */
-#define MT7996_MAX_REPEATER_STA 	36	/* per-band */
-#define MT7996_MAX_INTERFACES_REPEATER 	51	/* per-band */
+#define MT7996_MAX_REPEATER_STA 	34	/* per-band */
+#define MT7996_MAX_INTERFACES_REPEATER 	49	/* per-band */
 #define MT7996_MAX_WMM_SETS		4
 #define MT7996_MAX_MBSSID		16
 #define MT7996_WTBL_BMC_SIZE		(is_mt7996(&dev->mt76) ? 64 : 32)

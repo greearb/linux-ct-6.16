@@ -86,7 +86,7 @@ static const struct ieee80211_iface_combination if_comb = {
 
 static const struct ieee80211_iface_limit if_limits_repeater_global[] = {
 	{
-		.max = 16 * MT7996_MAX_RADIOS,
+		.max = 15 * MT7996_MAX_RADIOS,
 		.types = BIT(NL80211_IFTYPE_AP)
 			 | BIT(NL80211_IFTYPE_ADHOC)
 #ifdef CONFIG_MAC80211_MESH
@@ -113,7 +113,7 @@ static const struct ieee80211_iface_combination if_comb_repeater_global = {
 
 static const struct ieee80211_iface_limit if_limits_repeater[] = {
 	{
-		.max = 16,
+		.max = 15,
 		.types = BIT(NL80211_IFTYPE_AP)
 #ifdef CONFIG_MAC80211_MESH
 			 | BIT(NL80211_IFTYPE_MESH_POINT)
