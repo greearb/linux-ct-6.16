@@ -7525,6 +7525,7 @@ int mt7996_mcu_set_pp_en(struct mt7996_phy *phy, u8 mode, u16 bitmap)
 {
 	struct mt7996_dev *dev = phy->dev;
 	bool pp_auto = (mode == PP_FW_MODE);
+	int rv;
 	struct {
 		u8 _rsv1[4];
 
@@ -7565,8 +7566,11 @@ int mt7996_mcu_set_pp_en(struct mt7996_phy *phy, u8 mode, u16 bitmap)
 		phy->mru_probe_enable = false;
 #endif
 
-	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(PP),
-				 &req, sizeof(req), false);
+	rv = mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(PP),
+			       &req, sizeof(req), false);
+	if (rv)
+		dev_err(dev->mt76.dev, "mcu-set-pp-en failed mcu command\n");
+	return rv;
 }
 
 int mt7996_mcu_set_pp_sta_dscb(struct mt7996_phy *phy,

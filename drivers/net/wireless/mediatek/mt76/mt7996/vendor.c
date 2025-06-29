@@ -914,6 +914,9 @@ static int mt7996_vendor_pp_ctrl(struct wiphy *wiphy, struct wireless_dev *wdev,
 			err = 0;
 			break;
 		default:
+			if (err)
+				dev_err(dev->mt76.dev, "vendor-pp-ctrl failed, invalid pp-mode: %d\n",
+					val8);
 			err = -EINVAL;
 		}
 	}
