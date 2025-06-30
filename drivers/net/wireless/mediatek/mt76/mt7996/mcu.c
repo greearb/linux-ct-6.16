@@ -7558,7 +7558,8 @@ int mt7996_mcu_set_pp_en(struct mt7996_phy *phy, u8 mode, u16 bitmap)
 	    mode > PP_USR_MODE)
 		return 0;
 
-	if (bitmap && phy->punct_bitmap == bitmap)
+	if ((bitmap && phy->punct_bitmap == bitmap) &&
+	    (phy->pp_mode == mode))
 		return 0;
 
 	phy->punct_bitmap = bitmap;
