@@ -2479,10 +2479,21 @@ static void mt7996_sta_statistics(struct ieee80211_hw *hw,
 	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
 	struct mt7996_sta_link *msta_link;
 	struct rate_info *txrate;
+	int i;
 
-	/* TODO: support per-link rate report */
 	mutex_lock(&dev->mt76.mutex);
-	msta_link = mt76_dereference(msta->link[msta->deflink_id], &dev->mt76);
+
+	if (!ieee80211_vif_is_mld(vif)) {
+		msta_link = mt76_dereference(msta->link[msta->deflink_id], &dev->mt76);
+	} else {
+		/* Find highest link, report that as sinfo defaults */
+		for (i = 2; i>=0; i--) {
+			msta_link = mt76_dereference(msta->link[i], &dev->mt76);
+			if (msta_link)
+				break;
+		}
+	}
+
 	if (!msta_link)
 		goto out;
 
@@ -2532,6 +2543,64 @@ static void mt7996_sta_statistics(struct ieee80211_hw *hw,
 		sinfo->rx_packets = msta_link->wcid.stats.rx_packets;
 		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_PACKETS);
 	}
+
+	if (ieee80211_vif_is_mld(vif)) {
+		for (i = 0; i<3; i++) {
+			struct station_info_link *ilink;
+
+			msta_link = mt76_dereference(msta->link[i], &dev->mt76);
+			if (!msta_link)
+				continue;
+
+			ilink = &sinfo->link_info[i];
+
+			txrate = &msta_link->wcid.rate;
+
+			if (txrate->legacy || txrate->flags) {
+				if (txrate->legacy) {
+					sinfo->txrate.legacy = txrate->legacy;
+				} else {
+					ilink->txrate.mcs = txrate->mcs;
+					ilink->txrate.nss = txrate->nss;
+					ilink->txrate.bw = txrate->bw;
+					ilink->txrate.he_gi = txrate->he_gi;
+					ilink->txrate.he_dcm = txrate->he_dcm;
+					ilink->txrate.he_ru_alloc = txrate->he_ru_alloc;
+					ilink->txrate.eht_gi = txrate->eht_gi;
+				}
+			}
+			ilink->txrate.flags = txrate->flags;
+			ilink->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
+
+			ilink->tx_failed = msta_link->wcid.stats.tx_failed;
+			ilink->filled |= BIT_ULL(NL80211_STA_INFO_TX_FAILED);
+
+			ilink->tx_retries = msta_link->wcid.stats.tx_retries;
+			ilink->filled |= BIT_ULL(NL80211_STA_INFO_TX_RETRIES);
+
+			ilink->ack_signal = (s8)msta_link->ack_signal;
+			ilink->filled |= BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL);
+
+			ilink->avg_ack_signal =
+				-(s8)ewma_avg_signal_read(&msta_link->avg_ack_signal);
+			ilink->filled |= BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL_AVG);
+
+			if (mtk_wed_device_active(&dev->mt76.mmio.wed)) {
+				ilink->tx_bytes = msta_link->wcid.stats.tx_bytes;
+				ilink->filled |= BIT_ULL(NL80211_STA_INFO_TX_BYTES64);
+
+				ilink->rx_bytes = msta_link->wcid.stats.rx_bytes;
+				ilink->filled |= BIT_ULL(NL80211_STA_INFO_RX_BYTES64);
+
+				ilink->tx_packets = msta_link->wcid.stats.tx_mpdu_ok;
+				ilink->filled |= BIT_ULL(NL80211_STA_INFO_TX_PACKETS);
+
+				ilink->rx_packets = msta_link->wcid.stats.rx_packets;
+				ilink->filled |= BIT_ULL(NL80211_STA_INFO_RX_PACKETS);
+			}
+		}
+	}
+
 out:
 	mutex_unlock(&dev->mt76.mutex);
 }
