@@ -2035,8 +2035,18 @@ struct cfg80211_tid_stats {
  */
 struct station_info_link {
 	u64 filled;
-	s8 rx_beacon_signal_avg;
+	u64 rx_bytes;
+	u64 tx_bytes;
 	struct rate_info txrate;
+
+	u32 rx_packets;
+	u32 tx_packets;
+	u32 tx_retries;
+	u32 tx_failed;
+
+	s8 rx_beacon_signal_avg;
+	s8 ack_signal;
+	s8 avg_ack_signal;
 };
 
 #define IEEE80211_MAX_CHAINS	4
