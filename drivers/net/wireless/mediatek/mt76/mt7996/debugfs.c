@@ -2878,10 +2878,12 @@ mt7996_link_sta_info_show(struct seq_file *file, void *data)
 	seq_printf(file, "\t\tByte Fails: %llu\n", stats->tx_bytes_failed);
 	for (ac = IEEE80211_AC_VO; ac < IEEE80211_NUM_ACS; ++ac)
 		seq_printf(file, "\t\t\t%s: %llu\n", ac_to_str(ac), stats->tx_bytes_failed_per_ac[ac]);
-	seq_printf(file, "\t\tMPDU Count: %lu\n", stats->tx_mpdus);
+	seq_printf(file, "\t\tMPDU OK: %lu\n", stats->tx_mpdu_ok);
+	seq_printf(file, "\t\tMPDU Attempts: %lu\n", stats->tx_attempts);
+	seq_printf(file, "\t\tMPDU Count: %lu\n", stats->tx_packets);
 	seq_printf(file, "\t\tMPDU Fails: %lu (PER: %lu.%lu%%)\n", stats->tx_failed,
-		   stats->tx_mpdus ? stats->tx_failed * 1000 / stats->tx_mpdus / 10 : 0,
-		   stats->tx_mpdus ? stats->tx_failed * 1000 / stats->tx_mpdus % 10 : 0);
+		   stats->tx_packets ? stats->tx_failed * 1000 / stats->tx_packets / 10 : 0,
+		   stats->tx_packets ? stats->tx_failed * 1000 / stats->tx_packets % 10 : 0);
 	seq_printf(file, "\t\tMPDU Retries: %lu\n", stats->tx_retries);
 	seq_printf(file, "\t\tAirtime: %llu (unit: 1.024 us)\n", stats->tx_airtime);
 	seq_printf(file, "\tRX:\n");

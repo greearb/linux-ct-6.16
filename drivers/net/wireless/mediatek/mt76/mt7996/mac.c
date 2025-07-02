@@ -1712,6 +1712,9 @@ mt7996_txwi_free(struct mt7996_dev *dev, struct mt76_txwi_cache *t,
 		struct mt76_sta_stats *stats = &wcid->stats;
 		struct mt76_tx_cb *cb = mt76_tx_skb_cb(t->skb);
 
+		if (wcid->link_valid)
+			info->status.tx_link_id = wcid->link_id + 1;
+
 		if (wcid->rate.flags & RATE_INFO_FLAGS_MCS) {
 			rate->flags |= IEEE80211_TX_RC_MCS;
 			rate->idx = wcid->rate.mcs + wcid->rate.nss * 8;
@@ -1739,8 +1742,9 @@ mt7996_txwi_free(struct mt7996_dev *dev, struct mt76_txwi_cache *t,
 		stats->tx_attempts += tx_cnt;
 		stats->tx_retries += tx_cnt - 1;
 
-		mtk_dbg(&dev->mt76, TX, "mt7915-txwi-free, skb: %p skb->len: %d tx-cnt: %d  tx_status: 0x%x  txo: %d\n",
-			t->skb, t->skb->len, tx_cnt, tx_status, !!(cb->flags & MT_TX_CB_TXO_USED));
+		mtk_dbg(&dev->mt76, TX, "mt7996-txwi-free, skb: %p skb->len: %d tx-cnt: %d  tx_status: 0x%x  txo: %d wcid-idx: %d link-id: %d\n",
+			t->skb, t->skb->len, tx_cnt, tx_status, !!(cb->flags & MT_TX_CB_TXO_USED),
+			wcid_idx, wcid->link_id);
 
 		if (tx_status == 0) {
 			stats->tx_mpdu_ok++;
@@ -1757,6 +1761,9 @@ mt7996_txwi_free(struct mt7996_dev *dev, struct mt76_txwi_cache *t,
 			else
 				stats->txo_tx_mpdu_fail++;
 		}
+	} else {
+		mtk_dbg(&dev->mt76, TX, "mt7996-txwi-free, skb: %p skb->len: %d sta: %p wcid NULL wcid_idx: %d status: 0x%x\n",
+			t->skb, t->skb->len, sta, wcid_idx, tx_status);
 	}
 
 	rcu_read_unlock();

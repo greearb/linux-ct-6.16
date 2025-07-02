@@ -2547,10 +2547,14 @@ static void mt7996_sta_statistics(struct ieee80211_hw *hw,
 	if (ieee80211_vif_is_mld(vif)) {
 		for (i = 0; i<3; i++) {
 			struct station_info_link *ilink;
+			struct mt76_sta_stats *stats;
+			struct mt76_wcid *wcid;
 
 			msta_link = mt76_dereference(msta->link[i], &dev->mt76);
 			if (!msta_link)
 				continue;
+			wcid = &msta_link->wcid;
+			stats = &wcid->stats;
 
 			ilink = &sinfo->link_info[i];
 
@@ -2585,19 +2589,20 @@ static void mt7996_sta_statistics(struct ieee80211_hw *hw,
 				-(s8)ewma_avg_signal_read(&msta_link->avg_ack_signal);
 			ilink->filled |= BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL_AVG);
 
-			if (mtk_wed_device_active(&dev->mt76.mmio.wed)) {
-				ilink->tx_bytes = msta_link->wcid.stats.tx_bytes;
-				ilink->filled |= BIT_ULL(NL80211_STA_INFO_TX_BYTES64);
+			ilink->tx_bytes = stats->tx_bytes;
+			ilink->filled |= BIT_ULL(NL80211_STA_INFO_TX_BYTES64);
 
-				ilink->rx_bytes = msta_link->wcid.stats.rx_bytes;
-				ilink->filled |= BIT_ULL(NL80211_STA_INFO_RX_BYTES64);
+			ilink->rx_bytes = stats->rx_bytes;
+			ilink->filled |= BIT_ULL(NL80211_STA_INFO_RX_BYTES64);
 
-				ilink->tx_packets = msta_link->wcid.stats.tx_mpdu_ok;
-				ilink->filled |= BIT_ULL(NL80211_STA_INFO_TX_PACKETS);
+			ilink->tx_packets = msta_link->wcid.stats.tx_mpdu_ok;
+			ilink->filled |= BIT_ULL(NL80211_STA_INFO_TX_PACKETS);
 
-				ilink->rx_packets = msta_link->wcid.stats.rx_packets;
-				ilink->filled |= BIT_ULL(NL80211_STA_INFO_RX_PACKETS);
-			}
+			ilink->rx_packets = msta_link->wcid.stats.rx_packets;
+			ilink->filled |= BIT_ULL(NL80211_STA_INFO_RX_PACKETS);
+
+			mtk_dbg(&dev->mt76, WRN, " link-info stats, link: %d  tx_bytes: %ld rx_bytes: %ld tx_packets: %d rx_packets: %d\n",
+				i, ilink->tx_bytes, ilink->rx_bytes, ilink->tx_packets, ilink->rx_packets);
 		}
 	}
 
