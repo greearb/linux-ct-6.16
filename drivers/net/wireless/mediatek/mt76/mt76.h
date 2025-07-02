@@ -335,7 +335,6 @@ struct mt76_sta_stats {
 	unsigned long tx_attempts; /* Counting any retries. unit: MSDU (all frames) */
 	unsigned long tx_retries; /* number of times frames were retried (all frames) */
 	unsigned long tx_failed; /* failed even after retries (all frames) */
-	unsigned long tx_mpdus;
 	u64 tx_airtime;
 	/* WED RX */
 	u64 rx_bytes;
