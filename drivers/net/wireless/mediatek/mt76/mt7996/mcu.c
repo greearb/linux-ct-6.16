@@ -2122,7 +2122,7 @@ mt7996_mcu_bss_basic_tlv(struct mt7996_dev *dev,
 	bss->conn_type = cpu_to_le32(type);
 
 	if (mvif->omac_idx >= REPEATER_BSSID_START && dev->sta_omac_repeater_bssid_enable)
-		bss->omac_idx = 1;
+		bss->omac_idx = HW_BSSID_1;
 	else
 		bss->omac_idx = mvif->omac_idx;
 
