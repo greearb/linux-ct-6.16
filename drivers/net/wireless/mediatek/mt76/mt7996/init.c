@@ -41,12 +41,12 @@ static const struct ieee80211_iface_limit if_limits_global[] = {
 			 | BIT(NL80211_IFTYPE_AP)
 #ifdef CONFIG_MAC80211_MESH
 			 | BIT(NL80211_IFTYPE_MESH_POINT)
+#endif
 	},
 	{
 		.max = MT7996_MAX_INTERFACES * MT7996_MAX_RADIOS,
 		.types = BIT(NL80211_IFTYPE_STATION)
 	}
-#endif
 };
 
 static const struct ieee80211_iface_combination if_comb_global = {
