@@ -173,10 +173,14 @@ static void mt7996_stop(struct ieee80211_hw *hw, bool suspend)
 	cancel_delayed_work_sync(&dev->scs_work);
 }
 
-static bool
-mt7996_has_repeater_stations(struct mt7996_phy *phy)
+static inline bool mt7996_has_repeater_stations(struct mt7996_phy *phy)
 {
 	return !!(phy->omac_mask & GENMASK_ULL(REPEATER_BSSID_MAX, REPEATER_BSSID_START));
+}
+
+static inline bool mt7996_has_hw_stations(struct mt7996_phy *phy)
+{
+	return !!(phy->omac_mask & GENMASK_ULL(HW_BSSID_MAX, HW_BSSID_0));
 }
 
 static inline int get_free_idx(u64 mask, u8 start, u8 end)
@@ -192,17 +196,21 @@ static int get_omac_idx(enum nl80211_iftype type, struct mt7996_phy *phy)
 {
 	int i;
 	struct mt7996_dev *dev = phy->dev;
-	u64 mask;
-	u8 other_phy_hw_omac_count = 0;
+	u64 mask, hw_omac_mask;
+	int available_hw_omac_count;
 	u8 upper_hw_omac_limit;
 
-	for (i = 0; i < MT7996_MAX_RADIOS; i++) {
-		mask = dev->radio_phy[i]->omac_mask & GENMASK_ULL(HW_BSSID_3, HW_BSSID_0);
-		other_phy_hw_omac_count += hweight64(mask);
-	}
+	available_hw_omac_count = MT7996_HW_OMAC_LIMIT;
 
-	mask = phy->omac_mask & GENMASK_ULL(HW_BSSID_3, HW_BSSID_0);
-	other_phy_hw_omac_count -= hweight64(mask);
+	for (i = 0; i < MT7996_MAX_RADIOS; i++) {
+		if (dev->radio_phy[i] == phy)
+			continue;
+
+		/* Must reserve HW_BSSID_1 on each band for repeater STA use. */
+		hw_omac_mask = ~BIT(HW_BSSID_1) & GENMASK_ULL(HW_BSSID_MAX, HW_BSSID_0);
+		hw_omac_mask &= dev->radio_phy[i]->omac_mask;
+		available_hw_omac_count -= hweight64(hw_omac_mask) + 1;
+	}
 
 	mask = phy->omac_mask;
 
@@ -210,16 +218,22 @@ static int get_omac_idx(enum nl80211_iftype type, struct mt7996_phy *phy)
 	case NL80211_IFTYPE_MESH_POINT:
 	case NL80211_IFTYPE_ADHOC:
 	case NL80211_IFTYPE_STATION:
-		if (other_phy_hw_omac_count < MT7996_HW_OMAC_LIMIT) {
-			/* Prefer hw bssid slot 1-3, however only 8 of these are available across
-			 * all 3 bands.
-			 */
-			upper_hw_omac_limit = HW_BSSID_1 +
-			                      (MT7996_HW_OMAC_LIMIT - other_phy_hw_omac_count - 1);
-			i = get_free_idx(mask, HW_BSSID_1, min(upper_hw_omac_limit, HW_BSSID_3));
-			if (i)
-				return i - 1;
-		}
+		/* Count the out-of-reach HW_BSSID_0, which is only used for APs */
+		available_hw_omac_count -= !!(mask & BIT(HW_BSSID_0));
+
+		/* No need for this limit if repeater OMACs are not enabled */
+		if (!dev->sta_omac_repeater_bssid_enable)
+			available_hw_omac_count = HW_BSSID_3 - HW_BSSID_1 + 1;
+
+		/* Prefer hw bssid slot 1-3, however only 8 of these are available across
+		 * all 3 bands.
+		 */
+		upper_hw_omac_limit = min(HW_BSSID_1 + available_hw_omac_count - 1,
+					  HW_BSSID_3);
+
+		i = get_free_idx(mask, HW_BSSID_1, upper_hw_omac_limit);
+		if (i)
+			return i - 1;
 
 		if (type != NL80211_IFTYPE_STATION)
 			break;
@@ -230,6 +244,9 @@ static int get_omac_idx(enum nl80211_iftype type, struct mt7996_phy *phy)
 				return i - 1;
 		}
 
+		/* Below are disabled by interface limits.
+		 * HW_BSSID_0 is wanted by APs, and extend OMAC links do not currently work.
+		 */
 		if (~mask & BIT(HW_BSSID_0))
 			return HW_BSSID_0;
 
@@ -240,26 +257,16 @@ static int get_omac_idx(enum nl80211_iftype type, struct mt7996_phy *phy)
 		break;
 	case NL80211_IFTYPE_MONITOR:
 	case NL80211_IFTYPE_AP:
-		/* ap uses hw bssid 0 and ext bssid */
-		if (dev->sta_omac_repeater_bssid_enable) {
-			/* Use HW_BSSID_0 last, as bouncing that link will disrupt repeater
-			 * interfaces.
-			 */
-			i = get_free_idx(mask, EXT_BSSID_1, EXT_BSSID_MAX);
-			if (i)
-				return i - 1;
+		/* Count the out-of-reach HW_BSSID_1-3, which are used for non-AP STAs */
+		available_hw_omac_count -= hweight64(mask & GENMASK_ULL(HW_BSSID_3, HW_BSSID_1));
 
-			/* NOTE: Does MLD need this interface? */
-			if (~mask & BIT(HW_BSSID_0))
-				return HW_BSSID_0;
-		} else {
-			if (~mask & BIT(HW_BSSID_0))
-				return HW_BSSID_0;
+		if (~mask & BIT(HW_BSSID_0) &&
+		    (available_hw_omac_count > 0 || !dev->sta_omac_repeater_bssid_enable))
+			return HW_BSSID_0;
 
-			i = get_free_idx(mask, EXT_BSSID_1, EXT_BSSID_MAX);
-			if (i)
-				return i - 1;
-		}
+		i = get_free_idx(mask, EXT_BSSID_1, EXT_BSSID_MAX);
+		if (i)
+			return i - 1;
 
 		break;
 	default:
@@ -440,7 +447,10 @@ mt7996_add_headless_vif(struct mt7996_phy *phy)
 	if (phy->headless_vif)
 		return 0;
 
-	if (phy->omac_mask & BIT(MT7996_HEADLESS_LINK_IDX))
+	/* If any of these OMACs are enabled, repeater stations will work, so there is no need to
+	 * make a headless link.
+	 */
+	if (phy->omac_mask & GENMASK_ULL(HW_BSSID_MAX, HW_BSSID_0))
 		return 0;
 
 	vif = kzalloc(struct_size(vif, drv_priv, hw->vif_data_size),
@@ -627,10 +637,9 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 			ret = mt7996_add_headless_vif(phy);
 			mt76_dbg(&dev->mt76, MT76_DBG_BSS, "%s: called add_headless_vif, ret %d\n",
 				 __func__, ret);
-		} else if (idx == MT7996_HEADLESS_LINK_IDX) {
+		} else if (BIT_ULL(idx) & GENMASK_ULL(HW_BSSID_MAX, HW_BSSID_0)) {
 			mt76_dbg(&dev->mt76, MT76_DBG_BSS,
-				 "%s: omac_idx shared with headless, calling remove_headless_vif\n",
-				 __func__);
+				 "%s: omac_idx can replace headless link\n", __func__);
 			mt7996_remove_headless_vif(phy);
 		}
 	}
@@ -811,13 +820,18 @@ void mt7996_vif_link_remove(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	mt76_wcid_cleanup(&dev->mt76, &msta_link->wcid);
 
 	if (dev->sta_omac_repeater_bssid_enable) {
-		if (!mt7996_has_repeater_stations(phy)) {
-			mt7996_remove_headless_vif(phy);
-			mt76_dbg(&dev->mt76, MT76_DBG_STA, "%s: Removing headless VIF\n",
+		if ((BIT_ULL(mlink->omac_idx) & GENMASK_ULL(REPEATER_BSSID_MAX,
+							    REPEATER_BSSID_START)) &&
+		    !mt7996_has_repeater_stations(phy)) {
+			mt76_dbg(&dev->mt76, MT76_DBG_BSS,
+				 "%s: Last repeater station removed, removing headless VIF\n",
 				 __func__);
-		} else if (mlink->omac_idx == MT7996_HEADLESS_LINK_IDX) {
+			mt7996_remove_headless_vif(phy);
+		} else if ((BIT_ULL(mlink->omac_idx) & GENMASK_ULL(HW_BSSID_MAX, HW_BSSID_0)) &&
+			   !mt7996_has_hw_stations(phy) &&
+			   mt7996_has_repeater_stations(phy)) {
 			ret = mt7996_add_headless_vif(phy);
-			mt76_dbg(&dev->mt76, MT76_DBG_STA, "%s: Re-started headless VIF, ret: %d\n",
+			mt76_dbg(&dev->mt76, MT76_DBG_BSS, "%s: Re-started headless VIF, ret: %d\n",
 				 __func__, ret);
 		}
 	}
