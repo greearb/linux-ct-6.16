@@ -522,26 +522,29 @@ mt7996_mcu_send_message(struct mt76_dev *mdev, struct sk_buff *skb,
 		mcu_txd->s2d_index = MCU_S2D_H2N;
 
 exit:
-	if (dev->mt76.debug_lvl & MT76_DBG_MCU_VERBOSE) {
-		for (i = 0; i < mcu_txd->len; i += 4) {
-			/* 3-char byte w/ space, 4 per word,
-			 * 4 words per line, plus 1 space, and 1 for null
-			 */
-			char txd_out_buf[((3 * 4) + 1) * 4 + 1];
-			for (j = 0; j < 4 && i + j < mcu_txd->len; j++) {
-				u8 *data = (u8 *)(&txd[i + j]);
-				snprintf(txd_out_buf + (j * 13), 14,
-					 "  %02hhx %02hhx %02hhx %02hhx",
-					 data[0], data[1], data[2], data[3]);
-			}
-			txd_out_buf[j * 13] = '\0';
+	if (dev->mt76.debug_lvl & MT76_DBG_MCU_VERBOSE &&
+	    cmd != MCU_CMD(FW_SCATTER)) {
+		bool well_formed = (skb->len % 4 == 0);
+		if (WARN_ON_ONCE(!well_formed)) {
+			pr_err("MCU_MSG: skb->len not 4-byte aligned for cmd: %08x, len: %d txd_len: %d\n",
+			       mcu_cmd, skb->len, txd_len);
+		}
 
+		/* 3-char bytes (space + val), 16 bytes per line, + 1 space */
+		for (i = 0; i < skb->len; i += 16) {
+			char skb_out_buf[(3 * 16) + 1];
+			for (j = 0; j < 16 && i + j < skb->len; j++) {
+				snprintf(skb_out_buf + (3 * j), 4, " %02hhx",
+					 skb->data[i + j]);
+			}
+			skb_out_buf[j * 3] = '\0';
 			mt76_dbg(&dev->mt76, MT76_DBG_MCU_VERBOSE,
-				 "MCU_MSG (hex, le) (cmd: %08x)[%d, %d]:%s %s\n",
+				 "MCU_MSG (hex, le) %s(cmd: %08x)[%d, %d]:%s%s\n",
+				 well_formed ? "" : "x",
 				 cmd, i,
-				 ((i + 3) >= mcu_txd->len ? mcu_txd->len : (i + 3)),
-				 txd_out_buf,
-				 ((i + 4) >= mcu_txd->len ? "__DONE_MCU" : ""));
+				 ((i + 15) >= skb->len ? skb->len : (i + 15)),
+				 skb_out_buf,
+				 ((i + 16) >= skb->len ? " __DONE_MCU" : ""));
 		}
 	}
 
