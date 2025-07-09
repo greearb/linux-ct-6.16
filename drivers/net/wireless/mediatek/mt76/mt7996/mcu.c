@@ -937,43 +937,6 @@ mt7996_mcu_update_trx_rates(struct mt76_wcid *wcid, struct all_sta_trx_rate *mcu
 }
 
 static int
-mt7996_mcu_update_tx_gi(struct rate_info *rate, struct all_sta_trx_rate *mcu_rate)
-{
-	switch (mcu_rate->tx_mode) {
-	case MT_PHY_TYPE_CCK:
-	case MT_PHY_TYPE_OFDM:
-		break;
-	case MT_PHY_TYPE_HT:
-	case MT_PHY_TYPE_HT_GF:
-	case MT_PHY_TYPE_VHT:
-		if (mcu_rate->tx_gi)
-			rate->flags |= RATE_INFO_FLAGS_SHORT_GI;
-		else
-			rate->flags &= ~RATE_INFO_FLAGS_SHORT_GI;
-		break;
-	case MT_PHY_TYPE_HE_SU:
-	case MT_PHY_TYPE_HE_EXT_SU:
-	case MT_PHY_TYPE_HE_TB:
-	case MT_PHY_TYPE_HE_MU:
-		if (mcu_rate->tx_gi > NL80211_RATE_INFO_HE_GI_3_2)
-			return -EINVAL;
-		rate->he_gi = mcu_rate->tx_gi;
-		break;
-	case MT_PHY_TYPE_EHT_SU:
-	case MT_PHY_TYPE_EHT_TRIG:
-	case MT_PHY_TYPE_EHT_MU:
-		if (mcu_rate->tx_gi > NL80211_RATE_INFO_EHT_GI_3_2)
-			return -EINVAL;
-		rate->eht_gi = mcu_rate->tx_gi;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-static int
 csi_integrate_segment_data(struct mt7996_phy *phy, struct csi_data *csi)
 {
 	struct csi_data *csi_temp = NULL;
@@ -1313,6 +1276,12 @@ mt7996_mcu_rx_all_sta_info_event(struct mt7996_dev *dev, struct sk_buff *skb)
 
 			wcid->stats.tx_packets += tx_packets;
 			wcid->stats.rx_packets += rx_packets;
+
+			// NOTE:  Seems incorrect to me, at least in STA mode. --Ben
+			// Does not match the tx bytes per ac counts above.
+			//mt76_dbg(&dev->mt76, MTK_DEBUG_WRN,
+			//	 "rx-all-sta-info-event, i: %d wlan-idx: %d  wcid->link_id: %d tx-packets: %d  rx-packets: %d\n",
+			//	 i, wlan_idx, wcid->link_id, tx_packets, rx_packets);
 
 			// TODO:  Consider adding later.
 			//__mt7996_stat_to_netdev(mphy, wcid, 0, 0,
@@ -7155,55 +7124,6 @@ int mt7996_mcu_rdd_background_disable_timer(struct mt7996_dev *dev, bool disable
 
 	return mt76_mcu_send_msg(&dev->mt76, MCU_WM_UNI_CMD(RDD_CTRL),
 				 &req, sizeof(req), true);
-}
-
-int mt7996_mcu_get_rssi(struct mt76_dev *dev)
-{
-	u16 sta_list[PER_STA_INFO_MAX_NUM];
-	LIST_HEAD(sta_poll_list);
-	struct mt7996_sta_link *msta_link;
-	int i, ret;
-	bool empty = false;
-
-	spin_lock_bh(&dev->sta_poll_lock);
-	list_splice_init(&dev->sta_poll_list, &sta_poll_list);
-	spin_unlock_bh(&dev->sta_poll_lock);
-
-	while (!empty) {
-		for (i = 0; i < PER_STA_INFO_MAX_NUM; ++i) {
-			spin_lock_bh(&dev->sta_poll_lock);
-			if (list_empty(&sta_poll_list)) {
-				spin_unlock_bh(&dev->sta_poll_lock);
-
-				if (i == 0)
-					return 0;
-
-				empty = true;
-				break;
-			}
-			msta_link = list_first_entry(&sta_poll_list,
-			                        struct mt7996_sta_link,
-			                        wcid.poll_list);
-			list_del_init(&msta_link->wcid.poll_list);
-			spin_unlock_bh(&dev->sta_poll_lock);
-
-			sta_list[i] = msta_link->wcid.idx;
-		}
-
-		ret = mt7996_mcu_get_per_sta_info(dev, UNI_PER_STA_RSSI,
-		                                  i, sta_list);
-		if (ret) {
-			/* Add STAs, whose RSSI has not been updated,
-			 * back to polling list.
-			 */
-			spin_lock_bh(&dev->sta_poll_lock);
-			list_splice(&sta_poll_list, &dev->sta_poll_list);
-			spin_unlock_bh(&dev->sta_poll_lock);
-			break;
-		}
-	}
-
-	return ret;
 }
 
 int mt7996_mcu_set_sniffer_mode(struct mt7996_phy *phy, bool enabled)

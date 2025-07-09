@@ -2532,6 +2532,9 @@ static void mt7996_sta_statistics(struct ieee80211_hw *hw,
 	sinfo->txrate.flags = txrate->flags;
 	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
 
+	sinfo->rxrate = msta_link->wcid.rx_rate;
+	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_BITRATE);
+
 	sinfo->tx_failed = msta_link->wcid.stats.tx_failed;
 	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_FAILED);
 
