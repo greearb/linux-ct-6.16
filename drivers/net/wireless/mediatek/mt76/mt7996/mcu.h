@@ -785,7 +785,7 @@ struct bss_mld_link_op_tlv {
 	u8 remap_idx;
 	u8 link_operation;
 	u8 link_id;
-	u8 rsv[2];
+	u8 rsv;
 } __packed;
 
 struct sta_rec_ht_uni {
