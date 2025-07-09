@@ -1274,11 +1274,15 @@ mt7996_mcu_rx_all_sta_info_event(struct mt7996_dev *dev, struct sk_buff *skb)
 			tx_packets = le32_to_cpu(res->msdu_cnt[i].tx_msdu_cnt);
 			rx_packets = le32_to_cpu(res->msdu_cnt[i].rx_msdu_cnt);
 
-			wcid->stats.tx_packets += tx_packets;
+			wcid->stats.tx_mpdu_ok += tx_packets;
+			wcid->stats.tx_attempts += tx_packets;
 			wcid->stats.rx_packets += rx_packets;
 
 			// NOTE:  Seems incorrect to me, at least in STA mode. --Ben
 			// Does not match the tx bytes per ac counts above.
+			// Or maybe, stats mostly come through the TXS path now and they
+			// are read-on-clear??
+
 			//mt76_dbg(&dev->mt76, MTK_DEBUG_WRN,
 			//	 "rx-all-sta-info-event, i: %d wlan-idx: %d  wcid->link_id: %d tx-packets: %d  rx-packets: %d\n",
 			//	 i, wlan_idx, wcid->link_id, tx_packets, rx_packets);
