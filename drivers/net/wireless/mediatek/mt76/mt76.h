@@ -331,7 +331,6 @@ struct mt76_sta_stats {
 	u64 tx_bytes_failed_per_ac[IEEE80211_NUM_ACS];
 
 	/* WED TX */
-	unsigned long tx_packets; /* tx msdu count reported by firmware */
 	unsigned long tx_attempts; /* Counting any retries. unit: MSDU (all frames) */
 	unsigned long tx_retries; /* number of times frames were retried (all frames) */
 	unsigned long tx_failed; /* failed even after retries (all frames) */

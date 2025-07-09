@@ -2619,8 +2619,8 @@ static void mt7996_sta_statistics(struct ieee80211_hw *hw,
 			ilink->rx_packets = msta_link->wcid.stats.rx_packets;
 			ilink->filled |= BIT_ULL(NL80211_STA_INFO_RX_PACKETS);
 
-			mtk_dbg(&dev->mt76, WRN, " link-info stats, link: %d  tx_bytes: %ld rx_bytes: %ld tx_packets: %d rx_packets: %d\n",
-				i, ilink->tx_bytes, ilink->rx_bytes, ilink->tx_packets, ilink->rx_packets);
+			//mtk_dbg(&dev->mt76, WRN, " link-info stats, link: %d  tx_bytes: %ld rx_bytes: %ld tx_packets: %d rx_packets: %d\n",
+			//	i, ilink->tx_bytes, ilink->rx_bytes, ilink->tx_packets, ilink->rx_packets);
 		}
 	}
 
