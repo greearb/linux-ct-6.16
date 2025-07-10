@@ -955,12 +955,7 @@ static int mt7996_add_interface(struct ieee80211_hw *hw,
 
 	vif->offload_flags |= IEEE80211_OFFLOAD_ENCAP_4ADDR;
 
-	/* TODO: This may not be related to the 31 station patch. Investigate further.
-	 *       OWRT tree seems to experience beacon loss regularly, and uses Nullfunc frames
-	 *       to stay associated. Maybe this is a temporary fix from their tree for that...
-	 */
-	if (!dev->sta_omac_repeater_bssid_enable)
-		INIT_DELAYED_WORK(&mvif->beacon_mon_work, mt7996_beacon_mon_work);
+	INIT_DELAYED_WORK(&mvif->beacon_mon_work, mt7996_beacon_mon_work);
 
 	mvif->dev = dev;
 	mvif->sta.vif = mvif;
