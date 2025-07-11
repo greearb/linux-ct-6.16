@@ -193,6 +193,19 @@ static inline int mt7996_get_link_idx(struct mt7996_dev *dev, int omac_idx)
 	for (i = 0; i < ARRAY_SIZE(dev->mt76.vif_mask); i++) {
 		vif_mask = dev->mt76.vif_mask[i];
 
+		/* All non-repeater link IDs are reserved in a block (MT7996_MAX_LINKS_NONREPEATER
+		 * bits long). After that block, repeater links are allocated.
+		 */
+		if (omac_idx >= REPEATER_BSSID_START) {
+			if (i * 64 + 64 < MT7996_MAX_LINKS_NONREPEATER)
+				continue;
+
+			if (i * 64 < MT7996_MAX_LINKS_NONREPEATER) {
+				this_word_bound = MT7996_MAX_LINKS_NONREPEATER - i * 64 - 1;
+				vif_mask |= GENMASK_ULL(this_word_bound, 0);
+			}
+		}
+
 		if (vif_mask == ~0ull)
 			continue;
 
