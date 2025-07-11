@@ -47,6 +47,7 @@
 #define MT_WED_RRO_Q_MSDU_PG(_n)	__MT_WED_RRO_Q(MT76_WED_RRO_Q_MSDU_PG, _n)
 #define MT_WED_RRO_Q_IND	__MT_WED_RRO_Q(MT76_WED_RRO_Q_IND, 0)
 
+#define MT76_MAX_VIFS 192
 
 struct mt76_dev;
 struct mt76_phy;
@@ -1047,7 +1048,7 @@ struct mt76_dev {
 
 	u32 wcid_mask[DIV_ROUND_UP(MT76_N_WCIDS, 32)];
 
-	u64 vif_mask[3];
+	u64 vif_mask[(MT76_MAX_VIFS / 64)];
 
 	struct mt76_wcid global_wcid;
 	struct mt76_wcid __rcu *wcid[MT76_N_WCIDS];

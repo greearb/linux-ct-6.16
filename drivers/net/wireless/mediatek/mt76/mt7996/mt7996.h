@@ -23,6 +23,14 @@
 #define MT7996_WTBL_STA			(MT7996_WTBL_RESERVED - \
 					 mt7996_max_interface_num(dev))
 
+/* The sum of these is a better descriptor of the limits for the hardware, but
+ * is a bit non-intuitive to describe in interface combinations, hence the above
+ * numbers.
+ */
+#define MT7996_MAX_LINKS_REPEATER	(32 * 3) /* In total */
+#define MT7996_MAX_LINKS_NONREPEATER	(8 + 15 * 3) /* In total */
+#define MT7996_MAX_LINKS		(MT7996_MAX_LINKS_REPEATER + MT7996_MAX_LINKS_NONREPEATER)
+
 #define MT7996_WATCHDOG_TIME		(HZ / 10)
 #define MT7996_RESET_TIMEOUT		(30 * HZ)
 
