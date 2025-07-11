@@ -18,6 +18,11 @@
 #define MT76_DRIVER_VERSION "6.15.0-ct"
 extern u32 debug_lvl; /* module param */
 
+static int no_auto_vif = 1;
+module_param(no_auto_vif, int, 0644);
+MODULE_PARM_DESC(no_auto_vif,
+		 "Do not automatically create wlanX on radio load.");
+
 bool mt7996_repeater_sta = 1;
 module_param(mt7996_repeater_sta, bool, 0644);
 MODULE_PARM_DESC(mt7996_repeater_sta,
@@ -592,6 +597,9 @@ mt7996_init_wiphy_band(struct ieee80211_hw *hw, struct mt7996_phy *phy)
 	} else {
 		return;
 	}
+
+	if (no_auto_vif)
+		ieee80211_hw_set(hw, NO_AUTO_VIF);
 
 	dev->radio_phy[n_radios] = phy;
 	radio->freq_range = freq;
