@@ -450,6 +450,13 @@ struct mt7996_mcu_all_sta_info_event {
 			__le32 tx[IEEE80211_NUM_ACS];
 			__le32 rx[IEEE80211_NUM_ACS];
 		} __packed, airtime);
+
+		DECLARE_FLEX_ARRAY(struct {
+			__le16 wlan_idx;
+			u8 rsv[2];
+			__le32 total;
+			__le32 success;
+		} __packed, rx_mpdu_cnt);
 	} __packed;
 } __packed;
 

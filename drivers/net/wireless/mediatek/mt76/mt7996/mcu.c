@@ -1310,8 +1310,6 @@ mt7996_mcu_rx_all_sta_info_event(struct mt7996_dev *dev, struct sk_buff *skb)
 			}
 			break;
 		case UNI_ALL_STA_RX_MPDU_COUNT:
-#if 0
-			// TODO:  Looks like we need later patch to make this work.
 			wlan_idx = le16_to_cpu(res->rx_mpdu_cnt[i].wlan_idx);
 			wcid = rcu_dereference(dev->mt76.wcid[wlan_idx]);
 			if (!wcid)
@@ -1320,7 +1318,6 @@ mt7996_mcu_rx_all_sta_info_event(struct mt7996_dev *dev, struct sk_buff *skb)
 			wcid->stats.rx_mpdus += le32_to_cpu(res->rx_mpdu_cnt[i].total);
 			wcid->stats.rx_fcs_err += le32_to_cpu(res->rx_mpdu_cnt[i].total) -
 						  le32_to_cpu(res->rx_mpdu_cnt[i].success);
-#endif
 			break;
 		default:
 			break;
