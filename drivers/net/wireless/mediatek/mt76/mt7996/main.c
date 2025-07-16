@@ -281,15 +281,17 @@ static int get_omac_idx(enum nl80211_iftype type, struct mt7996_phy *phy)
 				return i - 1;
 		}
 
-		/* Below are disabled by interface limits.
-		 * HW_BSSID_0 is wanted by APs, and extend OMAC links do not currently work.
+		/* Below may want to be re-enabled in the future.
+		 * HW_BSSID_0 is wanted by APs, and so the current limit of 8 HW OMACs means that we
+		 * should not grab it for a vSTA, if possible.
+		 * Extend OMAC links do not currently work, but have in the past.
 		 */
-		if (~mask & BIT(HW_BSSID_0))
-			return HW_BSSID_0;
+		// if (~mask & BIT(HW_BSSID_0))
+		// 	return HW_BSSID_0;
 
-		i = get_free_idx(mask, EXT_BSSID_1, EXT_BSSID_MAX);
-		if (i)
-			return i - 1;
+		// i = get_free_idx(mask, EXT_BSSID_1, EXT_BSSID_MAX);
+		// if (i)
+		// 	return i - 1;
 
 		break;
 	case NL80211_IFTYPE_MONITOR:
