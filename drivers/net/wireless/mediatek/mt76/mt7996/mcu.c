@@ -6983,6 +6983,8 @@ int mt7996_mcu_get_per_sta_info(struct mt76_dev *dev, u16 tag,
 		for (i = 0; i < sta_num; ++i) {
 			wlan_idx = le16_to_cpu(res->rssi[i].wlan_idx);
 			wcid = rcu_dereference(dev->wcid[wlan_idx]);
+			if (!wcid || !wcid->sta || wcid->sta_disabled)
+				continue;
 			msta_link = container_of(wcid, struct mt7996_sta_link, wcid);
 			if (msta_link) {
 				struct mt76_phy *phy = dev->phys[wcid->phy_idx];
@@ -7001,6 +7003,8 @@ int mt7996_mcu_get_per_sta_info(struct mt76_dev *dev, u16 tag,
 		for (i = 0; i < sta_num; ++i) {
 			wlan_idx = le16_to_cpu(res->snr[i].wlan_idx);
 			wcid = rcu_dereference(dev->wcid[wlan_idx]);
+			if (!wcid || !wcid->sta || wcid->sta_disabled)
+				continue;
 			msta_link = container_of(wcid, struct mt7996_sta_link, wcid);
 			if (msta_link)
 				memcpy(msta_link->chain_ack_snr, res->snr[i].val,
@@ -7010,16 +7014,17 @@ int mt7996_mcu_get_per_sta_info(struct mt76_dev *dev, u16 tag,
 	case UNI_PER_STA_PKT_CNT:
 #if 0
 		for (i = 0; i < sta_num; ++i) {
+			u32 retries, drops;
 			wlan_idx = le16_to_cpu(res->msdu_cnt[i].wlan_idx);
 			wcid = rcu_dereference(dev->wcid[wlan_idx]);
-			if (wcid) {
-				u32 retries = le32_to_cpu(res->msdu_cnt[i].tx_retries),
-				    drops = le32_to_cpu(res->msdu_cnt[i].tx_drops);
+			if (!wcid || !wcid->sta || wcid->sta_disabled)
+				continue;
+			retries = le32_to_cpu(res->msdu_cnt[i].tx_retries);
+			drops = le32_to_cpu(res->msdu_cnt[i].tx_drops);
 
-				// TODO:  Support these stats?
-				//wcid->stats.tx_packets_retried += retries;
-				//wcid->stats.tx_packets_failed += retries + drops;
-			}
+			// TODO:  Support these stats?
+			// wcid->stats.tx_packets_retried += retries;
+			// wcid->stats.tx_packets_failed += retries + drops;
 		}
 #endif
 		break;
