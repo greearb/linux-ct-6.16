@@ -534,12 +534,6 @@ mt7996_add_headless_vif(struct mt7996_phy *phy)
 	mlink->wmm_idx = 0;
 	mlink->wcid = &msta_link->wcid;
 
-	ret = mt7996_mcu_add_dev_info(phy, NULL /* unused */,
-				      link_conf /* needed for MAC addr */,
-				      mlink, true);
-	if (ret)
-		goto error;
-
 	dev->mt76.vif_mask[mlink->idx / 64] |= BIT_ULL(mlink->idx % 64);
 
 	idx = MT7996_WTBL_RESERVED - mlink->idx;
@@ -549,6 +543,12 @@ mt7996_add_headless_vif(struct mt7996_phy *phy)
 	msta_link->wcid.link_id = link_conf->link_id;
 	msta_link->wcid.tx_info |= MT_WCID_TX_INFO_SET;
 	mt76_wcid_init(&msta_link->wcid, band_idx);
+
+	ret = mt7996_mcu_add_dev_info(phy, NULL /* unused */,
+				      link_conf /* needed for MAC addr */,
+				      mlink, true);
+	if (ret)
+		goto error;
 
 	link->bpcc = 0;
 	memset(link->tsf_offset, 0, sizeof(link->tsf_offset));
