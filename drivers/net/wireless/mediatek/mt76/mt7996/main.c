@@ -633,6 +633,7 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 
 	mlink = &link->mt76;
 	msta_link = &link->msta_link;
+	mt76_wcid_init(&msta_link->wcid, band_idx);
 
 	if (phy->omac_mask == 0xFFFFFFFF)
 		phy->omac_mask = 0;
@@ -701,7 +702,6 @@ int mt7996_vif_link_add(struct mt76_phy *mphy, struct ieee80211_vif *vif,
 	msta_link->wcid.idx = idx;
 	msta_link->wcid.link_id = link_conf->link_id;
 	msta_link->wcid.tx_info |= MT_WCID_TX_INFO_SET;
-	mt76_wcid_init(&msta_link->wcid, band_idx);
 
 	ret = mt7996_mcu_add_dev_info(phy, vif, link_conf, mlink, true);
 	if (ret)
