@@ -1048,7 +1048,7 @@ struct mt76_dev {
 
 	u32 wcid_mask[DIV_ROUND_UP(MT76_N_WCIDS, 32)];
 
-	u64 vif_mask[(MT76_MAX_VIFS / 64)];
+	u64 vif_mask[DIV_ROUND_UP(MT76_MAX_VIFS, 64)];
 
 	struct mt76_wcid global_wcid;
 	struct mt76_wcid __rcu *wcid[MT76_N_WCIDS];
