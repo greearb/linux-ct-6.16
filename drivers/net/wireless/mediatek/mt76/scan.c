@@ -130,20 +130,35 @@ void mt76_scan_work(struct work_struct *work)
 	}
 
 	if (dev->scan.chan && phy->num_sta) {
+		mt76_dbg(dev, MT76_DBG_SCAN, "%s: moving back to main chandef freq: %d\n",
+			 __func__, phy->main_chandef.chan ? phy->main_chandef.chan->center_freq : -1);
 		dev->scan.chan = NULL;
 		mt76_set_channel(phy, &phy->main_chandef, false);
 		goto out;
 	}
 
 	dev->scan.chan = req->channels[dev->scan.chan_idx++];
-	cfg80211_chandef_create(&chandef, dev->scan.chan, NL80211_CHAN_HT20);
-	mt76_set_channel(phy, &chandef, true);
 
-	mt76_dbg(dev, MT76_DBG_SCAN, "%s: moving to chan_idx: %d\n",
-		 __func__, dev->scan.chan_idx);
+	/* If we are scanning on current mgt channel, we do not need
+	 * to go off-channel.
+	 */
+	if (!dev->scan.chan || !phy->main_chandef.chan ||
+	    dev->scan.chan->center_freq != phy->main_chandef.chan->center_freq) {
+		cfg80211_chandef_create(&chandef, dev->scan.chan, NL80211_CHAN_HT20);
+		mt76_set_channel(phy, &chandef, true);
+		mt76_dbg(dev, MT76_DBG_SCAN, "%s: moving freq: %d for chan_idx: %d\n",
+			 __func__, dev->scan.chan ? dev->scan.chan->center_freq : -1,
+			 dev->scan.chan_idx);
 
-	if (!req->n_ssids ||
-	    chandef.chan->flags & (IEEE80211_CHAN_NO_IR | IEEE80211_CHAN_RADAR))
+		if (chandef.chan->flags & (IEEE80211_CHAN_NO_IR | IEEE80211_CHAN_RADAR))
+			goto out;
+
+	} else {
+		mt76_dbg(dev, MT76_DBG_SCAN, "%s: scanning on-channel for freq: %d for chan_idx: %d\n",
+			 __func__, dev->scan.chan->center_freq, dev->scan.chan_idx);
+	}
+
+	if (!req->n_ssids)
 		goto out;
 
 	duration = HZ / 16; /* ~60 ms */
