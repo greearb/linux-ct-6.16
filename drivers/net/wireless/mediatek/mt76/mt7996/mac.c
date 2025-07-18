@@ -471,6 +471,49 @@ mt7996_wed_check_ppe(struct mt7996_dev *dev, struct mt76_queue *q,
 				 FIELD_GET(MT_DMA_PPE_ENTRY, info));
 }
 
+struct mt7996_rx_beacon_worker_info {
+	struct ieee80211_hdr *hdr;
+	struct mt7996_phy *phy;
+};
+
+static void
+mt7996_rx_beacon_worker(void *data, struct ieee80211_sta *sta)
+{
+	struct mt7996_rx_beacon_worker_info *info = data;
+	struct ieee80211_hdr *hdr = info->hdr;
+	struct mt7996_phy *phy = info->phy;
+	struct mt7996_sta *msta = (struct mt7996_sta *)sta->drv_priv;
+	struct ieee80211_link_sta *link;
+	unsigned long valid_links = sta->valid_links ?: BIT(0);
+	int link_id;
+
+	if (!msta->vif)
+		return;
+
+	/* No need to check links if beacon matches the station.
+	 * May need this logic if MLD address is ever used as TA for beacons.
+	 */
+	if (ether_addr_equal(sta->addr, hdr->addr2)) {
+		mt7996_rx_beacon_hint(phy, msta->vif);
+		return;
+	}
+
+	rcu_read_lock();
+
+	for_each_set_bit(link_id, &valid_links, IEEE80211_MLD_MAX_NUM_LINKS) {
+		link = rcu_dereference(sta->link[link_id]);
+
+		/* Filter beacons not coming from this link */
+		if (!link || !ether_addr_equal(link->addr, hdr->addr2))
+			continue;
+
+		mt7996_rx_beacon_hint(phy, msta->vif);
+		break;
+	}
+
+	rcu_read_unlock();
+}
+
 static int
 mt7996_mac_fill_rx(struct mt7996_dev *dev, enum mt76_rxq_id q,
 		   struct sk_buff *skb, u32 *info)
@@ -811,18 +854,13 @@ mt7996_mac_fill_rx(struct mt7996_dev *dev, enum mt76_rxq_id q,
 				*qos &= ~IEEE80211_QOS_CTL_A_MSDU_PRESENT;
 		} else if (ieee80211_is_beacon(fc)) {
 			struct ieee80211_hw *hw = phy->mt76->hw;
-			struct ieee80211_sta *sta;
+			struct mt7996_rx_beacon_worker_info beacon_worker_info = {
+				.hdr = hdr,
+				.phy = phy
+			};
 
-			sta = ieee80211_find_sta_by_link_addrs(hw, hdr->addr2, NULL, NULL);
-			if (!sta)
-				sta = ieee80211_find_sta_by_ifaddr(hw, hdr->addr2, NULL);
-
-			if (sta) {
-				msta = (struct mt7996_sta *)sta->drv_priv;
-
-				if (msta && msta->vif)
-					mt7996_rx_beacon_hint(phy, msta->vif);
-			}
+			ieee80211_iterate_stations_atomic(hw, mt7996_rx_beacon_worker,
+							  &beacon_worker_info);
 		}
 		skb_set_mac_header(skb, (unsigned char *)hdr - skb->data);
 
@@ -3756,8 +3794,9 @@ void mt7996_beacon_mon_work(struct work_struct *work)
 			timeout = mvif->beacon_received_time[band_idx] + loss_duration;
 			if (time_after_eq(jiffies, timeout)) {
 				mt76_dbg(&dev->mt76, MT76_DBG_STA,
-					 "%s: link %d: detect %d beacon loss\n",
-					 __func__, link_id, MT7996_MAX_BEACON_LOSS);
+					 "%s: link %d: band %d: detect %d beacon loss\n",
+					 __func__, link_id, band_idx,
+					 MT7996_MAX_BEACON_LOSS);
 				state = MON_STATE_SEND_PROBE;
 			}
 		}
